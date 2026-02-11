@@ -1,60 +1,76 @@
 // client/src/pages/Gallery.jsx
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Filter, Grid, List } from 'lucide-react';
-import { useArtworks } from '../hooks/useArtworks';
+import { Filter, Grid, LayoutGrid, ShoppingBag } from 'lucide-react';
+import { useCart } from '../hooks/useCart';
+import { sampleArtworks } from '../data/sampleArtworks';
 
 const Gallery = () => {
   const [filters, setFilters] = useState({
     category: '',
-    status: 'AVAILABLE',
-    sort: 'createdAt',
-    order: 'desc',
+    status: '',
+    sort: 'featured',
   });
   const [viewMode, setViewMode] = useState('grid');
+  const { addToCart, isInCart } = useCart();
 
-  const { data, isLoading, error } = useArtworks(filters);
+  // Filter and sort artworks
+  const filteredArtworks = sampleArtworks.filter(artwork => {
+    if (filters.category && artwork.category !== filters.category) return false;
+    if (filters.status === 'AVAILABLE' && artwork.status !== 'AVAILABLE') return false;
+    return true;
+  }).sort((a, b) => {
+    if (filters.sort === 'featured') return b.featured - a.featured;
+    if (filters.sort === 'price-low') return a.price - b.price;
+    if (filters.sort === 'price-high') return b.price - a.price;
+    if (filters.sort === 'title') return a.title.localeCompare(b.title);
+    return 0;
+  });
 
   const categories = [
-    { value: '', label: 'All Categories' },
+    { value: '', label: 'All Works' },
     { value: 'PAINTING', label: 'Paintings' },
     { value: 'DRAWING', label: 'Drawings' },
     { value: 'DIGITAL', label: 'Digital Art' },
     { value: 'MIXED_MEDIA', label: 'Mixed Media' },
   ];
 
-  if (isLoading) {
-    return (
-      <div className="pt-20 min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-citadel-gold"></div>
-      </div>
-    );
-  }
-
   return (
-    <div className="pt-20 min-h-screen">
+    <div className="pt-20 min-h-screen bg-stone-50">
       {/* Header */}
-      <section className="py-16 bg-citadel-charcoal">
-        <div className="max-w-7xl mx-auto px-4 text-center">
-          <h1 className="text-4xl md:text-5xl font-serif text-white mb-4">
+      <section className="py-16 bg-white border-b border-stone-200">
+        <div className="max-w-7xl mx-auto px-6 text-center">
+          <p 
+            className="text-xs tracking-widest uppercase text-amber-700 mb-4"
+            style={{ letterSpacing: '0.2em' }}
+          >
+            The Collection
+          </p>
+          <h1 
+            className="text-4xl md:text-5xl text-stone-900 mb-4"
+            style={{ fontFamily: "'Playfair Display', serif", fontWeight: 400 }}
+          >
             Gallery
           </h1>
-          <p className="text-gray-400 text-lg max-w-2xl mx-auto">
-            Explore the complete collection of original artworks
+          <p className="text-stone-600 max-w-2xl mx-auto">
+            Explore our curated collection of original artworks, each piece selected 
+            for its exceptional quality and artistic merit.
           </p>
         </div>
       </section>
 
       {/* Filters */}
-      <section className="py-8 bg-citadel-dark border-b border-citadel-gold/20">
-        <div className="max-w-7xl mx-auto px-4">
+      <section className="py-6 bg-white border-b border-stone-200 sticky top-20 z-40">
+        <div className="max-w-7xl mx-auto px-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-4">
-              <Filter size={20} className="text-citadel-gold" />
+              <Filter size={18} className="text-amber-700" />
               <select
                 value={filters.category}
                 onChange={(e) => setFilters({ ...filters, category: e.target.value })}
-                className="bg-citadel-charcoal text-white px-4 py-2 rounded border border-citadel-gold/30"
+                className="bg-stone-50 text-stone-700 px-4 py-2 border border-stone-200 
+                         focus:outline-none focus:border-amber-600 text-sm"
               >
                 {categories.map((cat) => (
                   <option key={cat.value} value={cat.value}>
@@ -65,93 +81,134 @@ const Gallery = () => {
               <select
                 value={filters.sort}
                 onChange={(e) => setFilters({ ...filters, sort: e.target.value })}
-                className="bg-citadel-charcoal text-white px-4 py-2 rounded border border-citadel-gold/30"
+                className="bg-stone-50 text-stone-700 px-4 py-2 border border-stone-200 
+                         focus:outline-none focus:border-amber-600 text-sm"
               >
-                <option value="createdAt">Newest First</option>
-                <option value="price">Price: Low to High</option>
-                <option value="title">Title: A to Z</option>
+                <option value="featured">Featured</option>
+                <option value="price-low">Price: Low to High</option>
+                <option value="price-high">Price: High to Low</option>
+                <option value="title">Alphabetical</option>
               </select>
             </div>
             
             <div className="flex items-center gap-2">
+              <span className="text-stone-500 text-sm mr-2">
+                {filteredArtworks.length} works
+              </span>
               <button
                 onClick={() => setViewMode('grid')}
-                className={`p-2 ${viewMode === 'grid' ? 'text-citadel-gold' : 'text-gray-400'}`}
+                className={`p-2 transition-colors ${
+                  viewMode === 'grid' ? 'text-amber-700' : 'text-stone-400 hover:text-stone-600'
+                }`}
               >
                 <Grid size={20} />
               </button>
               <button
-                onClick={() => setViewMode('list')}
-                className={`p-2 ${viewMode === 'list' ? 'text-citadel-gold' : 'text-gray-400'}`}
+                onClick={() => setViewMode('large')}
+                className={`p-2 transition-colors ${
+                  viewMode === 'large' ? 'text-amber-700' : 'text-stone-400 hover:text-stone-600'
+                }`}
               >
-                <List size={20} />
+                <LayoutGrid size={20} />
               </button>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Artworks Grid */}
-      <section className="py-16">
-        <div className="max-w-7xl mx-auto px-4">
-          {data?.artworks?.length > 0 ? (
-            <div className={`grid ${viewMode === 'grid' 
-              ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3' 
-              : 'grid-cols-1'} gap-8`}
-            >
-              {data.artworks.map((artwork, index) => (
-                <motion.div
+      {/* Artworks */}
+      <section className="py-12">
+        <div className="max-w-7xl mx-auto px-6">
+          {filteredArtworks.length > 0 ? (
+            <div className={`grid gap-8 ${
+              viewMode === 'grid' 
+                ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3' 
+                : 'grid-cols-1 md:grid-cols-2'
+            }`}>
+              {filteredArtworks.map((artwork, index) => (
+                <motion.article
                   key={artwork.id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                  className="group cursor-pointer"
+                  transition={{ delay: index * 0.05, duration: 0.5 }}
+                  className="group"
                 >
-                  <a href={`/artwork/${artwork.id}`}>
-                    <div className="relative overflow-hidden mb-4">
-                      <img
-                        src={artwork.images?.[0]?.url || '/api/placeholder/400/500'}
-                        alt={artwork.title}
-                        className="w-full h-[400px] object-cover transition-transform duration-500 
-                                 group-hover:scale-105"
-                      />
-                      <div className="absolute inset-0 bg-citadel-dark/0 group-hover:bg-citadel-dark/40 
-                                    transition-colors duration-300 flex items-center justify-center">
-                        <span className="text-white opacity-0 group-hover:opacity-100 
-                                       transition-opacity duration-300">
-                          View Details
-                        </span>
+                  <Link to={`/artwork/${artwork.id}`}>
+                    <div className="relative overflow-hidden bg-stone-100 mb-4">
+                      <div className={viewMode === 'grid' ? 'aspect-[3/4]' : 'aspect-[4/3]'}>
+                        <img
+                          src={artwork.images[0]}
+                          alt={artwork.title}
+                          className="w-full h-full object-cover transition-transform duration-700 
+                                   group-hover:scale-105"
+                        />
                       </div>
+                      
+                      {/* Hover Actions */}
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 
+                                    transition-all duration-300 flex items-center justify-center">
+                        <div className="flex gap-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                          <span className="bg-white text-stone-900 px-4 py-2 text-xs tracking-widest uppercase">
+                            View Details
+                          </span>
+                        </div>
+                      </div>
+                      
+                      {/* Status Badge */}
+                      {artwork.status === 'SOLD' && (
+                        <div className="absolute top-4 left-4">
+                          <span className="bg-stone-900 text-white px-3 py-1 text-xs tracking-wider uppercase">
+                            Sold
+                          </span>
+                        </div>
+                      )}
                     </div>
-                    <h3 className="text-lg font-serif text-white mb-1">{artwork.title}</h3>
-                    <p className="text-gray-400 text-sm mb-2">{artwork.medium}</p>
-                    <p className="text-citadel-gold">${parseFloat(artwork.price).toLocaleString()}</p>
-                  </a>
-                </motion.div>
+                  </Link>
+                  
+                  {/* Details */}
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 
+                        className="text-lg text-stone-900 mb-1 group-hover:text-amber-700 transition-colors"
+                        style={{ fontFamily: "'Playfair Display', serif" }}
+                      >
+                        {artwork.title}
+                      </h3>
+                      <p className="text-stone-500 text-sm">{artwork.medium}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-amber-700 font-medium">
+                        {artwork.status === 'SOLD' 
+                          ? 'Sold' 
+                          : new Intl.NumberFormat('en-US', {
+                              style: 'currency',
+                              currency: 'USD',
+                              minimumFractionDigits: 0,
+                            }).format(artwork.price)
+                        }
+                      </p>
+                      {artwork.status === 'AVAILABLE' && (
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            addToCart(artwork);
+                          }}
+                          disabled={isInCart(artwork.id)}
+                          className="mt-2 text-xs text-stone-500 hover:text-amber-700 
+                                   disabled:text-stone-300 transition-colors flex items-center gap-1"
+                        >
+                          <ShoppingBag size={14} />
+                          {isInCart(artwork.id) ? 'Added' : 'Add to Cart'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </motion.article>
               ))}
             </div>
           ) : (
-            <div className="text-center py-12">
-              <p className="text-gray-400">No artworks found</p>
-            </div>
-          )}
-
-          {/* Pagination */}
-          {data?.pagination && data.pagination.pages > 1 && (
-            <div className="flex justify-center mt-12 gap-2">
-              {[...Array(data.pagination.pages)].map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => setFilters({ ...filters, page: i + 1 })}
-                  className={`px-4 py-2 ${
-                    data.pagination.page === i + 1
-                      ? 'bg-citadel-gold text-citadel-dark'
-                      : 'bg-citadel-charcoal text-white hover:bg-citadel-gold/20'
-                  }`}
-                >
-                  {i + 1}
-                </button>
-              ))}
+            <div className="text-center py-24">
+              <p className="text-stone-500">No artworks found matching your criteria.</p>
             </div>
           )}
         </div>

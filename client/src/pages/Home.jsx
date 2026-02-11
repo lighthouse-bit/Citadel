@@ -1,93 +1,109 @@
 // client/src/pages/Home.jsx
 import { Link } from 'react-router-dom';
-import { motion, useScroll, useTransform } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { ArrowRight, Star } from 'lucide-react';
 import { getFeaturedArtworks } from '../data/sampleArtworks';
 
 const Home = () => {
   const featuredWorks = getFeaturedArtworks();
-  const { scrollY } = useScroll();
-  const heroParallax = useTransform(scrollY, [0, 500], [0, -50]);
 
   return (
-    <div className="bg-luxury-cream">
-      {/* Hero Section - Refined Luxury */}
-      <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
-        {/* Parallax Background */}
-        <motion.div 
-          style={{ y: heroParallax }}
+    <div className="bg-stone-50">
+      {/* Hero Section - With solid dark fallback */}
+      <section 
+        className="relative min-h-screen flex items-center justify-center overflow-hidden"
+        style={{ backgroundColor: '#1a1a1a' }} /* Dark fallback */
+      >
+        {/* Background Image */}
+        <div 
           className="absolute inset-0"
-        >
-          <div 
-            className="absolute inset-0 bg-cover bg-center"
-            style={{ 
-              backgroundImage: 'url(https://images.unsplash.com/photo-1578662996442-48f60103fc81?w=1920&h=1080&fit=crop)',
-              filter: 'brightness(0.4) contrast(1.1)'
-            }}
-          />
-        </motion.div>
+          style={{
+            backgroundImage: 'url(https://images.unsplash.com/photo-1578662996442-48f60103fc81?w=1920&h=1080&fit=crop)',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat',
+          }}
+        />
         
-        {/* Gradient Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-b from-luxury-charcoal/40 via-transparent to-luxury-charcoal/60" />
+        {/* Dark Overlay - Made stronger */}
+        <div className="absolute inset-0 bg-black/70" />
+        
+        {/* Gradient Overlay for extra depth */}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/30 to-black/70" />
         
         {/* Content */}
-        <div className="relative z-10 text-center px-6 max-w-5xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 1, ease: [0.25, 0.1, 0.25, 1] }}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8 }}
+          className="relative z-10 text-center px-4 max-w-5xl mx-auto"
+        >
+          {/* Subtitle */}
+          <p 
+            className="text-amber-400 mb-8 font-sans text-sm"
+            style={{ letterSpacing: '0.25em', textTransform: 'uppercase' }}
           >
-            {/* Subtitle */}
-            <p className="font-sans text-xs tracking-luxury uppercase text-luxury-champagne mb-8">
-              Exclusive Fine Art Collection
-            </p>
-            
-            {/* Main Title */}
-            <h1 className="font-display text-display-lg md:text-[5.5rem] lg:text-[7rem] 
-                         text-white leading-[0.9] mb-8">
-              CITADEL
-            </h1>
-            
-            {/* Tagline */}
-            <p className="font-heading text-xl md:text-2xl text-luxury-cream/90 
-                       font-light italic mb-12 max-w-2xl mx-auto">
-              Where Artistry Meets Timeless Elegance
-            </p>
-            
-            {/* CTA Buttons */}
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link 
-                to="/gallery" 
-                className="btn-luxury group"
-              >
-                <span>Explore Collection</span>
-                <ArrowRight 
-                  size={16} 
-                  className="ml-2 transition-transform duration-300 group-hover:translate-x-1" 
-                />
-              </Link>
-              <Link 
-                to="/commission" 
-                className="btn-luxury-outline"
-              >
-                <span>Commission Artwork</span>
-              </Link>
-            </div>
-          </motion.div>
-        </div>
+            Exclusive Fine Art Collection
+          </p>
+          
+          {/* Main Title */}
+          <h1 
+            className="text-white mb-8"
+            style={{ 
+              fontFamily: "'Playfair Display', serif", 
+              fontWeight: 400,
+              fontSize: 'clamp(3rem, 10vw, 8rem)',
+              lineHeight: 1,
+            }}
+          >
+            CITADEL
+          </h1>
+          
+          {/* Tagline */}
+          <p 
+            className="text-stone-300 mb-12 max-w-2xl mx-auto text-xl md:text-2xl"
+            style={{ fontFamily: "'Playfair Display', serif", fontStyle: 'italic' }}
+          >
+            Where Artistry Meets Timeless Elegance
+          </p>
+          
+          {/* CTA Buttons */}
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Link 
+              to="/gallery" 
+              className="inline-flex items-center justify-center px-10 py-4 
+                       bg-white text-stone-900 text-xs font-medium uppercase
+                       hover:bg-amber-400 transition-all duration-300"
+              style={{ letterSpacing: '0.15em' }}
+            >
+              Explore Collection
+              <ArrowRight size={16} className="ml-2" />
+            </Link>
+            <Link 
+              to="/commission" 
+              className="inline-flex items-center justify-center px-10 py-4 
+                       bg-transparent text-white text-xs font-medium uppercase
+                       border border-white/50 hover:border-amber-400 hover:text-amber-400
+                       transition-all duration-300"
+              style={{ letterSpacing: '0.15em' }}
+            >
+              Commission Artwork
+            </Link>
+          </div>
+        </motion.div>
 
-        {/* Scroll Indicator - Elegant */}
+        {/* Scroll Indicator */}
         <motion.div 
           animate={{ y: [0, 8, 0] }}
           transition={{ repeat: Infinity, duration: 2.5, ease: "easeInOut" }}
           className="absolute bottom-12 left-1/2 -translate-x-1/2"
         >
-          <div className="w-[1px] h-16 bg-gradient-to-b from-transparent via-luxury-champagne to-transparent" />
+          <div className="w-px h-16 bg-gradient-to-b from-transparent via-amber-400/50 to-transparent" />
         </motion.div>
       </section>
 
-      {/* Introduction Section - Editorial Style */}
-      <section className="py-24 px-6">
+      {/* Introduction Section */}
+      <section className="py-24 px-6 bg-white">
         <div className="max-w-6xl mx-auto">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
             <motion.div
@@ -95,23 +111,37 @@ const Home = () => {
               whileInView={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.8 }}
             >
-              <p className="luxury-subheading mb-6">The Atelier</p>
-              <h2 className="font-display text-display mb-8 text-luxury-charcoal">
+              <p 
+                className="text-amber-700 mb-6 font-sans text-xs"
+                style={{ letterSpacing: '0.2em', textTransform: 'uppercase' }}
+              >
+                The Atelier
+              </p>
+              <h2 
+                className="text-stone-900 mb-8"
+                style={{ 
+                  fontFamily: "'Playfair Display', serif", 
+                  fontWeight: 400,
+                  fontSize: 'clamp(2rem, 5vw, 3.5rem)',
+                  lineHeight: 1.2,
+                }}
+              >
                 Curated with
-                <span className="block text-luxury-gold">Distinction</span>
+                <span className="block text-amber-700">Distinction</span>
               </h2>
-              <p className="luxury-paragraph mb-6">
+              <p className="text-stone-600 mb-6 leading-relaxed">
                 Each piece in the Citadel collection represents a convergence of technical mastery 
                 and emotional depth, carefully selected to resonate with the discerning collector.
               </p>
-              <p className="luxury-paragraph mb-8">
+              <p className="text-stone-600 mb-8 leading-relaxed">
                 Our atelier celebrates the timeless dialogue between artist and medium, 
                 presenting works that transcend mere decoration to become heirlooms of tomorrow.
               </p>
               <Link 
                 to="/about" 
-                className="inline-flex items-center font-sans text-xs tracking-luxury 
-                         uppercase text-luxury-bronze hover:text-luxury-gold transition-colors duration-300"
+                className="inline-flex items-center text-amber-700 hover:text-amber-600 
+                         transition-colors duration-300 font-sans text-xs"
+                style={{ letterSpacing: '0.15em', textTransform: 'uppercase' }}
               >
                 Discover Our Story
                 <ArrowRight size={14} className="ml-2" />
@@ -124,29 +154,41 @@ const Home = () => {
               transition={{ duration: 0.8 }}
               className="relative"
             >
-              <div className="aspect-[3/4] overflow-hidden">
+              <div className="aspect-[3/4] overflow-hidden bg-stone-200">
                 <img
                   src="https://images.unsplash.com/photo-1578321272176-b7bbc0679853?w=800&h=1000&fit=crop"
                   alt="Atelier"
                   className="w-full h-full object-cover"
+                  loading="lazy"
                 />
               </div>
-              {/* Decorative frame */}
-              <div className="absolute inset-4 border border-luxury-gold/30 pointer-events-none" />
+              <div className="absolute inset-4 border border-amber-600/30 pointer-events-none" />
             </motion.div>
           </div>
         </div>
       </section>
 
-      {/* Featured Collection - Gallery Style */}
-      <section className="py-24 bg-white">
+      {/* Featured Collection */}
+      <section className="py-24 bg-stone-100">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-16">
-            <p className="luxury-subheading mb-4">Featured Works</p>
-            <h2 className="font-display text-display text-luxury-charcoal mb-6">
+            <p 
+              className="text-amber-700 mb-4 font-sans text-xs"
+              style={{ letterSpacing: '0.2em', textTransform: 'uppercase' }}
+            >
+              Featured Works
+            </p>
+            <h2 
+              className="text-stone-900 mb-6"
+              style={{ 
+                fontFamily: "'Playfair Display', serif", 
+                fontWeight: 400,
+                fontSize: 'clamp(2rem, 5vw, 3rem)',
+              }}
+            >
               The Signature Collection
             </h2>
-            <div className="luxury-divider max-w-xs mx-auto" />
+            <div className="h-px bg-gradient-to-r from-transparent via-amber-600/40 to-transparent max-w-xs mx-auto" />
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -159,35 +201,39 @@ const Home = () => {
                 className="group"
               >
                 <Link to={`/artwork/${work.id}`}>
-                  <div className="relative overflow-hidden bg-luxury-bone mb-6">
+                  <div className="relative overflow-hidden bg-stone-200 mb-6">
                     <div className="aspect-[3/4]">
                       <img
                         src={work.images[0]}
                         alt={work.title}
                         className="w-full h-full object-cover transition-transform duration-700 
                                  group-hover:scale-105"
+                        loading="lazy"
                       />
                     </div>
                     
-                    {/* Overlay on hover */}
-                    <div className="absolute inset-0 bg-luxury-charcoal/0 group-hover:bg-luxury-charcoal/40 
+                    {/* Hover Overlay */}
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 
                                   transition-all duration-500 flex items-end">
                       <div className="w-full p-6 translate-y-full group-hover:translate-y-0 
                                     transition-transform duration-500">
-                        <p className="font-sans text-xs tracking-luxury uppercase text-white/90 mb-2">
+                        <p 
+                          className="text-white/90 mb-2 text-xs"
+                          style={{ letterSpacing: '0.15em', textTransform: 'uppercase' }}
+                        >
                           {work.medium}
                         </p>
-                        <p className="font-body text-white/90">
-                          {work.size}
-                        </p>
+                        <p className="text-white/90">{work.size}</p>
                       </div>
                     </div>
                     
                     {/* Status Badge */}
                     {work.status === 'SOLD' && (
                       <div className="absolute top-4 left-4">
-                        <span className="bg-luxury-charcoal/90 text-white px-3 py-1 
-                                       font-sans text-[10px] tracking-luxury uppercase">
+                        <span 
+                          className="bg-stone-900 text-white px-3 py-1 text-xs"
+                          style={{ letterSpacing: '0.1em', textTransform: 'uppercase' }}
+                        >
                           Private Collection
                         </span>
                       </div>
@@ -196,19 +242,20 @@ const Home = () => {
                   
                   {/* Artwork Details */}
                   <div className="text-center">
-                    <h3 className="font-heading text-heading text-luxury-charcoal mb-2 
-                                 group-hover:text-luxury-gold transition-colors duration-300">
+                    <h3 
+                      className="text-stone-900 mb-2 group-hover:text-amber-700 transition-colors duration-300 text-xl"
+                      style={{ fontFamily: "'Playfair Display', serif" }}
+                    >
                       {work.title}
                     </h3>
-                    <p className="font-sans text-sm text-luxury-bronze">
+                    <p className="text-amber-700 text-sm font-medium">
                       {work.status === 'SOLD' 
                         ? 'Acquired' 
-                        : `${new Intl.NumberFormat('en-US', {
+                        : new Intl.NumberFormat('en-US', {
                             style: 'currency',
                             currency: 'USD',
                             minimumFractionDigits: 0,
-                            maximumFractionDigits: 0,
-                          }).format(work.price)}`
+                          }).format(work.price)
                       }
                     </p>
                   </div>
@@ -218,33 +265,39 @@ const Home = () => {
           </div>
           
           <div className="text-center mt-16">
-            <Link to="/gallery" className="btn-luxury-gold">
-              <span>View Full Collection</span>
+            <Link 
+              to="/gallery" 
+              className="inline-flex items-center justify-center px-12 py-4 
+                       bg-amber-600 text-white text-xs font-medium uppercase
+                       hover:bg-amber-700 transition-all duration-300"
+              style={{ letterSpacing: '0.15em' }}
+            >
+              View Full Collection
               <ArrowRight size={16} className="ml-2" />
             </Link>
           </div>
         </div>
       </section>
 
-      {/* Services - Minimal Luxury */}
-      <section className="py-24 bg-luxury-bone">
+      {/* Services */}
+      <section className="py-24 bg-white">
         <div className="max-w-6xl mx-auto px-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
             {[
               {
+                number: '01',
                 title: 'Curated Collection',
-                description: 'Exceptional artworks selected for the discerning collector',
-                icon: '01'
+                description: 'Exceptional artworks selected for the discerning collector'
               },
               {
+                number: '02',
                 title: 'Bespoke Commissions',
-                description: 'Custom pieces tailored to your vision and space',
-                icon: '02'
+                description: 'Custom pieces tailored to your vision and space'
               },
               {
+                number: '03',
                 title: 'White Glove Service',
-                description: 'Personalized consultation and worldwide delivery',
-                icon: '03'
+                description: 'Personalized consultation and worldwide delivery'
               }
             ].map((service, index) => (
               <motion.div
@@ -254,13 +307,19 @@ const Home = () => {
                 transition={{ delay: index * 0.2 }}
                 className="text-center"
               >
-                <span className="font-display text-5xl text-luxury-gold/30 mb-6 block">
-                  {service.icon}
+                <span 
+                  className="text-amber-600/30 mb-6 block text-6xl"
+                  style={{ fontFamily: "'Playfair Display', serif" }}
+                >
+                  {service.number}
                 </span>
-                <h3 className="font-heading text-heading-lg text-luxury-charcoal mb-4">
+                <h3 
+                  className="text-stone-900 mb-4 text-2xl"
+                  style={{ fontFamily: "'Playfair Display', serif" }}
+                >
                   {service.title}
                 </h3>
-                <p className="luxury-paragraph">
+                <p className="text-stone-600 leading-relaxed">
                   {service.description}
                 </p>
               </motion.div>
@@ -269,49 +328,79 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Testimonial Section */}
-      <section className="py-24 bg-white">
+      {/* Testimonial */}
+      <section className="py-24 bg-stone-100">
         <div className="max-w-4xl mx-auto px-6 text-center">
           <div className="flex justify-center mb-6">
             {[...Array(5)].map((_, i) => (
-              <Star key={i} size={20} className="text-luxury-gold fill-luxury-gold" />
+              <Star key={i} size={18} className="text-amber-500 fill-amber-500" />
             ))}
           </div>
-          <blockquote className="font-heading text-2xl text-luxury-charcoal mb-8 italic">
+          <blockquote 
+            className="text-stone-800 mb-8 leading-relaxed text-2xl md:text-3xl"
+            style={{ fontFamily: "'Playfair Display', serif", fontStyle: 'italic' }}
+          >
             "The Citadel collection represents the pinnacle of contemporary fine art. 
             Each piece is a masterwork that transforms our living space into a gallery of distinction."
           </blockquote>
-          <cite className="font-sans text-xs tracking-luxury uppercase text-luxury-bronze">
+          <cite 
+            className="text-amber-700 not-italic font-sans text-xs"
+            style={{ letterSpacing: '0.15em', textTransform: 'uppercase' }}
+          >
             — Eleanor Whitmore, Private Collector
           </cite>
         </div>
       </section>
 
-      {/* CTA Section - Refined */}
-      <section className="py-32 relative overflow-hidden">
+      {/* CTA Section - With solid dark fallback */}
+      <section 
+        className="py-32 relative overflow-hidden"
+        style={{ backgroundColor: '#1a1a1a' }}
+      >
+        {/* Background Image */}
         <div 
-          className="absolute inset-0 bg-cover bg-center"
+          className="absolute inset-0"
           style={{
             backgroundImage: 'url(https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=1920&h=600&fit=crop)',
-            filter: 'brightness(0.3)'
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
           }}
         />
-        <div className="absolute inset-0 bg-luxury-charcoal/60" />
+        
+        {/* Dark Overlay */}
+        <div className="absolute inset-0 bg-black/75" />
         
         <div className="relative z-10 max-w-4xl mx-auto px-6 text-center">
-          <p className="font-sans text-xs tracking-luxury uppercase text-luxury-champagne mb-6">
+          <p 
+            className="text-amber-400 mb-6 font-sans text-xs"
+            style={{ letterSpacing: '0.2em', textTransform: 'uppercase' }}
+          >
             Bespoke Artistry
           </p>
-          <h2 className="font-display text-display text-white mb-8">
+          <h2 
+            className="text-white mb-8"
+            style={{ 
+              fontFamily: "'Playfair Display', serif", 
+              fontWeight: 400,
+              fontSize: 'clamp(2rem, 5vw, 3.5rem)',
+              lineHeight: 1.2,
+            }}
+          >
             Commission Your
-            <span className="block text-luxury-gold">Masterpiece</span>
+            <span className="block text-amber-400">Masterpiece</span>
           </h2>
-          <p className="font-body text-lg text-white/90 mb-12 max-w-2xl mx-auto">
+          <p className="text-stone-300 mb-12 max-w-2xl mx-auto leading-relaxed text-lg">
             Collaborate with our artists to create a unique piece that reflects 
             your personal aesthetic and complements your collection.
           </p>
-          <Link to="/commission" className="btn-luxury-gold">
-            <span>Begin Your Commission</span>
+          <Link 
+            to="/commission" 
+            className="inline-flex items-center justify-center px-12 py-4 
+                     bg-amber-500 text-stone-900 text-xs font-medium uppercase
+                     hover:bg-amber-400 transition-all duration-300"
+            style={{ letterSpacing: '0.15em' }}
+          >
+            Begin Your Commission
             <ArrowRight size={16} className="ml-2" />
           </Link>
         </div>
