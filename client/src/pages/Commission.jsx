@@ -2,12 +2,13 @@
 import { useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { motion } from 'framer-motion';
-import { Upload, X, Check, Info } from 'lucide-react';
+import { Upload, X, Check, Info, ArrowRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const Commission = () => {
   const [formData, setFormData] = useState({
-    name: '',
+    firstName: '',
+    lastName: '',
     email: '',
     phone: '',
     artStyle: '',
@@ -23,15 +24,16 @@ const Commission = () => {
     { id: 'realistic', name: 'Realistic Portrait', basePrice: 500 },
     { id: 'abstract', name: 'Abstract', basePrice: 400 },
     { id: 'impressionist', name: 'Impressionist', basePrice: 450 },
-    { id: 'digital', name: 'Digital Art', basePrice: 300 },
+    { id: 'contemporary', name: 'Contemporary', basePrice: 450 },
     { id: 'charcoal', name: 'Charcoal Drawing', basePrice: 250 },
+    { id: 'watercolor', name: 'Watercolor', basePrice: 350 },
   ];
 
   const sizes = [
-    { id: 'small', name: '8x10 inches', multiplier: 1 },
-    { id: 'medium', name: '16x20 inches', multiplier: 1.8 },
-    { id: 'large', name: '24x36 inches', multiplier: 2.5 },
-    { id: 'xlarge', name: '36x48 inches', multiplier: 3.5 },
+    { id: 'small', name: '8×10 inches', multiplier: 1 },
+    { id: 'medium', name: '16×20 inches', multiplier: 1.8 },
+    { id: 'large', name: '24×36 inches', multiplier: 2.5 },
+    { id: 'xlarge', name: '36×48 inches', multiplier: 3.5 },
   ];
 
   const onDrop = (acceptedFiles) => {
@@ -48,7 +50,7 @@ const Commission = () => {
     accept: {
       'image/*': ['.jpeg', '.jpg', '.png', '.webp']
     },
-    maxSize: 10485760, // 10MB
+    maxSize: 10485760,
     maxFiles: 5,
   });
 
@@ -75,22 +77,11 @@ const Commission = () => {
 
     setIsSubmitting(true);
 
-    // Create FormData for file upload
-    const submitData = new FormData();
-    Object.keys(formData).forEach(key => {
-      submitData.append(key, formData[key]);
-    });
-    uploadedImages.forEach((img, index) => {
-      submitData.append(`reference_${index}`, img.file);
-    });
-
     try {
-      // API call would go here
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Simulated delay
+      await new Promise(resolve => setTimeout(resolve, 2000));
       toast.success('Commission request submitted successfully!');
-      // Reset form
       setFormData({
-        name: '', email: '', phone: '', artStyle: '',
+        firstName: '', lastName: '', email: '', phone: '', artStyle: '',
         size: '', description: '', budget: '', deadline: '',
       });
       setUploadedImages([]);
@@ -102,91 +93,153 @@ const Commission = () => {
   };
 
   return (
-    <div className="pt-20 min-h-screen">
-      {/* Hero */}
-      <section className="py-16 bg-citadel-charcoal">
-        <div className="max-w-4xl mx-auto px-4 text-center">
-          <h1 className="text-4xl md:text-5xl font-serif text-white mb-4">
-            Commission Custom Artwork
+    <div className="pt-20 min-h-screen bg-stone-50">
+      {/* Hero Section */}
+      <section 
+        className="relative py-24"
+        style={{ backgroundColor: '#1a1a1a' }}
+      >
+        <div 
+          className="absolute inset-0"
+          style={{
+            backgroundImage: 'url(https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=1920&h=600&fit=crop)',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+          }}
+        />
+        <div className="absolute inset-0 bg-black/70" />
+        
+        <div className="relative z-10 max-w-4xl mx-auto px-6 text-center">
+          <p 
+            className="text-amber-400 mb-4 font-sans text-xs"
+            style={{ letterSpacing: '0.2em', textTransform: 'uppercase' }}
+          >
+            Bespoke Artistry
+          </p>
+          <h1 
+            className="text-white mb-6"
+            style={{ 
+              fontFamily: "'Playfair Display', serif", 
+              fontWeight: 400,
+              fontSize: 'clamp(2.5rem, 5vw, 4rem)',
+            }}
+          >
+            Commission Your Artwork
           </h1>
-          <p className="text-gray-400 text-lg">
-            Transform your vision into a unique piece of art. Upload your reference images
-            and let's create something beautiful together.
+          <p className="text-stone-300 max-w-2xl mx-auto leading-relaxed">
+            Transform your vision into a unique piece of art. Share your inspiration 
+            with us, and let's create something extraordinary together.
           </p>
         </div>
       </section>
 
-      {/* Commission Form */}
+      {/* Form Section */}
       <section className="py-16">
-        <div className="max-w-4xl mx-auto px-4">
-          <form onSubmit={handleSubmit} className="space-y-8">
+        <div className="max-w-4xl mx-auto px-6">
+          <form onSubmit={handleSubmit} className="space-y-10">
+            
             {/* Contact Information */}
-            <div className="bg-citadel-charcoal p-6 md:p-8 border border-citadel-gold/20">
-              <h2 className="text-2xl font-serif text-white mb-6">Contact Information</h2>
+            <div className="bg-white p-8 border border-stone-200 shadow-sm">
+              <h2 
+                className="text-stone-900 mb-6 text-2xl"
+                style={{ fontFamily: "'Playfair Display', serif" }}
+              >
+                Contact Information
+              </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-gray-400 mb-2">Full Name *</label>
+                  <label className="block text-stone-600 text-sm mb-2">
+                    First Name <span className="text-amber-600">*</span>
+                  </label>
                   <input
                     type="text"
                     required
-                    value={formData.name}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
-                    className="w-full bg-citadel-dark border border-citadel-gold/30 px-4 py-3 
-                             text-white focus:border-citadel-gold focus:outline-none transition-colors"
+                    value={formData.firstName}
+                    onChange={(e) => setFormData({...formData, firstName: e.target.value})}
+                    className="w-full bg-stone-50 border border-stone-300 px-4 py-3 
+                             text-stone-900 focus:border-amber-600 focus:outline-none 
+                             transition-colors placeholder-stone-400"
+                    placeholder="Enter your first name"
                   />
                 </div>
                 <div>
-                  <label className="block text-gray-400 mb-2">Email *</label>
+                  <label className="block text-stone-600 text-sm mb-2">
+                    Last Name <span className="text-amber-600">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.lastName}
+                    onChange={(e) => setFormData({...formData, lastName: e.target.value})}
+                    className="w-full bg-stone-50 border border-stone-300 px-4 py-3 
+                             text-stone-900 focus:border-amber-600 focus:outline-none 
+                             transition-colors placeholder-stone-400"
+                    placeholder="Enter your last name"
+                  />
+                </div>
+                <div>
+                  <label className="block text-stone-600 text-sm mb-2">
+                    Email <span className="text-amber-600">*</span>
+                  </label>
                   <input
                     type="email"
                     required
                     value={formData.email}
                     onChange={(e) => setFormData({...formData, email: e.target.value})}
-                    className="w-full bg-citadel-dark border border-citadel-gold/30 px-4 py-3 
-                             text-white focus:border-citadel-gold focus:outline-none transition-colors"
+                    className="w-full bg-stone-50 border border-stone-300 px-4 py-3 
+                             text-stone-900 focus:border-amber-600 focus:outline-none 
+                             transition-colors placeholder-stone-400"
+                    placeholder="your@email.com"
                   />
                 </div>
                 <div>
-                  <label className="block text-gray-400 mb-2">Phone</label>
+                  <label className="block text-stone-600 text-sm mb-2">Phone</label>
                   <input
                     type="tel"
                     value={formData.phone}
                     onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                    className="w-full bg-citadel-dark border border-citadel-gold/30 px-4 py-3 
-                             text-white focus:border-citadel-gold focus:outline-none transition-colors"
+                    className="w-full bg-stone-50 border border-stone-300 px-4 py-3 
+                             text-stone-900 focus:border-amber-600 focus:outline-none 
+                             transition-colors placeholder-stone-400"
+                    placeholder="+1 (555) 123-4567"
                   />
                 </div>
               </div>
             </div>
 
             {/* Reference Images Upload */}
-            <div className="bg-citadel-charcoal p-6 md:p-8 border border-citadel-gold/20">
-              <h2 className="text-2xl font-serif text-white mb-2">Reference Images</h2>
-              <p className="text-gray-400 mb-6 flex items-center gap-2">
-                <Info size={16} />
+            <div className="bg-white p-8 border border-stone-200 shadow-sm">
+              <h2 
+                className="text-stone-900 mb-2 text-2xl"
+                style={{ fontFamily: "'Playfair Display', serif" }}
+              >
+                Reference Images
+              </h2>
+              <p className="text-stone-500 mb-6 flex items-center gap-2 text-sm">
+                <Info size={16} className="text-amber-600" />
                 Upload up to 5 reference images (max 10MB each)
               </p>
               
               {/* Dropzone */}
               <div
                 {...getRootProps()}
-                className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer
-                          transition-colors duration-300 
+                className={`border-2 border-dashed rounded-lg p-10 text-center cursor-pointer
+                          transition-all duration-300 
                           ${isDragActive 
-                            ? 'border-citadel-gold bg-citadel-gold/10' 
-                            : 'border-citadel-gold/30 hover:border-citadel-gold/60'
+                            ? 'border-amber-600 bg-amber-50' 
+                            : 'border-stone-300 hover:border-amber-500 bg-stone-50'
                           }`}
               >
                 <input {...getInputProps()} />
-                <Upload className="w-12 h-12 text-citadel-gold mx-auto mb-4" />
+                <Upload className="w-12 h-12 text-amber-600 mx-auto mb-4" />
                 {isDragActive ? (
-                  <p className="text-citadel-gold">Drop your images here...</p>
+                  <p className="text-amber-700 font-medium">Drop your images here...</p>
                 ) : (
                   <div>
-                    <p className="text-white mb-2">
-                      Drag & drop images here, or click to select
+                    <p className="text-stone-700 mb-2">
+                      Drag & drop images here, or <span className="text-amber-600 font-medium">click to browse</span>
                     </p>
-                    <p className="text-gray-500 text-sm">
+                    <p className="text-stone-400 text-sm">
                       JPG, PNG, WebP up to 10MB
                     </p>
                   </div>
@@ -206,16 +259,18 @@ const Commission = () => {
                       <img
                         src={image.preview}
                         alt={`Reference ${index + 1}`}
-                        className="w-full h-24 object-cover rounded"
+                        className="w-full h-24 object-cover rounded border border-stone-200"
                       />
                       <button
                         type="button"
                         onClick={() => removeImage(index)}
                         className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full
-                                 opacity-0 group-hover:opacity-100 transition-opacity"
+                                 opacity-0 group-hover:opacity-100 transition-opacity 
+                                 hover:bg-red-600"
                       >
                         <X size={14} />
                       </button>
+                      <p className="text-xs text-stone-500 mt-1 truncate">{image.name}</p>
                     </motion.div>
                   ))}
                 </div>
@@ -223,26 +278,33 @@ const Commission = () => {
             </div>
 
             {/* Artwork Details */}
-            <div className="bg-citadel-charcoal p-6 md:p-8 border border-citadel-gold/20">
-              <h2 className="text-2xl font-serif text-white mb-6">Artwork Details</h2>
+            <div className="bg-white p-8 border border-stone-200 shadow-sm">
+              <h2 
+                className="text-stone-900 mb-6 text-2xl"
+                style={{ fontFamily: "'Playfair Display', serif" }}
+              >
+                Artwork Details
+              </h2>
               
               {/* Art Style */}
-              <div className="mb-6">
-                <label className="block text-gray-400 mb-3">Art Style *</label>
+              <div className="mb-8">
+                <label className="block text-stone-600 text-sm mb-3">
+                  Art Style <span className="text-amber-600">*</span>
+                </label>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                   {artStyles.map((style) => (
                     <button
                       key={style.id}
                       type="button"
                       onClick={() => setFormData({...formData, artStyle: style.id})}
-                      className={`p-4 border text-left transition-all duration-300
+                      className={`p-4 border text-left transition-all duration-300 rounded
                                 ${formData.artStyle === style.id
-                                  ? 'border-citadel-gold bg-citadel-gold/10'
-                                  : 'border-citadel-gold/30 hover:border-citadel-gold/60'
+                                  ? 'border-amber-600 bg-amber-50 shadow-sm'
+                                  : 'border-stone-200 hover:border-amber-400 bg-white'
                                 }`}
                     >
-                      <span className="block text-white">{style.name}</span>
-                      <span className="text-citadel-gold text-sm">
+                      <span className="block text-stone-900 font-medium">{style.name}</span>
+                      <span className="text-amber-700 text-sm">
                         From ${style.basePrice}
                       </span>
                     </button>
@@ -251,55 +313,57 @@ const Commission = () => {
               </div>
 
               {/* Size */}
-              <div className="mb-6">
-                <label className="block text-gray-400 mb-3">Size *</label>
+              <div className="mb-8">
+                <label className="block text-stone-600 text-sm mb-3">
+                  Size <span className="text-amber-600">*</span>
+                </label>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   {sizes.map((size) => (
                     <button
                       key={size.id}
                       type="button"
                       onClick={() => setFormData({...formData, size: size.id})}
-                      className={`p-4 border text-center transition-all duration-300
+                      className={`p-4 border text-center transition-all duration-300 rounded
                                 ${formData.size === size.id
-                                  ? 'border-citadel-gold bg-citadel-gold/10'
-                                  : 'border-citadel-gold/30 hover:border-citadel-gold/60'
+                                  ? 'border-amber-600 bg-amber-50 shadow-sm'
+                                  : 'border-stone-200 hover:border-amber-400 bg-white'
                                 }`}
                     >
-                      <span className="block text-white text-sm">{size.name}</span>
+                      <span className="block text-stone-900 font-medium text-sm">{size.name}</span>
                     </button>
                   ))}
                 </div>
               </div>
 
               {/* Description */}
-              <div className="mb-6">
-                <label className="block text-gray-400 mb-2">
-                  Describe Your Vision *
+              <div className="mb-8">
+                <label className="block text-stone-600 text-sm mb-2">
+                  Describe Your Vision <span className="text-amber-600">*</span>
                 </label>
                 <textarea
                   required
-                  rows={4}
+                  rows={5}
                   value={formData.description}
                   onChange={(e) => setFormData({...formData, description: e.target.value})}
-                  placeholder="Tell me about the artwork you envision. Include details about mood, colors, style preferences, and any specific elements you'd like..."
-                  className="w-full bg-citadel-dark border border-citadel-gold/30 px-4 py-3 
-                           text-white focus:border-citadel-gold focus:outline-none transition-colors
-                           resize-none"
+                  placeholder="Tell us about the artwork you envision. Include details about mood, colors, style preferences, and any specific elements you'd like..."
+                  className="w-full bg-stone-50 border border-stone-300 px-4 py-3 
+                           text-stone-900 focus:border-amber-600 focus:outline-none 
+                           transition-colors resize-none placeholder-stone-400"
                 />
               </div>
 
               {/* Deadline */}
               <div>
-                <label className="block text-gray-400 mb-2">Preferred Deadline</label>
+                <label className="block text-stone-600 text-sm mb-2">Preferred Deadline</label>
                 <input
                   type="date"
                   value={formData.deadline}
                   onChange={(e) => setFormData({...formData, deadline: e.target.value})}
                   min={new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}
-                  className="w-full md:w-auto bg-citadel-dark border border-citadel-gold/30 px-4 py-3 
-                           text-white focus:border-citadel-gold focus:outline-none transition-colors"
+                  className="w-full md:w-auto bg-stone-50 border border-stone-300 px-4 py-3 
+                           text-stone-900 focus:border-amber-600 focus:outline-none transition-colors"
                 />
-                <p className="text-gray-500 text-sm mt-2">
+                <p className="text-stone-500 text-sm mt-2">
                   Minimum 2 weeks required for most commissions
                 </p>
               </div>
@@ -310,14 +374,17 @@ const Commission = () => {
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-citadel-gold/10 border border-citadel-gold p-6 text-center"
+                className="bg-amber-50 border border-amber-200 p-8 text-center rounded"
               >
-                <p className="text-gray-400 mb-2">Estimated Price</p>
-                <p className="text-4xl font-serif text-citadel-gold">
+                <p className="text-stone-600 mb-2 text-sm">Estimated Price</p>
+                <p 
+                  className="text-amber-700 text-4xl mb-2"
+                  style={{ fontFamily: "'Playfair Display', serif" }}
+                >
                   ${calculateEstimate().toLocaleString()}
                 </p>
-                <p className="text-gray-400 text-sm mt-2">
-                  Final price may vary based on complexity
+                <p className="text-stone-500 text-sm">
+                  Final price may vary based on complexity and specific requirements
                 </p>
               </motion.div>
             )}
@@ -326,23 +393,58 @@ const Commission = () => {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full btn-primary flex items-center justify-center gap-2 
-                       disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full py-4 px-8 bg-stone-900 text-white font-sans text-sm 
+                       uppercase tracking-wider flex items-center justify-center gap-2 
+                       hover:bg-stone-800 disabled:opacity-50 disabled:cursor-not-allowed
+                       transition-all duration-300"
+              style={{ letterSpacing: '0.15em' }}
             >
               {isSubmitting ? (
                 <>
-                  <div className="w-5 h-5 border-2 border-citadel-dark border-t-transparent 
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent 
                                 rounded-full animate-spin" />
                   Submitting...
                 </>
               ) : (
                 <>
-                  <Check size={20} />
+                  <Check size={18} />
                   Submit Commission Request
                 </>
               )}
             </button>
           </form>
+
+          {/* Additional Info */}
+          <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-8">
+            {[
+              {
+                title: 'Consultation',
+                description: 'We\'ll discuss your vision and provide a detailed quote within 48 hours.'
+              },
+              {
+                title: 'Creation',
+                description: 'Watch your artwork come to life with regular progress updates.'
+              },
+              {
+                title: 'Delivery',
+                description: 'Professional packaging and worldwide shipping with full insurance.'
+              }
+            ].map((step, index) => (
+              <div key={index} className="text-center">
+                <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-700 
+                              flex items-center justify-center mx-auto mb-4 font-medium">
+                  {index + 1}
+                </div>
+                <h3 
+                  className="text-stone-900 mb-2 text-lg"
+                  style={{ fontFamily: "'Playfair Display', serif" }}
+                >
+                  {step.title}
+                </h3>
+                <p className="text-stone-600 text-sm">{step.description}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
     </div>
