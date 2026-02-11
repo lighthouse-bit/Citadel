@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useDropzone } from 'react-dropzone';
 import { ArrowLeft, Upload, X, Save, Loader } from 'lucide-react';
-import { getArtworkById } from '../../data/sampleArtworks';
+import { artworksAPI } from '../../services/api';
 import toast from 'react-hot-toast';
 
 const ArtworkForm = () => {
@@ -30,31 +30,48 @@ const ArtworkForm = () => {
 
   useEffect(() => {
     if (isEditing) {
-      setIsLoading(true);
-      const artwork = getArtworkById(id);
-      if (artwork) {
-        setFormData({
-          title: artwork.title,
-          description: artwork.description,
-          price: artwork.price.toString(),
-          category: artwork.category,
-          medium: artwork.medium,
-          year: artwork.year,
-          width: artwork.width?.toString() || '',
-          height: artwork.height?.toString() || '',
-          unit: artwork.unit || 'inches',
-          status: artwork.status,
-          featured: artwork.featured,
-        });
-        setImages(artwork.images?.map((url, i) => ({
-          preview: url,
-          existing: true,
-          id: i
-        })) || []);
-      }
-      setIsLoading(false);
+      loadArtwork();
     }
   }, [id, isEditing]);
+
+  const loadArtwork = async () => {
+    setIsLoading(true);
+    try {
+      const response = await artworksAPI.getById(id);
+      const artwork = response.data;
+      
+      setFormData({
+        title: artwork.title,
+        description: artwork.description,
+        price: artwork.price?.toString() || '',
+        category: artwork.category,
+        medium: artwork.medium || '',
+        year: artwork.year || new Date().getFullYear(),
+        width: artwork.width?.toString() || '',
+        height: artwork.height?.toString() || '',
+        unit: artwork.unit || 'inches',
+        status: artwork.status,
+        featured: artwork.featured || false,
+      });
+      
+      // Set existing images
+      if (artwork.images) {
+        setImages(artwork.images.map((img, i) => ({
+          id: img.id,
+          preview: img.url,
+          url: img.url,
+          existing: true,
+          order: i
+        })));
+      }
+    } catch (error) {
+      console.error('Error loading artwork:', error);
+      toast.error('Failed to load artwork');
+      navigate('/admin/artworks');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const onDrop = (acceptedFiles) => {
     const newImages = acceptedFiles.map(file => ({
@@ -88,12 +105,33 @@ const ArtworkForm = () => {
     setIsSaving(true);
 
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      toast.success(isEditing ? 'Artwork updated successfully' : 'Artwork created successfully');
+      // Create FormData for file upload
+      const submitData = new FormData();
+      
+      // Append all form fields
+      Object.keys(formData).forEach(key => {
+        submitData.append(key, formData[key]);
+      });
+
+      // Append only new images (not existing ones)
+      const newImages = images.filter(img => !img.existing && img.file);
+      newImages.forEach((img) => {
+        submitData.append('images', img.file);
+      });
+
+      let response;
+      if (isEditing) {
+        response = await artworksAPI.update(id, submitData);
+        toast.success('Artwork updated successfully!');
+      } else {
+        response = await artworksAPI.create(submitData);
+        toast.success('Artwork created successfully!');
+      }
+      
       navigate('/admin/artworks');
     } catch (error) {
-      toast.error('Failed to save artwork');
+      console.error('Error saving artwork:', error);
+      toast.error(error.response?.data?.error || 'Failed to save artwork');
     } finally {
       setIsSaving(false);
     }
@@ -154,7 +192,7 @@ const ArtworkForm = () => {
               {images.map((image, index) => (
                 <div key={index} className="relative group aspect-square">
                   <img
-                    src={image.preview}
+                    src={image.preview || image.url}
                     alt={`Upload ${index + 1}`}
                     className="w-full h-full object-cover rounded-lg"
                   />
@@ -176,7 +214,7 @@ const ArtworkForm = () => {
           )}
         </div>
 
-        {/* Basic Info */}
+        {/* Basic Info - Same as before */}
         <div className="bg-white rounded-xl border border-stone-200 shadow-sm p-6">
           <h2 className="text-lg font-semibold text-stone-900 mb-4">Basic Information</h2>
           
@@ -284,7 +322,7 @@ const ArtworkForm = () => {
         <div className="bg-white rounded-xl border border-stone-200 shadow-sm p-6">
           <h2 className="text-lg font-semibold text-stone-900 mb-4">Dimensions</h2>
           
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
               <label className="block text-sm text-stone-600 mb-2">Width</label>
               <input
@@ -378,7 +416,7 @@ const ArtworkForm = () => {
           </button>
           <button
             type="submit"
-            disabled={isSaving}
+            disabled={isSaving || !formData.title || !formData.description || !formData.price}
             className="px-6 py-3 bg-stone-900 text-white rounded-lg
                      hover:bg-stone-800 transition-colors inline-flex items-center gap-2
                      disabled:opacity-50 disabled:cursor-not-allowed"

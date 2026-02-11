@@ -9,7 +9,7 @@ exports.getAllArtworks = async (req, res) => {
       page = 1,
       limit = 12,
       category,
-      status = 'AVAILABLE',
+      status,
       featured,
       sort = 'createdAt',
       order = 'desc',
@@ -27,6 +27,9 @@ exports.getAllArtworks = async (req, res) => {
     
     if (status) {
       where.status = status.toUpperCase();
+    } else {
+      // By default, show available and not-for-sale items to public
+      where.status = { in: ['AVAILABLE', 'NOT_FOR_SALE'] };
     }
     
     if (featured === 'true') {
@@ -37,6 +40,7 @@ exports.getAllArtworks = async (req, res) => {
       where.OR = [
         { title: { contains: search, mode: 'insensitive' } },
         { description: { contains: search, mode: 'insensitive' } },
+        { medium: { contains: search, mode: 'insensitive' } },
       ];
     }
 
@@ -74,34 +78,6 @@ exports.getAllArtworks = async (req, res) => {
   }
 };
 
-// Get single artwork by slug
-exports.getArtworkBySlug = async (req, res) => {
-  try {
-    const { slug } = req.params;
-
-    const artwork = await prisma.artwork.findUnique({
-      where: { slug },
-      include: {
-        images: {
-          orderBy: { order: 'asc' },
-        },
-        tags: {
-          include: { tag: true },
-        },
-      },
-    });
-
-    if (!artwork) {
-      return res.status(404).json({ error: 'Artwork not found' });
-    }
-
-    res.json(artwork);
-  } catch (error) {
-    console.error('Error fetching artwork:', error);
-    res.status(500).json({ error: 'Failed to fetch artwork' });
-  }
-};
-
 // Get single artwork by ID
 exports.getArtworkById = async (req, res) => {
   try {
@@ -130,6 +106,30 @@ exports.getArtworkById = async (req, res) => {
   }
 };
 
+// Get featured artworks
+exports.getFeaturedArtworks = async (req, res) => {
+  try {
+    const artworks = await prisma.artwork.findMany({
+      where: {
+        featured: true,
+        status: { in: ['AVAILABLE', 'NOT_FOR_SALE'] },
+      },
+      include: {
+        images: {
+          where: { isPrimary: true },
+        },
+      },
+      orderBy: { displayOrder: 'asc' },
+      take: 6,
+    });
+
+    res.json(artworks);
+  } catch (error) {
+    console.error('Error fetching featured artworks:', error);
+    res.status(500).json({ error: 'Failed to fetch featured artworks' });
+  }
+};
+
 // Create artwork (Admin)
 exports.createArtwork = async (req, res) => {
   try {
@@ -146,7 +146,8 @@ exports.createArtwork = async (req, res) => {
       unit,
       status,
       featured,
-      tags,
+      metaTitle,
+      metaDesc,
     } = req.body;
 
     // Generate slug
@@ -189,17 +190,11 @@ exports.createArtwork = async (req, res) => {
         status: status?.toUpperCase() || 'AVAILABLE',
         featured: featured === 'true' || featured === true,
         slug: finalSlug,
+        metaTitle: metaTitle || title,
+        metaDesc: metaDesc || description.substring(0, 160),
         images: {
           create: uploadedImages,
         },
-        // Handle tags if provided
-        ...(tags && {
-          tags: {
-            create: tags.map(tagId => ({
-              tag: { connect: { id: tagId } },
-            })),
-          },
-        }),
       },
       include: {
         images: true,
@@ -210,7 +205,7 @@ exports.createArtwork = async (req, res) => {
     res.status(201).json(artwork);
   } catch (error) {
     console.error('Error creating artwork:', error);
-    res.status(500).json({ error: 'Failed to create artwork' });
+    res.status(500).json({ error: 'Failed to create artwork', details: error.message });
   }
 };
 
@@ -218,7 +213,7 @@ exports.createArtwork = async (req, res) => {
 exports.updateArtwork = async (req, res) => {
   try {
     const { id } = req.params;
-    const updateData = req.body;
+    const updateData = { ...req.body };
 
     // Handle numeric fields
     if (updateData.price) updateData.price = parseFloat(updateData.price);
@@ -227,6 +222,26 @@ exports.updateArtwork = async (req, res) => {
     if (updateData.height) updateData.height = parseFloat(updateData.height);
     if (updateData.category) updateData.category = updateData.category.toUpperCase();
     if (updateData.status) updateData.status = updateData.status.toUpperCase();
+    if (updateData.featured !== undefined) updateData.featured = updateData.featured === 'true' || updateData.featured === true;
+
+    // Handle new image uploads
+    if (req.files && req.files.length > 0) {
+      const uploadedImages = [];
+      for (let i = 0; i < req.files.length; i++) {
+        const result = await uploadToCloudinary(req.files[i], 'artworks');
+        uploadedImages.push({
+          url: result.secure_url,
+          publicId: result.public_id,
+          isPrimary: i === 0,
+          order: i,
+        });
+      }
+
+      // Add new images
+      updateData.images = {
+        create: uploadedImages,
+      };
+    }
 
     const artwork = await prisma.artwork.update({
       where: { id },
@@ -271,29 +286,5 @@ exports.deleteArtwork = async (req, res) => {
   } catch (error) {
     console.error('Error deleting artwork:', error);
     res.status(500).json({ error: 'Failed to delete artwork' });
-  }
-};
-
-// Get featured artworks
-exports.getFeaturedArtworks = async (req, res) => {
-  try {
-    const artworks = await prisma.artwork.findMany({
-      where: {
-        featured: true,
-        status: { in: ['AVAILABLE', 'NOT_FOR_SALE'] },
-      },
-      include: {
-        images: {
-          where: { isPrimary: true },
-        },
-      },
-      orderBy: { displayOrder: 'asc' },
-      take: 6,
-    });
-
-    res.json(artworks);
-  } catch (error) {
-    console.error('Error fetching featured artworks:', error);
-    res.status(500).json({ error: 'Failed to fetch featured artworks' });
   }
 };
