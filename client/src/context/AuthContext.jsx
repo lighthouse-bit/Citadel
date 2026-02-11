@@ -1,7 +1,5 @@
 // client/src/context/AuthContext.jsx
 import { createContext, useContext, useState, useEffect } from 'react';
-import axios from 'axios';
-import toast from 'react-hot-toast';
 
 const AuthContext = createContext();
 
@@ -10,38 +8,23 @@ export const AuthProvider = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  // Check if user is logged in on mount
   useEffect(() => {
     checkAuth();
   }, []);
 
-  const checkAuth = async () => {
+  const checkAuth = () => {
     try {
       const token = localStorage.getItem('citadel_token');
-      if (!token) {
-        setIsLoading(false);
-        return;
-      }
-
-      // Verify token with backend
-      const response = await axios.get(
-        `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/auth/verify`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      if (response.data.user) {
-        setUser(response.data.user);
+      const savedUser = localStorage.getItem('citadel_user');
+      
+      if (token && savedUser) {
+        setUser(JSON.parse(savedUser));
         setIsAuthenticated(true);
-        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       }
     } catch (error) {
       console.error('Auth check failed:', error);
       localStorage.removeItem('citadel_token');
-      delete axios.defaults.headers.common['Authorization'];
+      localStorage.removeItem('citadel_user');
     } finally {
       setIsLoading(false);
     }
@@ -49,83 +32,35 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
-      const response = await axios.post(
-        `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/auth/login`,
-        { email, password }
-      );
-
-      const { token, user } = response.data;
-
-      // Store token
-      localStorage.setItem('citadel_token', token);
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-
-      // Update state
-      setUser(user);
-      setIsAuthenticated(true);
-
-      toast.success('Logged in successfully');
-      return { success: true };
+      // Demo login - replace with actual API call
+      if (email === 'admin@citadel.com' && password === 'admin123') {
+        const mockUser = {
+          id: '1',
+          name: 'Admin',
+          email: 'admin@citadel.com',
+          role: 'admin'
+        };
+        
+        localStorage.setItem('citadel_token', 'demo_token');
+        localStorage.setItem('citadel_user', JSON.stringify(mockUser));
+        
+        setUser(mockUser);
+        setIsAuthenticated(true);
+        
+        return { success: true };
+      }
+      
+      return { success: false, error: 'Invalid credentials' };
     } catch (error) {
-      const message = error.response?.data?.error || 'Login failed';
-      toast.error(message);
-      return { success: false, error: message };
-    }
-  };
-
-  const register = async (userData) => {
-    try {
-      const response = await axios.post(
-        `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/auth/register`,
-        userData
-      );
-
-      const { token, user } = response.data;
-
-      // Store token
-      localStorage.setItem('citadel_token', token);
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-
-      // Update state
-      setUser(user);
-      setIsAuthenticated(true);
-
-      toast.success('Account created successfully');
-      return { success: true };
-    } catch (error) {
-      const message = error.response?.data?.error || 'Registration failed';
-      toast.error(message);
-      return { success: false, error: message };
+      return { success: false, error: 'Login failed' };
     }
   };
 
   const logout = () => {
-    // Clear token
     localStorage.removeItem('citadel_token');
-    delete axios.defaults.headers.common['Authorization'];
-
-    // Clear state
+    localStorage.removeItem('citadel_user');
     setUser(null);
     setIsAuthenticated(false);
-
-    toast.success('Logged out successfully');
-  };
-
-  const updateProfile = async (updates) => {
-    try {
-      const response = await axios.patch(
-        `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/auth/profile`,
-        updates
-      );
-
-      setUser(response.data.user);
-      toast.success('Profile updated successfully');
-      return { success: true };
-    } catch (error) {
-      const message = error.response?.data?.error || 'Update failed';
-      toast.error(message);
-      return { success: false, error: message };
-    }
   };
 
   const value = {
@@ -134,9 +69,7 @@ export const AuthProvider = ({ children }) => {
     isAuthenticated,
     isAdmin: user?.role === 'admin',
     login,
-    register,
     logout,
-    updateProfile,
     checkAuth,
   };
 
