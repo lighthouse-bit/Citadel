@@ -2,7 +2,7 @@
   "name": "server",
   "version": "1.0.0",
   "description": "Citadel",
-  "main": "index.js",
+  "main": "server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "nodemon server.js",
@@ -22,7 +22,9 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.3",
     "multer": "^1.4.5-lts.1",
+    "streamifier": "^0.1.1",
     "stripe": "^14.25.0",
     "uuid": "^9.0.1"
   },

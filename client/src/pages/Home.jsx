@@ -1,13 +1,51 @@
-// client/src/pages/Home.jsx
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowRight, Star } from 'lucide-react';
-import { getFeaturedArtworks } from '../data/sampleArtworks';
+import { ArrowRight, Star, Eye } from 'lucide-react';
+import { artworksAPI } from '../services/api';
 import { useSettings } from '../hooks/useSettings';
 
+// Helper for Image handling (Inline for simplicity)
+const ArtworkImage = ({ src, alt, className }) => {
+  const [imgSrc, setImgSrc] = useState(src || "https://images.unsplash.com/photo-1547891654-e66ed7ebb968?w=800&h=1000&fit=crop");
+  
+  return (
+    <img
+      src={imgSrc}
+      alt={alt}
+      className={className}
+      onError={() => setImgSrc("https://images.unsplash.com/photo-1547891654-e66ed7ebb968?w=800&h=1000&fit=crop")}
+      loading="lazy"
+    />
+  );
+};
+
 const Home = () => {
-  const featuredWorks = getFeaturedArtworks();
   const { settings } = useSettings();
+  const [recentWorks, setRecentWorks] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchRecentUploads = async () => {
+      try {
+        // Fetch latest 6 artworks
+        const response = await artworksAPI.getAll({
+          page: 1,
+          limit: 6,
+          sort: 'createdAt',
+          order: 'desc',
+          status: '' // Fetch all statuses (Available, Sold, etc) to show portfolio depth
+        });
+        setRecentWorks(response.data.artworks);
+      } catch (error) {
+        console.error("Failed to fetch home artworks:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchRecentUploads();
+  }, []);
 
   return (
     <div className="bg-stone-50">
@@ -92,9 +130,6 @@ const Home = () => {
         </motion.div>
       </section>
 
-      {/* Rest of the Home page content... */}
-      {/* (Keep the existing sections: Introduction, Featured Works, Services, Testimonial, CTA) */}
-      
       {/* Introduction Section */}
       <section className="py-24 px-6 bg-white">
         <div className="max-w-6xl mx-auto">
@@ -123,8 +158,7 @@ const Home = () => {
                 <span className="block text-amber-700">Distinction</span>
               </h2>
               <p className="text-stone-600 mb-6 leading-relaxed">
-                {settings.artistBio.substring(0, 300)}
-                {settings.artistBio.length > 300 ? '...' : ''}
+                {settings.artistBio ? settings.artistBio.substring(0, 300) + (settings.artistBio.length > 300 ? '...' : '') : "Fine art specializing in portraits and landscapes."}
               </p>
               <Link 
                 to="/about" 
@@ -148,6 +182,7 @@ const Home = () => {
                   src="https://images.unsplash.com/photo-1578321272176-b7bbc0679853?w=800&h=1000&fit=crop"
                   alt="Atelier"
                   className="w-full h-full object-cover"
+                  loading="lazy"
                 />
               </div>
               <div className="absolute inset-4 border border-amber-600/30 pointer-events-none" />
@@ -156,7 +191,7 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Featured Collection */}
+      {/* Recent Works Collection (Updated to use API Data) */}
       <section className="py-24 bg-stone-100">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-16">
@@ -164,7 +199,7 @@ const Home = () => {
               className="text-amber-700 mb-4 font-sans text-xs"
               style={{ letterSpacing: '0.2em', textTransform: 'uppercase' }}
             >
-              Featured Works
+              New Arrivals
             </p>
             <h2 
               className="text-stone-900 mb-6"
@@ -174,73 +209,100 @@ const Home = () => {
                 fontSize: 'clamp(2rem, 5vw, 3rem)',
               }}
             >
-              The Signature Collection
+              Recent Works
             </h2>
             <div className="h-px bg-gradient-to-r from-transparent via-amber-600/40 to-transparent max-w-xs mx-auto" />
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {featuredWorks.slice(0, 6).map((work, index) => (
-              <motion.article
-                key={work.id}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1, duration: 0.6 }}
-                className="group"
-              >
-                <Link to={`/artwork/${work.id}`}>
-                  <div className="relative overflow-hidden bg-stone-200 mb-6">
-                    <div className="aspect-[3/4]">
-                      <img
-                        src={work.images[0]}
-                        alt={work.title}
-                        className="w-full h-full object-cover transition-transform duration-700 
-                                 group-hover:scale-105"
-                      />
+          {isLoading ? (
+            // Skeletons
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="animate-pulse">
+                  <div className="bg-stone-200 aspect-[3/4] mb-4" />
+                  <div className="h-6 bg-stone-200 w-3/4 mb-2" />
+                  <div className="h-4 bg-stone-200 w-1/2" />
+                </div>
+              ))}
+            </div>
+          ) : recentWorks.length > 0 ? (
+            // Real Data
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {recentWorks.map((work, index) => (
+                <motion.article
+                  key={work.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.1, duration: 0.6 }}
+                  className="group"
+                >
+                  <Link to={`/artwork/${work.id}`}>
+                    <div className="relative overflow-hidden bg-stone-200 mb-6">
+                      <div className="aspect-[3/4]">
+                        <ArtworkImage
+                          src={work.images?.[0]?.url}
+                          alt={work.title}
+                          className="w-full h-full object-cover transition-transform duration-700 
+                                   group-hover:scale-105"
+                        />
+                      </div>
+                      
+                      {/* Hover Overlay */}
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 
+                                    transition-all duration-500 flex items-end">
+                        <div className="w-full p-6 translate-y-full group-hover:translate-y-0 
+                                      transition-transform duration-500">
+                          <p 
+                            className="text-white/90 mb-2 text-xs"
+                            style={{ letterSpacing: '0.15em', textTransform: 'uppercase' }}
+                          >
+                            {work.medium}
+                          </p>
+                          <p className="text-white/90">{work.size}</p>
+                        </div>
+                      </div>
+                      
+                      {/* Status Badge */}
+                      {work.status !== 'AVAILABLE' && (
+                        <div className="absolute top-4 left-4">
+                          <span 
+                            className="bg-stone-900/90 text-white px-3 py-1 text-xs"
+                            style={{ letterSpacing: '0.1em', textTransform: 'uppercase' }}
+                          >
+                            {work.status.replace('_', ' ')}
+                          </span>
+                        </div>
+                      )}
                     </div>
                     
-                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 
-                                  transition-all duration-500 flex items-end">
-                      <div className="w-full p-6 translate-y-full group-hover:translate-y-0 
-                                    transition-transform duration-500">
-                        <p className="text-white/90 mb-2 text-xs uppercase tracking-wider">
-                          {work.medium}
-                        </p>
-                        <p className="text-white/90">{work.size}</p>
-                      </div>
+                    {/* Artwork Details */}
+                    <div className="text-center">
+                      <h3 
+                        className="text-stone-900 mb-2 group-hover:text-amber-700 transition-colors duration-300 text-xl"
+                        style={{ fontFamily: "'Playfair Display', serif" }}
+                      >
+                        {work.title}
+                      </h3>
+                      <p className="text-amber-700 text-sm font-medium">
+                        {work.status === 'SOLD' 
+                          ? 'Acquired' 
+                          : new Intl.NumberFormat('en-US', {
+                              style: 'currency',
+                              currency: 'USD',
+                              minimumFractionDigits: 0,
+                            }).format(work.price)
+                        }
+                      </p>
                     </div>
-                    
-                    {work.status === 'SOLD' && (
-                      <div className="absolute top-4 left-4">
-                        <span className="bg-stone-900 text-white px-3 py-1 text-xs uppercase tracking-wider">
-                          Private Collection
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                  
-                  <div className="text-center">
-                    <h3 
-                      className="text-stone-900 mb-2 group-hover:text-amber-700 transition-colors duration-300 text-xl"
-                      style={{ fontFamily: "'Playfair Display', serif" }}
-                    >
-                      {work.title}
-                    </h3>
-                    <p className="text-amber-700 text-sm font-medium">
-                      {work.status === 'SOLD' 
-                        ? 'Acquired' 
-                        : new Intl.NumberFormat('en-US', {
-                            style: 'currency',
-                            currency: 'USD',
-                            minimumFractionDigits: 0,
-                          }).format(work.price)
-                      }
-                    </p>
-                  </div>
-                </Link>
-              </motion.article>
-            ))}
-          </div>
+                  </Link>
+                </motion.article>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-12">
+              <p className="text-stone-500">No artworks found.</p>
+            </div>
+          )}
           
           <div className="text-center mt-16">
             <Link 
@@ -254,6 +316,79 @@ const Home = () => {
               <ArrowRight size={16} className="ml-2" />
             </Link>
           </div>
+        </div>
+      </section>
+
+      {/* Services */}
+      <section className="py-24 bg-white">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
+            {[
+              {
+                number: '01',
+                title: 'Curated Collection',
+                description: 'Exceptional artworks selected for the discerning collector'
+              },
+              {
+                number: '02',
+                title: 'Bespoke Commissions',
+                description: 'Custom pieces tailored to your vision and space'
+              },
+              {
+                number: '03',
+                title: 'White Glove Service',
+                description: 'Personalized consultation and worldwide delivery'
+              }
+            ].map((service, index) => (
+              <motion.div
+                key={index}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.2 }}
+                className="text-center"
+              >
+                <span 
+                  className="text-amber-600/30 mb-6 block text-6xl"
+                  style={{ fontFamily: "'Playfair Display', serif" }}
+                >
+                  {service.number}
+                </span>
+                <h3 
+                  className="text-stone-900 mb-4 text-2xl"
+                  style={{ fontFamily: "'Playfair Display', serif" }}
+                >
+                  {service.title}
+                </h3>
+                <p className="text-stone-600 leading-relaxed">
+                  {service.description}
+                </p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Testimonial */}
+      <section className="py-24 bg-stone-100">
+        <div className="max-w-4xl mx-auto px-6 text-center">
+          <div className="flex justify-center mb-6">
+            {[...Array(5)].map((_, i) => (
+              <Star key={i} size={18} className="text-amber-500 fill-amber-500" />
+            ))}
+          </div>
+          <blockquote 
+            className="text-stone-800 mb-8 leading-relaxed text-2xl md:text-3xl"
+            style={{ fontFamily: "'Playfair Display', serif", fontStyle: 'italic' }}
+          >
+            "The Citadel collection represents the pinnacle of contemporary fine art. 
+            Each piece is a masterwork that transforms our living space into a gallery of distinction."
+          </blockquote>
+          <cite 
+            className="text-amber-700 not-italic font-sans text-xs"
+            style={{ letterSpacing: '0.15em', textTransform: 'uppercase' }}
+          >
+            — Eleanor Whitmore, Private Collector
+          </cite>
         </div>
       </section>
 
