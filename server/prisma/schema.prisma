@@ -335,3 +335,16 @@ model SiteSettings {
   shippingInfo        String? @db.Text
   returnPolicy        String? @db.Text
 }
+
+model Notification {
+  id        String   @id @default(uuid())
+  type      String   // "ORDER", "COMMISSION", "SYSTEM"
+  message   String
+  link      String?  // e.g., "/admin/orders/123"
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  
+  // Optional: Link to specific resources if you want strict referential integrity
+  // orderId String?
+  // commissionId String?
+}
