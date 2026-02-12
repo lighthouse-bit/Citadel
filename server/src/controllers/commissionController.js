@@ -93,6 +93,14 @@ exports.createCommission = async (req, res) => {
       },
     });
 
+    await prisma.notification.create({
+      data: {
+        type: 'COMMISSION',
+        message: `New Commission Request from ${firstName} ${lastName}`,
+        link: `/admin/commissions/${commission.id}`
+      }
+    });
+
     res.status(201).json({
       message: 'Commission request submitted successfully',
       commission,

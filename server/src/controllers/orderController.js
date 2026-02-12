@@ -1,5 +1,4 @@
 const prisma = require('../config/database');
-const { v4: uuidv4 } = require('uuid');
 
 // Create order
 exports.createOrder = async (req, res) => {
@@ -67,7 +66,7 @@ exports.createOrder = async (req, res) => {
 
     const orderNumber = `ORD-${Date.now().toString().slice(-6)}`;
 
-    // Create Order Transaction
+    // Create Order Transaction with Notification
     const order = await prisma.$transaction(async (tx) => {
       // 1. Create Order Record
       const newOrder = await tx.order.create({
@@ -98,6 +97,16 @@ exports.createOrder = async (req, res) => {
       await tx.artwork.updateMany({
         where: { id: { in: artworkIds } },
         data: { status: 'RESERVED' },
+      });
+
+      // 3. Create Notification for Admin
+      await tx.notification.create({
+        data: {
+          type: 'ORDER',
+          message: `New Order #${newOrder.orderNumber} - $${Number(newOrder.total).toLocaleString()}`,
+          link: `/admin/orders/${newOrder.id}`,
+          isRead: false,
+        }
       });
 
       return newOrder;
@@ -181,18 +190,23 @@ exports.getOrderById = async (req, res) => {
 exports.updateOrderStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, trackingNumber } = req.body;
+    const { status, trackingNumber, internalNotes } = req.body;
 
-    const updateData = { status };
-    if (trackingNumber) updateData.trackingNumber = trackingNumber;
+    const updateData = {};
+    if (status) updateData.status = status.toUpperCase();
+    if (trackingNumber !== undefined) updateData.trackingNumber = trackingNumber;
+    if (internalNotes !== undefined) updateData.internalNotes = internalNotes;
 
     const order = await prisma.order.update({
       where: { id },
       data: updateData,
     });
 
+    // Optional: Notify customer via email here if status changes (e.g. to SHIPPED)
+
     res.json(order);
   } catch (error) {
+    console.error('Error updating order:', error);
     res.status(500).json({ error: 'Failed to update order' });
   }
 };
