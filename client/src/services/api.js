@@ -46,7 +46,11 @@ export const commissionsAPI = {
 // Orders API
 export const ordersAPI = {
   create: (data) => api.post('/orders', data),
-  getAll: (params) => api.get('/orders', { params }),
+  getAll: (params) => {
+    // If getting "my orders", we pass the customer email filter
+    // ideally the backend should use req.user.id, but email works for this simple setup
+    return api.get('/orders', { params });
+  },
   getById: (id) => api.get(`/orders/${id}`),
   updateStatus: (id, data) => api.patch(`/orders/${id}/status`, data),
 };
@@ -55,6 +59,11 @@ export const ordersAPI = {
 export const paymentsAPI = {
   createIntent: (data) => api.post('/payments/create-intent', data),
   commissionPayment: (data) => api.post('/payments/commission-payment', data),
+};
+
+// Dashboard API
+export const dashboardAPI = {
+  getStats: () => api.get('/dashboard/stats'),
 };
 
 export default api;

@@ -1,11 +1,13 @@
-// client/src/pages/Commission.jsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { motion } from 'framer-motion';
-import { Upload, X, Check, Info, ArrowRight } from 'lucide-react';
+import { Upload, X, Check, Info } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { commissionsAPI } from '../services/api';
+import { useAuth } from '../hooks/useAuth';
 
 const Commission = () => {
+  const { user } = useAuth();
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -19,6 +21,19 @@ const Commission = () => {
   });
   const [uploadedImages, setUploadedImages] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Auto-fill form if user is logged in
+  useEffect(() => {
+    if (user) {
+      setFormData(prev => ({
+        ...prev,
+        firstName: user.name?.split(' ')[0] || '',
+        lastName: user.name?.split(' ')[1] || '',
+        email: user.email || '',
+        // If phone isn't in user object, it will remain empty, allowing user to fill
+      }));
+    }
+  }, [user]);
 
   const artStyles = [
     { id: 'realistic', name: 'Realistic Portrait', basePrice: 500 },
@@ -77,15 +92,33 @@ const Commission = () => {
 
     setIsSubmitting(true);
 
+    const submitData = new FormData();
+    Object.keys(formData).forEach(key => {
+      submitData.append(key, formData[key]);
+    });
+    uploadedImages.forEach((img) => {
+      submitData.append('referenceImages', img.file);
+    });
+
     try {
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await commissionsAPI.create(submitData);
       toast.success('Commission request submitted successfully!');
-      setFormData({
-        firstName: '', lastName: '', email: '', phone: '', artStyle: '',
-        size: '', description: '', budget: '', deadline: '',
-      });
+      
+      // Reset form but keep user details if logged in
+      setFormData(prev => ({
+        firstName: user ? prev.firstName : '',
+        lastName: user ? prev.lastName : '',
+        email: user ? prev.email : '',
+        phone: '',
+        artStyle: '',
+        size: '',
+        description: '',
+        budget: '',
+        deadline: '',
+      }));
       setUploadedImages([]);
     } catch (error) {
+      console.error('Commission error:', error);
       toast.error('Failed to submit. Please try again.');
     } finally {
       setIsSubmitting(false);

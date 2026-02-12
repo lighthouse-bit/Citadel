@@ -1,117 +1,72 @@
-// client/src/pages/admin/Orders.jsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, Filter, Eye, Package, Truck, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { Search, Eye, Package, Truck, CheckCircle, XCircle, Clock, Loader } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { ordersAPI } from '../../services/api';
+import toast from 'react-hot-toast';
 
 const Orders = () => {
+  const [orders, setOrders] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
 
-  // Sample orders data
-  const orders = [
-    { 
-      id: 'ORD-001', 
-      customer: { name: 'Eleanor Whitmore', email: 'eleanor@email.com' },
-      items: [{ title: 'Ethereal Dreams', price: 2500 }],
-      total: 2500,
-      status: 'completed',
-      paymentStatus: 'paid',
-      date: '2024-01-15',
-      shippingAddress: '123 Art Lane, New York, NY 10001'
-    },
-    { 
-      id: 'ORD-002', 
-      customer: { name: 'James Mitchell', email: 'james@email.com' },
-      items: [{ title: 'Urban Symphony', price: 1800 }],
-      total: 1800,
-      status: 'shipped',
-      paymentStatus: 'paid',
-      date: '2024-01-14',
-      shippingAddress: '456 Gallery St, Los Angeles, CA 90001'
-    },
-    { 
-      id: 'ORD-003', 
-      customer: { name: 'Sarah Chen', email: 'sarah@email.com' },
-      items: [{ title: 'Nature\'s Whisper', price: 3200 }],
-      total: 3200,
-      status: 'processing',
-      paymentStatus: 'paid',
-      date: '2024-01-13',
-      shippingAddress: '789 Canvas Ave, Chicago, IL 60601'
-    },
-    { 
-      id: 'ORD-004', 
-      customer: { name: 'Michael Ross', email: 'michael@email.com' },
-      items: [{ title: 'Abstract Emotions', price: 2800 }],
-      total: 2800,
-      status: 'pending',
-      paymentStatus: 'pending',
-      date: '2024-01-12',
-      shippingAddress: '321 Brush Blvd, Miami, FL 33101'
-    },
-  ];
+  useEffect(() => {
+    const fetchOrders = async () => {
+      setIsLoading(true);
+      try {
+        const response = await ordersAPI.getAll({ status: filterStatus || undefined });
+        setOrders(response.data.orders);
+      } catch (error) {
+        console.error("Orders load failed", error);
+        toast.error('Failed to load orders');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchOrders();
+  }, [filterStatus]);
 
   const filteredOrders = orders.filter(order => {
-    const matchesSearch = 
-      order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      order.customer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      order.customer.email.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = !filterStatus || order.status === filterStatus;
-    return matchesSearch && matchesStatus;
+    const query = searchQuery.toLowerCase();
+    return (
+      order.orderNumber.toLowerCase().includes(query) ||
+      order.customer?.email?.toLowerCase().includes(query) ||
+      order.customer?.firstName?.toLowerCase().includes(query)
+    );
   });
 
   const getStatusIcon = (status) => {
     switch (status) {
-      case 'completed': return <CheckCircle size={16} />;
-      case 'shipped': return <Truck size={16} />;
-      case 'processing': return <Package size={16} />;
-      case 'pending': return <Clock size={16} />;
-      case 'cancelled': return <XCircle size={16} />;
+      case 'COMPLETED': return <CheckCircle size={16} />;
+      case 'SHIPPED': return <Truck size={16} />;
+      case 'PROCESSING': return <Package size={16} />;
+      case 'PENDING': return <Clock size={16} />;
+      case 'CANCELLED': return <XCircle size={16} />;
       default: return <Clock size={16} />;
     }
   };
 
   const getStatusStyle = (status) => {
     const styles = {
-      completed: 'bg-green-100 text-green-700',
-      shipped: 'bg-blue-100 text-blue-700',
-      processing: 'bg-purple-100 text-purple-700',
-      pending: 'bg-yellow-100 text-yellow-700',
-      cancelled: 'bg-red-100 text-red-700',
+      COMPLETED: 'bg-green-100 text-green-700',
+      SHIPPED: 'bg-blue-100 text-blue-700',
+      PROCESSING: 'bg-purple-100 text-purple-700',
+      PENDING: 'bg-yellow-100 text-yellow-700',
+      CANCELLED: 'bg-red-100 text-red-700',
     };
     return styles[status] || 'bg-stone-100 text-stone-700';
   };
 
+  if (isLoading) return <div className="flex justify-center py-20"><Loader className="animate-spin text-amber-600" /></div>;
+
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div>
-        <h1 
-          className="text-2xl text-stone-900"
-          style={{ fontFamily: "'Playfair Display', serif" }}
-        >
+        <h1 className="text-2xl text-stone-900" style={{ fontFamily: "'Playfair Display', serif" }}>
           Orders
         </h1>
         <p className="text-stone-500">Manage and track all orders</p>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          { label: 'Total Orders', value: orders.length, color: 'bg-stone-900' },
-          { label: 'Pending', value: orders.filter(o => o.status === 'pending').length, color: 'bg-yellow-500' },
-          { label: 'Processing', value: orders.filter(o => o.status === 'processing').length, color: 'bg-purple-500' },
-          { label: 'Completed', value: orders.filter(o => o.status === 'completed').length, color: 'bg-green-500' },
-        ].map((stat, index) => (
-          <div key={index} className="bg-white rounded-xl border border-stone-200 p-4">
-            <div className="flex items-center justify-between">
-              <p className="text-stone-600 text-sm">{stat.label}</p>
-              <div className={`w-3 h-3 rounded-full ${stat.color}`} />
-            </div>
-            <p className="text-2xl font-bold text-stone-900 mt-2">{stat.value}</p>
-          </div>
-        ))}
       </div>
 
       {/* Filters */}
@@ -124,27 +79,25 @@ const Orders = () => {
               placeholder="Search orders..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-stone-300 rounded-lg
-                       focus:outline-none focus:border-amber-500 text-stone-900"
+              className="w-full pl-10 pr-4 py-2 border border-stone-300 rounded-lg focus:outline-none focus:border-amber-500"
             />
           </div>
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
-            className="px-4 py-2 border border-stone-300 rounded-lg
-                     focus:outline-none focus:border-amber-500 text-stone-700"
+            className="px-4 py-2 border border-stone-300 rounded-lg focus:outline-none focus:border-amber-500 text-stone-700"
           >
             <option value="">All Status</option>
-            <option value="pending">Pending</option>
-            <option value="processing">Processing</option>
-            <option value="shipped">Shipped</option>
-            <option value="completed">Completed</option>
-            <option value="cancelled">Cancelled</option>
+            <option value="PENDING">Pending</option>
+            <option value="PROCESSING">Processing</option>
+            <option value="SHIPPED">Shipped</option>
+            <option value="COMPLETED">Completed</option>
+            <option value="CANCELLED">Cancelled</option>
           </select>
         </div>
       </div>
 
-      {/* Orders Table */}
+      {/* Table */}
       <div className="bg-white rounded-xl border border-stone-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -152,7 +105,6 @@ const Orders = () => {
               <tr>
                 <th className="px-6 py-4 text-left text-xs font-medium text-stone-500 uppercase">Order</th>
                 <th className="px-6 py-4 text-left text-xs font-medium text-stone-500 uppercase">Customer</th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-stone-500 uppercase">Items</th>
                 <th className="px-6 py-4 text-left text-xs font-medium text-stone-500 uppercase">Total</th>
                 <th className="px-6 py-4 text-left text-xs font-medium text-stone-500 uppercase">Status</th>
                 <th className="px-6 py-4 text-left text-xs font-medium text-stone-500 uppercase">Date</th>
@@ -169,33 +121,28 @@ const Orders = () => {
                   className="hover:bg-stone-50 transition-colors"
                 >
                   <td className="px-6 py-4">
-                    <p className="font-medium text-stone-900">{order.id}</p>
+                    <p className="font-medium text-stone-900">{order.orderNumber}</p>
                   </td>
                   <td className="px-6 py-4">
-                    <p className="text-stone-900">{order.customer.name}</p>
-                    <p className="text-sm text-stone-500">{order.customer.email}</p>
-                  </td>
-                  <td className="px-6 py-4">
-                    {order.items.map((item, i) => (
-                      <p key={i} className="text-stone-600">{item.title}</p>
-                    ))}
+                    <p className="text-stone-900">{order.customer?.firstName} {order.customer?.lastName}</p>
+                    <p className="text-xs text-stone-500">{order.customer?.email}</p>
                   </td>
                   <td className="px-6 py-4 font-medium text-stone-900">
-                    ${order.total.toLocaleString()}
+                    ${Number(order.total).toLocaleString()}
                   </td>
                   <td className="px-6 py-4">
-                    <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full 
-                                   text-xs font-medium ${getStatusStyle(order.status)}`}>
+                    <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getStatusStyle(order.status)}`}>
                       {getStatusIcon(order.status)}
-                      {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                      {order.status}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-stone-600">{order.date}</td>
+                  <td className="px-6 py-4 text-stone-600 text-sm">
+                    {new Date(order.createdAt).toLocaleDateString()}
+                  </td>
                   <td className="px-6 py-4">
                     <Link
                       to={`/admin/orders/${order.id}`}
-                      className="p-2 hover:bg-stone-100 rounded-lg transition-colors 
-                               text-stone-600 inline-flex"
+                      className="p-2 hover:bg-stone-100 rounded-lg transition-colors text-stone-600 inline-flex"
                     >
                       <Eye size={18} />
                     </Link>
@@ -205,12 +152,8 @@ const Orders = () => {
             </tbody>
           </table>
         </div>
-
         {filteredOrders.length === 0 && (
-          <div className="p-12 text-center">
-            <Package size={48} className="mx-auto text-stone-300 mb-4" />
-            <p className="text-stone-500">No orders found</p>
-          </div>
+          <div className="p-12 text-center text-stone-500">No orders found</div>
         )}
       </div>
     </div>

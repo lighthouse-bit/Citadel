@@ -1,89 +1,69 @@
-// client/src/pages/admin/Commissions.jsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, Eye, Calendar, DollarSign, User, Image } from 'lucide-react';
+import { Search, Eye, Calendar, DollarSign, User, Image, Loader } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { commissionsAPI } from '../../services/api';
+import toast from 'react-hot-toast';
 
 const Commissions = () => {
+  const [commissions, setCommissions] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
 
-  // Sample commissions data
-  const commissions = [
-    {
-      id: 'COM-001',
-      client: { name: 'Victoria Adams', email: 'victoria@email.com', phone: '+1 555-0101' },
-      style: 'Realistic Portrait',
-      size: '24x36 inches',
-      description: 'A family portrait featuring 4 members in a classic setting.',
-      estimatedPrice: 2500,
-      status: 'in_progress',
-      deadline: '2024-02-15',
-      createdAt: '2024-01-05',
-      referenceImages: 3,
-    },
-    {
-      id: 'COM-002',
-      client: { name: 'Robert Blake', email: 'robert@email.com', phone: '+1 555-0102' },
-      style: 'Abstract',
-      size: '30x40 inches',
-      description: 'Abstract piece inspired by ocean waves and movement.',
-      estimatedPrice: 1800,
-      status: 'pending',
-      deadline: '2024-02-20',
-      createdAt: '2024-01-10',
-      referenceImages: 2,
-    },
-    {
-      id: 'COM-003',
-      client: { name: 'Emma Wilson', email: 'emma@email.com', phone: '+1 555-0103' },
-      style: 'Watercolor',
-      size: '16x20 inches',
-      description: 'Botanical illustration of rare flowers.',
-      estimatedPrice: 1200,
-      status: 'reviewing',
-      deadline: '2024-01-30',
-      createdAt: '2024-01-02',
-      referenceImages: 5,
-    },
-    {
-      id: 'COM-004',
-      client: { name: 'David Chen', email: 'david@email.com', phone: '+1 555-0104' },
-      style: 'Contemporary',
-      size: '36x48 inches',
-      description: 'Modern cityscape of downtown Manhattan at night.',
-      estimatedPrice: 3500,
-      status: 'completed',
-      deadline: '2024-01-20',
-      createdAt: '2023-12-15',
-      referenceImages: 4,
-    },
-  ];
+  // Fetch Data from API
+  useEffect(() => {
+    const fetchCommissions = async () => {
+      setIsLoading(true);
+      try {
+        const response = await commissionsAPI.getAll({ status: filterStatus || undefined });
+        setCommissions(response.data.commissions);
+      } catch (error) {
+        console.error('Error fetching commissions:', error);
+        toast.error('Failed to load commissions');
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
+    fetchCommissions();
+  }, [filterStatus]);
+
+  // Client-side filtering for search query
   const filteredCommissions = commissions.filter(commission => {
-    const matchesSearch = 
-      commission.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      commission.client.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      commission.style.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = !filterStatus || commission.status === filterStatus;
-    return matchesSearch && matchesStatus;
+    const query = searchQuery.toLowerCase();
+    return (
+      commission.commissionNumber?.toLowerCase().includes(query) ||
+      commission.client?.firstName?.toLowerCase().includes(query) ||
+      commission.client?.lastName?.toLowerCase().includes(query) ||
+      commission.client?.email?.toLowerCase().includes(query) ||
+      commission.artStyle?.toLowerCase().includes(query)
+    );
   });
 
   const getStatusStyle = (status) => {
     const styles = {
-      pending: 'bg-yellow-100 text-yellow-700 border-yellow-200',
-      reviewing: 'bg-amber-100 text-amber-700 border-amber-200',
-      accepted: 'bg-blue-100 text-blue-700 border-blue-200',
-      in_progress: 'bg-purple-100 text-purple-700 border-purple-200',
-      completed: 'bg-green-100 text-green-700 border-green-200',
-      cancelled: 'bg-red-100 text-red-700 border-red-200',
+      PENDING: 'bg-yellow-100 text-yellow-700 border-yellow-200',
+      REVIEWING: 'bg-amber-100 text-amber-700 border-amber-200',
+      ACCEPTED: 'bg-blue-100 text-blue-700 border-blue-200',
+      IN_PROGRESS: 'bg-purple-100 text-purple-700 border-purple-200',
+      COMPLETED: 'bg-green-100 text-green-700 border-green-200',
+      CANCELLED: 'bg-red-100 text-red-700 border-red-200',
     };
     return styles[status] || 'bg-stone-100 text-stone-700 border-stone-200';
   };
 
   const formatStatus = (status) => {
-    return status.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+    return status?.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'Unknown';
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader size={32} className="animate-spin text-amber-600" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -98,13 +78,13 @@ const Commissions = () => {
         <p className="text-stone-500">Manage bespoke artwork requests</p>
       </div>
 
-      {/* Stats */}
+      {/* Stats (Calculated from live data) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: 'Total', value: commissions.length, color: 'bg-stone-900' },
-          { label: 'Pending', value: commissions.filter(c => c.status === 'pending').length, color: 'bg-yellow-500' },
-          { label: 'In Progress', value: commissions.filter(c => c.status === 'in_progress').length, color: 'bg-purple-500' },
-          { label: 'Completed', value: commissions.filter(c => c.status === 'completed').length, color: 'bg-green-500' },
+          { label: 'Pending', value: commissions.filter(c => c.status === 'PENDING').length, color: 'bg-yellow-500' },
+          { label: 'In Progress', value: commissions.filter(c => c.status === 'IN_PROGRESS').length, color: 'bg-purple-500' },
+          { label: 'Completed', value: commissions.filter(c => c.status === 'COMPLETED').length, color: 'bg-green-500' },
         ].map((stat, index) => (
           <div key={index} className="bg-white rounded-xl border border-stone-200 p-4">
             <div className="flex items-center justify-between">
@@ -123,7 +103,7 @@ const Commissions = () => {
             <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
             <input
               type="text"
-              placeholder="Search commissions..."
+              placeholder="Search by client, ID, or style..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-stone-300 rounded-lg
@@ -137,12 +117,12 @@ const Commissions = () => {
                      focus:outline-none focus:border-amber-500 text-stone-700"
           >
             <option value="">All Status</option>
-            <option value="pending">Pending</option>
-            <option value="reviewing">Reviewing</option>
-            <option value="accepted">Accepted</option>
-            <option value="in_progress">In Progress</option>
-            <option value="completed">Completed</option>
-            <option value="cancelled">Cancelled</option>
+            <option value="PENDING">Pending</option>
+            <option value="REVIEWING">Reviewing</option>
+            <option value="ACCEPTED">Accepted</option>
+            <option value="IN_PROGRESS">In Progress</option>
+            <option value="COMPLETED">Completed</option>
+            <option value="CANCELLED">Cancelled</option>
           </select>
         </div>
       </div>
@@ -161,8 +141,8 @@ const Commissions = () => {
               {/* Header */}
               <div className="flex items-start justify-between mb-4">
                 <div>
-                  <p className="text-sm text-stone-500">{commission.id}</p>
-                  <h3 className="text-lg font-semibold text-stone-900">{commission.style}</h3>
+                  <p className="text-sm text-stone-500">{commission.commissionNumber}</p>
+                  <h3 className="text-lg font-semibold text-stone-900">{commission.artStyle}</h3>
                 </div>
                 <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusStyle(commission.status)}`}>
                   {formatStatus(commission.status)}
@@ -178,19 +158,19 @@ const Commissions = () => {
               <div className="grid grid-cols-2 gap-4 mb-4">
                 <div className="flex items-center gap-2 text-sm text-stone-600">
                   <User size={16} className="text-stone-400" />
-                  {commission.client.name}
+                  {commission.customer?.firstName} {commission.customer?.lastName}
                 </div>
                 <div className="flex items-center gap-2 text-sm text-stone-600">
                   <DollarSign size={16} className="text-stone-400" />
-                  ${commission.estimatedPrice.toLocaleString()}
+                  Est: ${commission.estimatedPrice?.toLocaleString()}
                 </div>
                 <div className="flex items-center gap-2 text-sm text-stone-600">
                   <Calendar size={16} className="text-stone-400" />
-                  Due: {commission.deadline}
+                  Due: {commission.deadline ? new Date(commission.deadline).toLocaleDateString() : 'N/A'}
                 </div>
                 <div className="flex items-center gap-2 text-sm text-stone-600">
                   <Image size={16} className="text-stone-400" />
-                  {commission.referenceImages} references
+                  {commission.referenceImages?.length || 0} refs
                 </div>
               </div>
 
@@ -202,7 +182,7 @@ const Commissions = () => {
               {/* Actions */}
               <div className="flex items-center justify-between pt-4 border-t border-stone-200">
                 <p className="text-xs text-stone-400">
-                  Submitted: {commission.createdAt}
+                  Submitted: {new Date(commission.createdAt).toLocaleDateString()}
                 </p>
                 <Link
                   to={`/admin/commissions/${commission.id}`}
@@ -218,10 +198,10 @@ const Commissions = () => {
         ))}
       </div>
 
-      {filteredCommissions.length === 0 && (
+      {!isLoading && filteredCommissions.length === 0 && (
         <div className="bg-white rounded-xl border border-stone-200 p-12 text-center">
           <Image size={48} className="mx-auto text-stone-300 mb-4" />
-          <p className="text-stone-500">No commissions found</p>
+          <p className="text-stone-500">No commissions found matching your criteria</p>
         </div>
       )}
     </div>
