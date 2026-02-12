@@ -35,7 +35,14 @@ export const commissionsAPI = {
   create: (formData) => api.post('/commissions', formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
   }),
-  getAll: (params) => api.get('/commissions', { params }),
+  getAll: (params) => {
+    // If specifically asking for user data, hit the secure 'my-commissions' endpoint
+    if (params && params.scope === 'user') {
+      return api.get('/commissions/my-commissions');
+    }
+    // Otherwise, hit the general endpoint (admin guarded on backend)
+    return api.get('/commissions', { params });
+  },
   getById: (id) => api.get(`/commissions/${id}`),
   updateStatus: (id, data) => api.patch(`/commissions/${id}/status`, data),
   addProgressImage: (id, formData) => api.post(`/commissions/${id}/progress`, formData, {
@@ -47,8 +54,7 @@ export const commissionsAPI = {
 export const ordersAPI = {
   create: (data) => api.post('/orders', data),
   getAll: (params) => {
-    // If getting "my orders", we pass the customer email filter
-    // ideally the backend should use req.user.id, but email works for this simple setup
+    // Orders currently filter by email query param, but backend should ideally use token
     return api.get('/orders', { params });
   },
   getById: (id) => api.get(`/orders/${id}`),
