@@ -1,8 +1,6 @@
 // server/src/controllers/commissionController.js
 const prisma = require('../config/database');
 const { uploadToCloudinary } = require('../services/imageService');
-const { sendEmail } = require('../services/emailService');
-const { generateCommissionNumber } = require('../utils/helpers');
 
 // Create commission request
 exports.createCommission = async (req, res) => {
@@ -18,32 +16,54 @@ exports.createCommission = async (req, res) => {
       deadline,
     } = req.body;
 
-    // Find or create customer
-    let customer = await prisma.customer.findUnique({
-      where: { email },
-    });
+    // Determine Customer ID
+    let customerId;
+    const loggedInUser = req.user; // From authenticateUser middleware
 
-    if (!customer) {
-      customer = await prisma.customer.create({
-        data: {
-          email,
-          firstName,
-          lastName,
-          phone,
-        },
+    if (loggedInUser) {
+      // 1. User is logged in - Link to existing account
+      customerId = loggedInUser.id;
+      
+      // Update phone if provided and different
+      if (phone) {
+        await prisma.customer.update({
+          where: { id: customerId },
+          data: { phone }
+        }).catch(err => console.log('Phone update skipped', err));
+      }
+    } else {
+      // 2. Guest User - Find or Create
+      let customer = await prisma.customer.findUnique({
+        where: { email },
       });
+
+      if (!customer) {
+        customer = await prisma.customer.create({
+          data: {
+            email,
+            firstName,
+            lastName,
+            phone,
+          },
+        });
+      }
+      customerId = customer.id;
     }
 
     // Upload reference images
     const uploadedImages = [];
     if (req.files && req.files.length > 0) {
       for (const file of req.files) {
-        const result = await uploadToCloudinary(file, 'commissions');
-        uploadedImages.push({
-          url: result.secure_url,
-          publicId: result.public_id,
-          originalName: file.originalname,
-        });
+        try {
+          const result = await uploadToCloudinary(file, 'commissions');
+          uploadedImages.push({
+            url: result.secure_url,
+            publicId: result.public_id,
+            originalName: file.originalname,
+          });
+        } catch (uploadError) {
+          console.error('Image upload error:', uploadError);
+        }
       }
     }
 
@@ -51,7 +71,7 @@ exports.createCommission = async (req, res) => {
     const estimatedPrice = calculateEstimatedPrice(artStyle, size);
 
     // Generate commission number
-    const commissionNumber = generateCommissionNumber();
+    const commissionNumber = `COM-${Date.now().toString(36).toUpperCase()}`;
 
     // Create commission
     const commission = await prisma.commission.create({
@@ -62,7 +82,7 @@ exports.createCommission = async (req, res) => {
         description,
         estimatedPrice,
         deadline: deadline ? new Date(deadline) : null,
-        customerId: customer.id,
+        customerId: customerId,
         referenceImages: {
           create: uploadedImages,
         },
@@ -70,20 +90,6 @@ exports.createCommission = async (req, res) => {
       include: {
         customer: true,
         referenceImages: true,
-      },
-    });
-
-    // Send confirmation email
-    await sendEmail({
-      to: email,
-      subject: `Commission Request Received - ${commissionNumber}`,
-      template: 'commission-received',
-      data: {
-        name: firstName,
-        commissionNumber,
-        artStyle,
-        size,
-        estimatedPrice,
       },
     });
 
@@ -135,6 +141,27 @@ exports.getAllCommissions = async (req, res) => {
   }
 };
 
+// Get My Commissions (User)
+exports.getMyCommissions = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    const commissions = await prisma.commission.findMany({
+      where: { customerId: userId },
+      include: {
+        referenceImages: true,
+        progressImages: true,
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    res.json({ commissions });
+  } catch (error) {
+    console.error('Error fetching user commissions:', error);
+    res.status(500).json({ error: 'Failed to fetch commissions' });
+  }
+};
+
 // Get single commission
 exports.getCommissionById = async (req, res) => {
   try {
@@ -179,7 +206,7 @@ exports.updateCommissionStatus = async (req, res) => {
       updateData.finalPrice = parseFloat(finalPrice);
     }
 
-    if (status === 'IN_PROGRESS' && !updateData.startedAt) {
+    if (status === 'IN_PROGRESS') {
       updateData.startedAt = new Date();
     }
 
@@ -200,20 +227,6 @@ exports.updateCommissionStatus = async (req, res) => {
           content: note,
           isInternal: false,
           commissionId: id,
-        },
-      });
-    }
-
-    // Send status update email
-    if (status === 'ACCEPTED') {
-      await sendEmail({
-        to: commission.customer.email,
-        subject: `Commission Accepted - ${commission.commissionNumber}`,
-        template: 'commission-accepted',
-        data: {
-          name: commission.customer.firstName,
-          commissionNumber: commission.commissionNumber,
-          finalPrice: commission.finalPrice,
         },
       });
     }
@@ -246,24 +259,6 @@ exports.addProgressImage = async (req, res) => {
       },
     });
 
-    // Get commission to send email
-    const commission = await prisma.commission.findUnique({
-      where: { id },
-      include: { customer: true },
-    });
-
-    // Notify customer
-    await sendEmail({
-      to: commission.customer.email,
-      subject: `Progress Update - ${commission.commissionNumber}`,
-      template: 'commission-progress',
-      data: {
-        name: commission.customer.firstName,
-        imageUrl: result.secure_url,
-        description,
-      },
-    });
-
     res.status(201).json(progressImage);
   } catch (error) {
     console.error('Error adding progress image:', error);
@@ -271,14 +266,15 @@ exports.addProgressImage = async (req, res) => {
   }
 };
 
-// Helper function to calculate estimated price
+// Helper function
 function calculateEstimatedPrice(artStyle, size) {
   const stylePrices = {
     realistic: 500,
     abstract: 400,
     impressionist: 450,
-    digital: 300,
+    contemporary: 450,
     charcoal: 250,
+    watercolor: 350,
   };
 
   const sizeMultipliers = {
@@ -288,8 +284,8 @@ function calculateEstimatedPrice(artStyle, size) {
     xlarge: 3.5,
   };
 
-  const basePrice = stylePrices[artStyle.toLowerCase()] || 400;
-  const multiplier = sizeMultipliers[size.toLowerCase()] || 1;
+  const basePrice = stylePrices[artStyle?.toLowerCase()] || 400;
+  const multiplier = sizeMultipliers[size?.toLowerCase()] || 1;
 
   return basePrice * multiplier;
 }

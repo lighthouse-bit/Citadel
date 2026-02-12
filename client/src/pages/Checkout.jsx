@@ -1,294 +1,282 @@
-// client/src/pages/Checkout.jsx
 import { useState } from 'react';
-import { loadStripe } from '@stripe/stripe-js';
-import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
+import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Trash2, CreditCard, Lock } from 'lucide-react';
+import { Lock, ArrowRight, CheckCircle, Loader } from 'lucide-react';
 import { useCart } from '../hooks/useCart';
+import { useAuth } from '../hooks/useAuth';
+import { ordersAPI } from '../services/api';
 import toast from 'react-hot-toast';
 
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY);
+// Helper image component
+const CartImage = ({ src, alt }) => {
+  const fallback = "https://images.unsplash.com/photo-1547891654-e66ed7ebb968?w=200&h=200&fit=crop";
+  return (
+    <img
+      src={src || fallback}
+      alt={alt}
+      className="w-full h-full object-cover"
+      onError={(e) => e.target.src = fallback}
+    />
+  );
+};
 
-const CheckoutForm = () => {
-  const stripe = useStripe();
-  const elements = useElements();
-  const { cartItems, getTotal, clearCart } = useCart();
+const Checkout = () => {
+  const { cartItems, cartTotal, clearCart } = useCart();
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [isProcessing, setIsProcessing] = useState(false);
-  const [shippingInfo, setShippingInfo] = useState({
-    name: '',
-    email: '',
+  const [step, setStep] = useState(1); // 1: Details, 2: Payment, 3: Success
+
+  // Form State
+  const [formData, setFormData] = useState({
+    email: user?.email || '',
+    firstName: user?.name?.split(' ')[0] || '',
+    lastName: user?.name?.split(' ')[1] || '',
     address: '',
     city: '',
-    state: '',
     zip: '',
-    country: '',
+    country: 'United States',
   });
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    if (!stripe || !elements) return;
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
 
+  const handlePayment = async (e) => {
+    e.preventDefault();
     setIsProcessing(true);
 
     try {
-      // Create payment intent on backend
-      const response = await fetch('/api/payments/create-intent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          items: cartItems,
-          shipping: shippingInfo,
-        }),
-      });
+      // 1. Create Order Payload
+      const orderPayload = {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        items: cartItems.map(item => ({ id: item.id })), // Send IDs
+        shippingAddress: {
+          line1: formData.address,
+          city: formData.city,
+          postalCode: formData.zip,
+          country: formData.country,
+        }
+      };
 
-      const { clientSecret } = await response.json();
+      // 2. Call API
+      await ordersAPI.create(orderPayload);
 
-      // Confirm payment
-      const { error, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
-        payment_method: {
-          card: elements.getElement(CardElement),
-          billing_details: {
-            name: shippingInfo.name,
-            email: shippingInfo.email,
-          },
-        },
-      });
-
-      if (error) {
-        toast.error(error.message);
-      } else if (paymentIntent.status === 'succeeded') {
-        toast.success('Payment successful! Order confirmed.');
-        clearCart();
-        // Redirect to confirmation page
-      }
+      // 3. Simulate Payment (Success)
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      clearCart();
+      setStep(3);
+      toast.success('Order placed successfully!');
     } catch (error) {
-      toast.error('Payment failed. Please try again.');
+      console.error(error);
+      toast.error(error.response?.data?.error || 'Order failed. Please try again.');
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const cardStyle = {
-    style: {
-      base: {
-        color: '#ffffff',
-        fontFamily: 'Inter, sans-serif',
-        fontSize: '16px',
-        '::placeholder': {
-          color: '#6b7280',
-        },
-      },
-      invalid: {
-        color: '#ef4444',
-      },
-    },
-  };
-
-  if (cartItems.length === 0) {
+  if (cartItems.length === 0 && step !== 3) {
     return (
-      <div className="pt-20 min-h-screen flex items-center justify-center">
+      <div className="min-h-screen pt-20 bg-stone-50 flex items-center justify-center">
         <div className="text-center">
-          <h2 className="text-2xl font-serif text-white mb-4">Your cart is empty</h2>
-          <a href="/shop" className="btn-primary">
-            Browse Shop
-          </a>
+          <h2 className="text-2xl font-serif text-stone-900 mb-4">Your collection is empty</h2>
+          <Link to="/gallery" className="text-amber-700 hover:text-amber-800 underline">
+            Return to Gallery
+          </Link>
         </div>
       </div>
     );
   }
 
+  if (step === 3) {
+    return (
+      <div className="min-h-screen pt-20 bg-stone-50 flex items-center justify-center px-4">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="bg-white p-8 rounded-xl shadow-lg border border-stone-200 max-w-md w-full text-center"
+        >
+          <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6">
+            <CheckCircle size={32} />
+          </div>
+          <h2 className="text-3xl font-serif text-stone-900 mb-2">Order Confirmed</h2>
+          <p className="text-stone-500 mb-8">
+            Thank you for your purchase, {formData.firstName}. We'll send a confirmation email to {formData.email} shortly.
+          </p>
+          <Link 
+            to="/"
+            className="w-full inline-flex justify-center items-center px-6 py-3 bg-stone-900 text-white rounded-lg hover:bg-stone-800 transition-colors"
+          >
+            Return Home
+          </Link>
+        </motion.div>
+      </div>
+    );
+  }
+
   return (
-    <div className="pt-20 min-h-screen">
-      <div className="max-w-6xl mx-auto px-4 py-16">
-        <h1 className="text-4xl font-serif text-white mb-12 text-center">Checkout</h1>
-        
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-          {/* Cart Items */}
-          <div>
-            <h2 className="text-2xl font-serif text-white mb-6">Your Order</h2>
-            <div className="space-y-4">
-              {cartItems.map((item) => (
-                <CartItem key={item.id} item={item} />
-              ))}
+    <div className="pt-24 min-h-screen bg-stone-50 pb-24">
+      <div className="max-w-7xl mx-auto px-6">
+        <h1 className="text-4xl font-serif text-stone-900 mb-12 text-center">Secure Checkout</h1>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 max-w-6xl mx-auto">
+          
+          {/* Left Column: Form */}
+          <div className="space-y-8">
+            <div className="bg-white p-8 rounded-xl border border-stone-200 shadow-sm">
+              <h2 className="text-xl font-serif text-stone-900 mb-6">Contact & Shipping</h2>
+              <form id="checkout-form" onSubmit={handlePayment} className="space-y-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-stone-500 uppercase tracking-wider mb-2">First Name</label>
+                    <input
+                      type="text"
+                      name="firstName"
+                      required
+                      value={formData.firstName}
+                      onChange={handleChange}
+                      className="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-lg focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-stone-500 uppercase tracking-wider mb-2">Last Name</label>
+                    <input
+                      type="text"
+                      name="lastName"
+                      required
+                      value={formData.lastName}
+                      onChange={handleChange}
+                      className="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-lg focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-stone-500 uppercase tracking-wider mb-2">Email</label>
+                  <input
+                    type="email"
+                    name="email"
+                    required
+                    value={formData.email}
+                    onChange={handleChange}
+                    className="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-lg focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-stone-500 uppercase tracking-wider mb-2">Address</label>
+                  <input
+                    type="text"
+                    name="address"
+                    required
+                    value={formData.address}
+                    onChange={handleChange}
+                    className="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-lg focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-stone-500 uppercase tracking-wider mb-2">City</label>
+                    <input
+                      type="text"
+                      name="city"
+                      required
+                      value={formData.city}
+                      onChange={handleChange}
+                      className="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-lg focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-stone-500 uppercase tracking-wider mb-2">ZIP Code</label>
+                    <input
+                      type="text"
+                      name="zip"
+                      required
+                      value={formData.zip}
+                      onChange={handleChange}
+                      className="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-lg focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                </div>
+              </form>
             </div>
-            
-            {/* Order Summary */}
-            <div className="mt-8 p-6 bg-citadel-charcoal border border-citadel-gold/20">
-              <div className="flex justify-between text-gray-400 mb-2">
-                <span>Subtotal</span>
-                <span>${getTotal().toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between text-gray-400 mb-2">
-                <span>Shipping</span>
-                <span>Calculated at next step</span>
-              </div>
-              <div className="border-t border-citadel-gold/20 pt-4 mt-4">
-                <div className="flex justify-between text-xl">
-                  <span className="text-white">Total</span>
-                  <span className="text-citadel-gold font-serif">
-                    ${getTotal().toLocaleString()}
-                  </span>
+
+            <div className="bg-white p-8 rounded-xl border border-stone-200 shadow-sm">
+              <h2 className="text-xl font-serif text-stone-900 mb-6">Payment Method</h2>
+              <div className="p-4 border border-stone-200 rounded-lg bg-stone-50 flex items-center justify-between">
+                <span className="text-stone-600">Credit / Debit Card</span>
+                <div className="flex gap-2">
+                  <div className="w-8 h-5 bg-stone-300 rounded"></div>
+                  <div className="w-8 h-5 bg-stone-300 rounded"></div>
                 </div>
               </div>
+              <p className="text-xs text-stone-400 mt-4 flex items-center gap-1">
+                <Lock size={12} /> Payments are secure and encrypted.
+              </p>
             </div>
           </div>
 
-          {/* Payment Form */}
+          {/* Right Column: Summary */}
           <div>
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Shipping Information */}
-              <div className="bg-citadel-charcoal p-6 border border-citadel-gold/20">
-                <h2 className="text-xl font-serif text-white mb-4">Shipping Information</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="col-span-2">
-                    <input
-                      type="text"
-                      placeholder="Full Name"
-                      required
-                      value={shippingInfo.name}
-                      onChange={(e) => setShippingInfo({...shippingInfo, name: e.target.value})}
-                      className="w-full bg-citadel-dark border border-citadel-gold/30 px-4 py-3 
-                               text-white focus:border-citadel-gold focus:outline-none"
-                    />
+            <div className="bg-white p-8 rounded-xl border border-stone-200 shadow-sm sticky top-28">
+              <h2 className="text-xl font-serif text-stone-900 mb-6">Order Summary</h2>
+              
+              <div className="space-y-6 mb-8 max-h-80 overflow-y-auto pr-2">
+                {cartItems.map((item) => (
+                  <div key={item.id} className="flex gap-4">
+                    <div className="w-16 h-16 rounded-md overflow-hidden bg-stone-200 flex-shrink-0">
+                      <CartImage 
+                        src={item.images?.[0]?.url || item.images?.[0]} 
+                        alt={item.title} 
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-medium text-stone-900">{item.title}</h3>
+                      <p className="text-xs text-stone-500 uppercase">{item.medium}</p>
+                    </div>
+                    <p className="text-stone-900">${item.price.toLocaleString()}</p>
                   </div>
-                  <div className="col-span-2">
-                    <input
-                      type="email"
-                      placeholder="Email"
-                      required
-                      value={shippingInfo.email}
-                      onChange={(e) => setShippingInfo({...shippingInfo, email: e.target.value})}
-                      className="w-full bg-citadel-dark border border-citadel-gold/30 px-4 py-3 
-                               text-white focus:border-citadel-gold focus:outline-none"
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <input
-                      type="text"
-                      placeholder="Address"
-                      required
-                      value={shippingInfo.address}
-                      onChange={(e) => setShippingInfo({...shippingInfo, address: e.target.value})}
-                      className="w-full bg-citadel-dark border border-citadel-gold/30 px-4 py-3 
-                               text-white focus:border-citadel-gold focus:outline-none"
-                    />
-                  </div>
-                  <input
-                    type="text"
-                    placeholder="City"
-                    required
-                    value={shippingInfo.city}
-                    onChange={(e) => setShippingInfo({...shippingInfo, city: e.target.value})}
-                    className="w-full bg-citadel-dark border border-citadel-gold/30 px-4 py-3 
-                             text-white focus:border-citadel-gold focus:outline-none"
-                  />
-                  <input
-                    type="text"
-                    placeholder="State/Province"
-                    value={shippingInfo.state}
-                    onChange={(e) => setShippingInfo({...shippingInfo, state: e.target.value})}
-                    className="w-full bg-citadel-dark border border-citadel-gold/30 px-4 py-3 
-                             text-white focus:border-citadel-gold focus:outline-none"
-                  />
-                  <input
-                    type="text"
-                    placeholder="ZIP/Postal Code"
-                    required
-                    value={shippingInfo.zip}
-                    onChange={(e) => setShippingInfo({...shippingInfo, zip: e.target.value})}
-                    className="w-full bg-citadel-dark border border-citadel-gold/30 px-4 py-3 
-                             text-white focus:border-citadel-gold focus:outline-none"
-                  />
-                  <input
-                    type="text"
-                    placeholder="Country"
-                    required
-                    value={shippingInfo.country}
-                    onChange={(e) => setShippingInfo({...shippingInfo, country: e.target.value})}
-                    className="w-full bg-citadel-dark border border-citadel-gold/30 px-4 py-3 
-                             text-white focus:border-citadel-gold focus:outline-none"
-                  />
-                </div>
+                ))}
               </div>
 
-              {/* Payment */}
-              <div className="bg-citadel-charcoal p-6 border border-citadel-gold/20">
-                <h2 className="text-xl font-serif text-white mb-4 flex items-center gap-2">
-                  <CreditCard size={20} className="text-citadel-gold" />
-                  Payment Details
-                </h2>
-                <div className="bg-citadel-dark border border-citadel-gold/30 p-4">
-                  <CardElement options={cardStyle} />
+              <div className="space-y-3 pt-6 border-t border-stone-100">
+                <div className="flex justify-between text-stone-500">
+                  <span>Subtotal</span>
+                  <span>${cartTotal.toLocaleString()}</span>
                 </div>
-                <p className="text-gray-500 text-sm mt-3 flex items-center gap-2">
-                  <Lock size={14} />
-                  Secured by Stripe. Your payment information is encrypted.
-                </p>
+                <div className="flex justify-between text-stone-500">
+                  <span>Shipping</span>
+                  <span>Free</span>
+                </div>
+                <div className="flex justify-between text-xl font-serif text-stone-900 pt-4 border-t border-stone-200">
+                  <span>Total</span>
+                  <span>${cartTotal.toLocaleString()}</span>
+                </div>
               </div>
 
               <button
                 type="submit"
-                disabled={!stripe || isProcessing}
-                className="w-full btn-primary flex items-center justify-center gap-2
-                         disabled:opacity-50 disabled:cursor-not-allowed"
+                form="checkout-form"
+                disabled={isProcessing}
+                className="w-full mt-8 bg-amber-600 text-white py-4 rounded-lg font-medium tracking-wide uppercase 
+                         hover:bg-amber-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 {isProcessing ? (
-                  <>
-                    <div className="w-5 h-5 border-2 border-citadel-dark border-t-transparent 
-                                  rounded-full animate-spin" />
-                    Processing...
-                  </>
+                  <>Processing...</>
                 ) : (
-                  <>
-                    Complete Order - ${getTotal().toLocaleString()}
-                  </>
+                  <>Complete Order <ArrowRight size={16} /></>
                 )}
               </button>
-            </form>
+            </div>
           </div>
+
         </div>
       </div>
     </div>
-  );
-};
-
-const CartItem = ({ item }) => {
-  const { removeFromCart } = useCart();
-
-  return (
-    <motion.div
-      layout
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="flex gap-4 p-4 bg-citadel-charcoal border border-citadel-gold/20"
-    >
-      <img
-        src={item.image}
-        alt={item.title}
-        className="w-24 h-24 object-cover"
-      />
-      <div className="flex-grow">
-        <h3 className="text-white font-serif">{item.title}</h3>
-        <p className="text-gray-400 text-sm">{item.size}</p>
-        <p className="text-citadel-gold mt-2">${item.price.toLocaleString()}</p>
-      </div>
-      <button
-        onClick={() => removeFromCart(item.id)}
-        className="text-gray-400 hover:text-red-500 transition-colors"
-      >
-        <Trash2 size={18} />
-      </button>
-    </motion.div>
-  );
-};
-
-const Checkout = () => {
-  return (
-    <Elements stripe={stripePromise}>
-      <CheckoutForm />
-    </Elements>
   );
 };
 

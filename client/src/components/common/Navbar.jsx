@@ -1,17 +1,18 @@
-// client/src/components/common/Navbar.jsx
 import { useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Menu, X, ShoppingBag, User } from 'lucide-react';
 import { useCart } from '../../hooks/useCart';
+import { useAuth } from '../../hooks/useAuth';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const Navbar = () => {
+const Navbar = ({ onOpenAuth }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const { cartItems } = useCart();
+  const { cartItems, openCart } = useCart();
+  const { isAuthenticated } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
 
-  // Check if we're on the home page (hero has dark background)
   const isHomePage = location.pathname === '/';
 
   useEffect(() => {
@@ -22,7 +23,6 @@ const Navbar = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Close mobile menu on route change
   useEffect(() => {
     setIsOpen(false);
   }, [location]);
@@ -34,7 +34,15 @@ const Navbar = () => {
     { path: '/about', label: 'Atelier' },
   ];
 
-  // Determine text color based on page and scroll state
+  const handleUserClick = () => {
+    if (isAuthenticated) {
+      navigate('/account');
+    } else {
+      // Trigger the Auth Modal via prop from App.jsx
+      onOpenAuth();
+    }
+  };
+
   const getTextColor = () => {
     if (scrolled) return 'text-stone-900';
     if (isHomePage) return 'text-white';
@@ -60,13 +68,14 @@ const Navbar = () => {
           ? 'bg-white/95 backdrop-blur-md shadow-sm py-4' 
           : isHomePage 
             ? 'bg-transparent py-6' 
-            : 'bg-white/95 backdrop-blur-md py-4'
+            : 'bg-white/95 backdrop-blur-md py-4 border-b border-stone-100'
       }`}
     >
       <div className="max-w-7xl mx-auto px-6 lg:px-12">
         <div className="flex justify-between items-center">
+          
           {/* Logo */}
-          <Link to="/" className="relative group">
+          <Link to="/" className="relative group z-50">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -82,7 +91,7 @@ const Navbar = () => {
                 className={`absolute -bottom-3 left-0 text-[9px] tracking-widest transition-colors duration-300 ${
                   scrolled || !isHomePage ? 'text-amber-700' : 'text-amber-200'
                 }`}
-                style={{ letterSpacing: '0.2em' }}
+                style={{ letterSpacing: '0.25em' }}
               >
                 FINE ART
               </span>
@@ -90,7 +99,7 @@ const Navbar = () => {
           </Link>
 
           {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center">
+          <div className="hidden md:flex items-center z-50">
             <div className="flex items-center space-x-10 mr-10">
               {navLinks.map((link, index) => (
                 <motion.div
@@ -120,80 +129,106 @@ const Navbar = () => {
               ))}
             </div>
 
-            {/* Icons */}
-            <div className="flex items-center space-x-5">
-              <Link
-                to="/account"
-                className={`transition-colors duration-300 ${getTextColor()} ${getHoverColor()}`}
+            {/* Right Icons */}
+            <div className="flex items-center space-x-2 border-l pl-6 border-white/20">
+              {/* User Button */}
+              <button
+                onClick={handleUserClick}
+                className={`p-2 transition-colors duration-300 focus:outline-none ${getTextColor()} ${getHoverColor()}`}
+                aria-label="Account"
               >
                 <User size={20} strokeWidth={1.5} />
-              </Link>
+              </button>
               
-              <Link to="/checkout" className="relative">
-                <ShoppingBag 
-                  size={20} 
-                  strokeWidth={1.5}
-                  className={`transition-colors duration-300 ${getTextColor()} ${getHoverColor()}`}
-                />
+              {/* Cart Button */}
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openCart();
+                }}
+                className={`relative group p-2 focus:outline-none transition-colors duration-300 ${getTextColor()} ${getHoverColor()}`}
+                aria-label="Open Cart"
+              >
+                <ShoppingBag size={20} strokeWidth={1.5} />
                 {cartItems.length > 0 && (
-                  <span className="absolute -top-2 -right-2 w-5 h-5 bg-amber-600 
-                                 text-white text-[10px] font-medium rounded-full 
-                                 flex items-center justify-center">
+                  <span className="absolute top-0 right-0 w-4 h-4 bg-amber-600 
+                                 text-white text-[9px] font-medium rounded-full 
+                                 flex items-center justify-center shadow-sm">
                     {cartItems.length}
                   </span>
                 )}
-              </Link>
+              </button>
             </div>
           </div>
 
-          {/* Mobile menu button */}
+          {/* Mobile Menu Button */}
           <button
             onClick={() => setIsOpen(!isOpen)}
-            className={`md:hidden transition-colors duration-300 ${getTextColor()}`}
+            className={`md:hidden z-50 p-2 transition-colors duration-300 ${isOpen ? 'text-stone-900' : getTextColor()}`}
           >
             {isOpen ? <X size={24} strokeWidth={1.5} /> : <Menu size={24} strokeWidth={1.5} />}
           </button>
         </div>
       </div>
 
-      {/* Mobile Navigation */}
+      {/* Mobile Menu */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="md:hidden bg-white border-t border-stone-200"
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.2 }}
+            className="absolute top-0 left-0 w-full bg-white shadow-xl md:hidden border-b border-stone-200 z-40"
           >
-            <div className="px-6 py-8 space-y-6">
+            <div className="pt-24 pb-8 px-6 space-y-6 flex flex-col items-center text-center">
               {navLinks.map((link) => (
                 <Link
                   key={link.path}
                   to={link.path}
+                  onClick={() => setIsOpen(false)}
                   className={`block text-sm tracking-widest uppercase transition-colors duration-300 ${
                     location.pathname === link.path 
-                      ? 'text-amber-700' 
-                      : 'text-stone-700 hover:text-amber-700'
+                      ? 'text-amber-700 font-medium' 
+                      : 'text-stone-600 hover:text-amber-700'
                   }`}
                   style={{ letterSpacing: '0.15em' }}
                 >
                   {link.label}
                 </Link>
               ))}
-              <div className="pt-4 border-t border-stone-200 flex items-center space-x-6">
-                <Link to="/account" className="text-stone-700 hover:text-amber-700">
-                  <User size={20} strokeWidth={1.5} />
-                </Link>
-                <Link to="/checkout" className="relative text-stone-700 hover:text-amber-700">
-                  <ShoppingBag size={20} strokeWidth={1.5} />
-                  {cartItems.length > 0 && (
-                    <span className="absolute -top-2 -right-2 w-5 h-5 bg-amber-600 
-                                   text-white text-[10px] font-medium rounded-full 
-                                   flex items-center justify-center">
-                      {cartItems.length}
-                    </span>
-                  )}
-                </Link>
+              
+              <div className="w-12 h-px bg-stone-200 my-4" />
+              
+              <div className="flex items-center space-x-8">
+                <button 
+                  onClick={() => {
+                    setIsOpen(false);
+                    handleUserClick();
+                  }}
+                  className="text-stone-600 hover:text-amber-700 flex flex-col items-center gap-1"
+                >
+                  <User size={24} strokeWidth={1.5} />
+                  <span className="text-[10px] uppercase tracking-widest">
+                    {isAuthenticated ? 'Account' : 'Sign In'}
+                  </span>
+                </button>
+                
+                <button 
+                  onClick={() => {
+                    setIsOpen(false);
+                    openCart();
+                  }}
+                  className="text-stone-600 hover:text-amber-700 flex flex-col items-center gap-1 relative"
+                >
+                  <div className="relative">
+                    <ShoppingBag size={24} strokeWidth={1.5} />
+                    {cartItems.length > 0 && (
+                      <span className="absolute -top-1 -right-1 w-3 h-3 bg-amber-600 rounded-full border border-white" />
+                    )}
+                  </div>
+                  <span className="text-[10px] uppercase tracking-widest">Cart</span>
+                </button>
               </div>
             </div>
           </motion.div>

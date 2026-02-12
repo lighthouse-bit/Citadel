@@ -1,4 +1,3 @@
-// client/src/services/api.js
 import axios from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
@@ -36,9 +35,19 @@ export const commissionsAPI = {
   create: (formData) => api.post('/commissions', formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
   }),
-  getAll: (params) => api.get('/commissions', { params }),
+  getAll: (params) => {
+    // If fetching for logged in user profile, use the specific endpoint
+    if (params && params.scope === 'user') {
+      return api.get('/commissions/my-commissions');
+    }
+    // Otherwise use admin endpoint (admin middleware on server will handle access)
+    return api.get('/commissions', { params });
+  },
   getById: (id) => api.get(`/commissions/${id}`),
   updateStatus: (id, data) => api.patch(`/commissions/${id}/status`, data),
+  addProgressImage: (id, formData) => api.post(`/commissions/${id}/progress`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
 };
 
 // Orders API
@@ -52,7 +61,7 @@ export const ordersAPI = {
 // Payments API
 export const paymentsAPI = {
   createIntent: (data) => api.post('/payments/create-intent', data),
-  createCommissionPayment: (data) => api.post('/payments/commission-payment', data),
+  commissionPayment: (data) => api.post('/payments/commission-payment', data),
 };
 
 export default api;

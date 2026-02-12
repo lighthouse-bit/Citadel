@@ -7,6 +7,8 @@ const artworkRoutes = require('./routes/artworkRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const commissionRoutes = require('./routes/commissionRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
+const authRoutes = require('./routes/authRoutes');
+const dashboardRoutes = require('./routes/dashboardRoutes');
 
 const app = express();
 
@@ -28,6 +30,8 @@ app.use('/api/artworks', artworkRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/commissions', commissionRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 // 404 handler
 app.use((req, res) => {
