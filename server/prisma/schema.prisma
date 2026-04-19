@@ -135,6 +135,9 @@ model Customer {
   
   // Stripe
   stripeCustomerId String? @unique
+
+  isVerified        Boolean  @default(false)
+  verificationToken String?  @unique
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

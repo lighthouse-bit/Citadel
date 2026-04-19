@@ -11,7 +11,7 @@ const defaultSettings = {
   artistBio: 'Fine artist specializing in portraits and landscapes. Each piece in my collection represents a convergence of technical mastery and emotional depth, carefully crafted to resonate with the discerning collector.',
   contactEmail: 'contact@citadel-art.com',
   phone: '+1 (555) 123-4567',
-  address: '123 Art District, New York, NY 10001',
+  address: 'Johnson Tower Ikeja GRA, Lagos',
   socialInstagram: 'https://instagram.com/citadelart',
   socialTwitter: 'https://twitter.com/citadelart',
   socialFacebook: '',
