@@ -6,6 +6,8 @@ import { CartProvider } from './context/CartContext';
 import { AuthProvider } from './context/AuthContext';
 import { SettingsProvider } from './context/SettingsContext';
 import { ArtworksProvider } from './context/ArtworksContext';
+import VerifyEmail from './pages/VerifyEmail';
+import VerificationBanner from './components/auth/VerificationBanner';
 
 // Layout Components
 import Navbar from './components/common/Navbar';
@@ -23,6 +25,7 @@ import Contact from './pages/Contact';
 import Checkout from './pages/Checkout';
 import ArtworkDetail from './pages/ArtworkDetail';
 import Account from './pages/Account';
+
 
 // Admin Pages
 import AdminLayout from './pages/admin/AdminLayout';
@@ -47,6 +50,7 @@ const PublicLayout = ({ children }) => {
 
   return (
     <>
+      <VerificationBanner />
       <Navbar onOpenAuth={() => setIsAuthOpen(true)} />
       <CartDrawer />
       <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
@@ -76,6 +80,7 @@ function App() {
                   <Route path="/about" element={<PublicLayout><About /></PublicLayout>} />
                   <Route path="/contact" element={<PublicLayout><Contact /></PublicLayout>} />
                   <Route path="/checkout" element={<PublicLayout><Checkout /></PublicLayout>} />
+                  <Route path="/verify-email" element={<PublicLayout><VerifyEmail /></PublicLayout>} />
                   
                   {/* Account Dashboard (Protected via Redirect in Component) */}
                   <Route path="/account" element={<PublicLayout><Account /></PublicLayout>} />

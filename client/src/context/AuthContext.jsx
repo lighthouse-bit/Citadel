@@ -9,8 +9,8 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [showVerificationBanner, setShowVerificationBanner] = useState(false);
 
-  // Check auth on load
   useEffect(() => {
     checkAuth();
   }, []);
@@ -23,7 +23,6 @@ export const AuthProvider = ({ children }) => {
         return;
       }
 
-      // Verify token with backend
       const response = await axios.get(`${API_URL}/auth/me`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -31,6 +30,11 @@ export const AuthProvider = ({ children }) => {
       if (response.data.user) {
         setUser(response.data.user);
         setIsAuthenticated(true);
+        
+        // Check if user needs to verify email
+        if (response.data.user.isVerified === false) {
+          setShowVerificationBanner(true);
+        }
       } else {
         logout();
       }
@@ -51,6 +55,11 @@ export const AuthProvider = ({ children }) => {
       setUser(user);
       setIsAuthenticated(true);
       
+      // Show banner if not verified
+      if (user.isVerified === false) {
+        setShowVerificationBanner(true);
+      }
+      
       toast.success(`Welcome back, ${user.name.split(' ')[0]}!`);
       return { success: true };
     } catch (error) {
@@ -68,9 +77,10 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('citadel_token', token);
       setUser(user);
       setIsAuthenticated(true);
-
-      toast.success('Account created successfully!');
-      return { success: true };
+      setShowVerificationBanner(true); // Always show after registration
+      
+      // Don't show the generic success toast - the modal will show the verification message
+      return { success: true, needsVerification: true };
     } catch (error) {
       const message = error.response?.data?.error || 'Registration failed';
       toast.error(message);
@@ -82,7 +92,22 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('citadel_token');
     setUser(null);
     setIsAuthenticated(false);
-    // Optional: toast.success('Logged out successfully');
+    setShowVerificationBanner(false);
+  };
+
+  const dismissVerificationBanner = () => {
+    setShowVerificationBanner(false);
+  };
+
+  const resendVerification = async () => {
+    try {
+      await axios.post(`${API_URL}/auth/resend-verification`, {}, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('citadel_token')}` }
+      });
+      toast.success('Verification email resent! Check your inbox.');
+    } catch (error) {
+      toast.error('Failed to resend verification email');
+    }
   };
 
   const value = {
@@ -90,10 +115,14 @@ export const AuthProvider = ({ children }) => {
     isLoading,
     isAuthenticated,
     isAdmin: user?.role === 'admin',
+    isVerified: user?.isVerified ?? false,
+    showVerificationBanner,
     login,
     register,
     logout,
     checkAuth,
+    dismissVerificationBanner,
+    resendVerification,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
