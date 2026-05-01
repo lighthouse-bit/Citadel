@@ -1,14 +1,20 @@
-// server/src/lib/prisma.js  ← create this file
+// server/src/lib/prisma.js
 const { PrismaClient } = require('@prisma/client');
 
-// ✅ Prevent multiple Prisma instances in serverless/dev
+const prismaClientSingleton = () => {
+  return new PrismaClient({
+    // In production (Vercel), we silence query logs to save cost/logs
+    // In development, we see what's happening
+    log: process.env.NODE_ENV === 'development' 
+      ? ['query', 'error', 'warn'] 
+      : ['error'],
+  });
+};
+
+// Prevent multiple instances in development (hot reload)
 const globalForPrisma = global;
 
-const prisma = globalForPrisma.prisma || new PrismaClient({
-  log: process.env.NODE_ENV === 'development' 
-    ? ['query', 'error', 'warn'] 
-    : ['error'],
-});
+const prisma = globalForPrisma.prisma || prismaClientSingleton();
 
 if (process.env.NODE_ENV !== 'production') {
   globalForPrisma.prisma = prisma;
