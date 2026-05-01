@@ -16,12 +16,20 @@ const app = express();
 // Middleware
 app.use(cors({
   origin: [
-    'http://localhost:5173',           // ✅ Local React dev
-    'http://localhost:3000',           // ✅ Local alternative
-    process.env.CLIENT_URL,            // ✅ Your Hostinger domain
-  ].filter(Boolean),                   // ✅ Remove undefined values
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'https://highmarc.com',        // ✅ Your live site
+    'https://www.highmarc.com',    // ✅ With www
+  ].filter(Boolean),
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 }));
+
+
+// ✅ Handle preflight requests
+app.options('*', cors());
+
 
 // IMPORTANT: Webhook route needs raw body, must be BEFORE json middleware
 app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));
