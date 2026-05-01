@@ -4,32 +4,10 @@ require('dotenv').config();
 
 const app = express();
 
-// ✅ CORS must be the FIRST middleware
-const allowedOrigins = [
-  'http://localhost:5173',
-  'http://localhost:3000',
-  'https://highmarc.com',
-  'https://www.highmarc.com',
-];
+// ✅ Allow ALL origins for now
+app.use(cors());
 
-app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (mobile apps, curl, Postman)
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    } else {
-      return callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  optionsSuccessStatus: 200, // ✅ Important for preflight
-}));
-
-// ✅ Handle ALL preflight requests before any other middleware
+// ✅ Handle ALL preflight requests
 app.options('*', cors());
 
 // IMPORTANT: Webhook needs raw body BEFORE json middleware
