@@ -1,37 +1,38 @@
-// server/src/app.js
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
 
-const artworkRoutes = require('./routes/artworkRoutes');
-const orderRoutes = require('./routes/orderRoutes');
-const commissionRoutes = require('./routes/commissionRoutes');
-const paymentRoutes = require('./routes/paymentRoutes');
-const authRoutes = require('./routes/authRoutes');
-const dashboardRoutes = require('./routes/dashboardRoutes');
-const notificationRoutes = require('./routes/notificationRoutes');
-
 const app = express();
 
-// Middleware
+// ✅ CORS must be the FIRST middleware
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'https://highmarc.com',
+  'https://www.highmarc.com',
+];
+
 app.use(cors({
-  origin: [
-    'http://localhost:5173',
-    'http://localhost:3000',
-    'https://highmarc.com',        // ✅ Your live site
-    'https://www.highmarc.com',    // ✅ With www
-  ].filter(Boolean),
+  origin: function (origin, callback) {
+    // Allow requests with no origin (mobile apps, curl, Postman)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    } else {
+      return callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
+  optionsSuccessStatus: 200, // ✅ Important for preflight
 }));
 
-
-// ✅ Handle preflight requests
+// ✅ Handle ALL preflight requests before any other middleware
 app.options('*', cors());
 
-
-// IMPORTANT: Webhook route needs raw body, must be BEFORE json middleware
+// IMPORTANT: Webhook needs raw body BEFORE json middleware
 app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));
 
 app.use(express.json());
@@ -43,6 +44,14 @@ app.get('/api/health', (req, res) => {
 });
 
 // Routes
+const artworkRoutes = require('./routes/artworkRoutes');
+const orderRoutes = require('./routes/orderRoutes');
+const commissionRoutes = require('./routes/commissionRoutes');
+const paymentRoutes = require('./routes/paymentRoutes');
+const authRoutes = require('./routes/authRoutes');
+const dashboardRoutes = require('./routes/dashboardRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
+
 app.use('/api/artworks', artworkRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/commissions', commissionRoutes);
@@ -60,7 +69,9 @@ app.use((req, res) => {
 // Error handling
 app.use((err, req, res, next) => {
   console.error('Error:', err);
-  res.status(err.status || 500).json({ error: err.message || 'Something went wrong!' });
+  res.status(err.status || 500).json({ 
+    error: err.message || 'Something went wrong!' 
+  });
 });
 
 module.exports = app;
