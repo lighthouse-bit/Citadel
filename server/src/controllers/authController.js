@@ -5,7 +5,7 @@ const crypto = require('crypto');
 const { sendVerificationEmail } = require('../utils/emailService');
 
 // ==========================================
-// 1. REGISTER USER
+// 1. REGISTER USER 1fwfff
 // ==========================================
 exports.register = async (req, res) => {
   try {

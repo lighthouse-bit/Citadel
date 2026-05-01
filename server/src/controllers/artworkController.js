@@ -25,7 +25,7 @@ exports.getAllArtworks = async (req, res) => {
     }
 
     if (status) {
-      // ✅ If specific status requested (e.g. admin filtering), use it
+      // ✅ If specific status requested (e.g. admin filtering), use it kkdjfddddddddddddddd
       where.status = status.toUpperCase();
     } else {
       // ✅ Public gallery: show ALL statuses except NOT_FOR_SALE hidden option

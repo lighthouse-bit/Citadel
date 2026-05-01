@@ -486,7 +486,7 @@ const Gallery = () => {
                             </button>
                           )}
 
-                          {/* ✅ Reserved label */}
+                          {/* ✅ Reserved labeld gdg */}
                           {artwork.status === 'RESERVED' && (
                             <p className="mt-2 text-xs font-medium text-amber-600">
                               Reserved
