@@ -7,7 +7,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "nodemon server.js",
     "start": "node server.js",
-    "migrate": "prisma migrate dev",
+    "migrate": "npx migrate dev",
     "postinstall": "prisma generate",
     "studio": "prisma studio",
     "seed": "prisma db seed"
