@@ -15,8 +15,12 @@ const app = express();
 
 // Middleware
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:3000',
-  credentials: true
+  origin: [
+    'http://localhost:5173',           // ✅ Local React dev
+    'http://localhost:3000',           // ✅ Local alternative
+    process.env.CLIENT_URL,            // ✅ Your Hostinger domain
+  ].filter(Boolean),                   // ✅ Remove undefined values
+  credentials: true,
 }));
 
 // IMPORTANT: Webhook route needs raw body, must be BEFORE json middleware
