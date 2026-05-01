@@ -8,6 +8,7 @@
     "dev": "nodemon server.js",
     "start": "node server.js",
     "migrate": "prisma migrate dev",
+    "postinstall": "prisma generate",
     "studio": "prisma studio",
     "seed": "prisma db seed"
   },
