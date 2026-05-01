@@ -229,42 +229,47 @@ model OrderItem {
 }
 
 model Commission {
-  id              String           @id @default(uuid())
-  commissionNumber String          @unique
+  id                    String           @id @default(uuid())
+  commissionNumber      String           @unique
   
   // Artwork Details
-  artStyle        String
-  size            String
-  description     String           @db.Text
+  artStyle              String
+  size                  String
+  description           String           @db.Text
   
   // Pricing
-  estimatedPrice  Decimal?         @db.Decimal(10, 2)
-  finalPrice      Decimal?         @db.Decimal(10, 2)
-  depositAmount   Decimal?         @db.Decimal(10, 2)
+  estimatedPrice        Decimal?         @db.Decimal(10, 2)
+  finalPrice            Decimal?         @db.Decimal(10, 2)
+  depositAmount         Decimal?         @db.Decimal(10, 2)  // 70%
+  balanceAmount         Decimal?         @db.Decimal(10, 2)  // 30%
+  depositPercentage     Int              @default(70)         // Configurable
   
   // Status
-  status          CommissionStatus @default(PENDING)
-  paymentStatus   PaymentStatus    @default(UNPAID)
+  status                CommissionStatus @default(PENDING)
+  paymentStatus         PaymentStatus    @default(UNPAID)
   
-  // Stripe
-  stripePaymentIntentId String?
+  // Stripe Payment Intent IDs
+  depositPaymentIntentId  String?
+  balancePaymentIntentId  String?
   
   // Timeline
-  deadline        DateTime?
-  startedAt       DateTime?
-  completedAt     DateTime?
+  deadline              DateTime?
+  startedAt             DateTime?
+  completedAt           DateTime?
+  depositPaidAt         DateTime?
+  balancePaidAt         DateTime?
   
   // Timestamps
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
   
   // Relations
-  customerId      String
-  customer        Customer         @relation(fields: [customerId], references: [id])
+  customerId            String
+  customer              Customer         @relation(fields: [customerId], references: [id])
   
-  referenceImages CommissionImage[]
-  progressImages  CommissionProgress[]
-  notes           CommissionNote[]
+  referenceImages       CommissionImage[]
+  progressImages        CommissionProgress[]
+  notes                 CommissionNote[]
   
   @@index([customerId])
   @@index([status])

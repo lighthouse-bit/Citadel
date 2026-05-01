@@ -6,17 +6,50 @@ const { authenticateAdmin, authenticateUser } = require('../middleware/auth');
 
 const upload = multer({ storage: multer.memoryStorage() });
 
-// Public/User route - Submit commission
-// Using authenticateUser allows both logged-in users (req.user exists) and guests (req.user null)
-router.post('/', authenticateUser, upload.array('referenceImages', 5), commissionController.createCommission);
+// ─────────────────────────────────────────────────────────
+// PUBLIC / USER ROUTES
+// ─────────────────────────────────────────────────────────
 
-// User Protected Route - Get My Commissions
-router.get('/my-commissions', authenticateUser, commissionController.getMyCommissions);
+// Submit new commission (guest or logged-in user)
+router.post(
+  '/',
+  authenticateUser,
+  upload.array('referenceImages', 5),
+  commissionController.createCommission
+);
 
-// Admin routes
+// Get current user's commissions
+router.get(
+  '/my-commissions',
+  authenticateUser,
+  commissionController.getMyCommissions
+);
+
+// Get a single commission by ID - for logged in user (payment page needs this)
+router.get(
+  '/my-commissions/:id',          // ← separate from admin /:id
+  authenticateUser,
+  commissionController.getMyCommissionById  // ← new controller function
+);
+
+router.post(
+  '/:id/confirm-payment',
+  authenticateUser,
+  commissionController.confirmPayment
+);
+
+// ─────────────────────────────────────────────────────────
+// ADMIN ROUTES
+// ─────────────────────────────────────────────────────────
+
 router.get('/', authenticateAdmin, commissionController.getAllCommissions);
 router.get('/:id', authenticateAdmin, commissionController.getCommissionById);
 router.patch('/:id/status', authenticateAdmin, commissionController.updateCommissionStatus);
-router.post('/:id/progress', authenticateAdmin, upload.single('image'), commissionController.addProgressImage);
+router.post(
+  '/:id/progress',
+  authenticateAdmin,
+  upload.single('image'),
+  commissionController.addProgressImage
+);
 
 module.exports = router;

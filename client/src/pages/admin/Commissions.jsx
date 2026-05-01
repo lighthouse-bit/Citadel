@@ -1,22 +1,27 @@
+// src/pages/admin/Commissions.jsx
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, Eye, Calendar, DollarSign, User, Image, Loader } from 'lucide-react';
+import { 
+  Search, Eye, Calendar, DollarSign, 
+  User, Image, Loader, CreditCard 
+} from 'lucide-react';
 import { motion } from 'framer-motion';
 import { commissionsAPI } from '../../services/api';
 import toast from 'react-hot-toast';
 
 const Commissions = () => {
-  const [commissions, setCommissions] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [commissions, setCommissions]   = useState([]);
+  const [isLoading, setIsLoading]       = useState(true);
+  const [searchQuery, setSearchQuery]   = useState('');
   const [filterStatus, setFilterStatus] = useState('');
 
-  // Fetch Data from API
   useEffect(() => {
     const fetchCommissions = async () => {
       setIsLoading(true);
       try {
-        const response = await commissionsAPI.getAll({ status: filterStatus || undefined });
+        const response = await commissionsAPI.getAll({ 
+          status: filterStatus || undefined 
+        });
         setCommissions(response.data.commissions);
       } catch (error) {
         console.error('Error fetching commissions:', error);
@@ -25,37 +30,56 @@ const Commissions = () => {
         setIsLoading(false);
       }
     };
-
     fetchCommissions();
   }, [filterStatus]);
 
-  // Client-side filtering for search query
+  // ── Client-side search filter ─────────────────────────
   const filteredCommissions = commissions.filter(commission => {
     const query = searchQuery.toLowerCase();
     return (
       commission.commissionNumber?.toLowerCase().includes(query) ||
-      commission.client?.firstName?.toLowerCase().includes(query) ||
-      commission.client?.lastName?.toLowerCase().includes(query) ||
-      commission.client?.email?.toLowerCase().includes(query) ||
+      commission.customer?.firstName?.toLowerCase().includes(query) || // ✅ fixed: client → customer
+      commission.customer?.lastName?.toLowerCase().includes(query)  || // ✅ fixed
+      commission.customer?.email?.toLowerCase().includes(query)     || // ✅ fixed
       commission.artStyle?.toLowerCase().includes(query)
     );
   });
 
+  // ── Status styles ─────────────────────────────────────
   const getStatusStyle = (status) => {
     const styles = {
-      PENDING: 'bg-yellow-100 text-yellow-700 border-yellow-200',
-      REVIEWING: 'bg-amber-100 text-amber-700 border-amber-200',
-      ACCEPTED: 'bg-blue-100 text-blue-700 border-blue-200',
-      IN_PROGRESS: 'bg-purple-100 text-purple-700 border-purple-200',
-      COMPLETED: 'bg-green-100 text-green-700 border-green-200',
-      CANCELLED: 'bg-red-100 text-red-700 border-red-200',
+      PENDING:     'bg-yellow-100 text-yellow-700  border-yellow-200',
+      REVIEWING:   'bg-amber-100  text-amber-700   border-amber-200',
+      ACCEPTED:    'bg-blue-100   text-blue-700    border-blue-200',
+      IN_PROGRESS: 'bg-purple-100 text-purple-700  border-purple-200',
+      REVISION:    'bg-orange-100 text-orange-700  border-orange-200',
+      COMPLETED:   'bg-green-100  text-green-700   border-green-200',
+      CANCELLED:   'bg-red-100    text-red-700     border-red-200',
     };
     return styles[status] || 'bg-stone-100 text-stone-700 border-stone-200';
   };
 
-  const formatStatus = (status) => {
-    return status?.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'Unknown';
+  // ── Payment status styles ─────────────────────────────
+  const getPaymentStyle = (paymentStatus) => {
+    const styles = {
+      UNPAID:       'bg-red-100  text-red-600',
+      DEPOSIT_PAID: 'bg-blue-100 text-blue-700',
+      FULLY_PAID:   'bg-green-100 text-green-700',
+    };
+    return styles[paymentStatus] || 'bg-stone-100 text-stone-600';
   };
+
+  const getPaymentLabel = (paymentStatus) => {
+    const labels = {
+      UNPAID:       'Unpaid',
+      DEPOSIT_PAID: 'Deposit Paid',
+      FULLY_PAID:   'Fully Paid',
+    };
+    return labels[paymentStatus] || paymentStatus;
+  };
+
+  const formatStatus = (status) => 
+    status?.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'Unknown';
 
   if (isLoading) {
     return (
@@ -67,9 +91,10 @@ const Commissions = () => {
 
   return (
     <div className="space-y-6">
+
       {/* Header */}
       <div>
-        <h1 
+        <h1
           className="text-2xl text-stone-900"
           style={{ fontFamily: "'Playfair Display', serif" }}
         >
@@ -78,13 +103,14 @@ const Commissions = () => {
         <p className="text-stone-500">Manage bespoke artwork requests</p>
       </div>
 
-      {/* Stats (Calculated from live data) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {[
-          { label: 'Total', value: commissions.length, color: 'bg-stone-900' },
-          { label: 'Pending', value: commissions.filter(c => c.status === 'PENDING').length, color: 'bg-yellow-500' },
-          { label: 'In Progress', value: commissions.filter(c => c.status === 'IN_PROGRESS').length, color: 'bg-purple-500' },
-          { label: 'Completed', value: commissions.filter(c => c.status === 'COMPLETED').length, color: 'bg-green-500' },
+          { label: 'Total',       value: commissions.length,                                            color: 'bg-stone-900'  },
+          { label: 'Pending',     value: commissions.filter(c => c.status === 'PENDING').length,        color: 'bg-yellow-500' },
+          { label: 'In Progress', value: commissions.filter(c => c.status === 'IN_PROGRESS').length,    color: 'bg-purple-500' },
+          { label: 'Completed',   value: commissions.filter(c => c.status === 'COMPLETED').length,      color: 'bg-green-500'  },
+          { label: 'Deposit Due', value: commissions.filter(c => c.paymentStatus === 'UNPAID' && c.status === 'ACCEPTED').length, color: 'bg-blue-500' },
         ].map((stat, index) => (
           <div key={index} className="bg-white rounded-xl border border-stone-200 p-4">
             <div className="flex items-center justify-between">
@@ -107,20 +133,21 @@ const Commissions = () => {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-stone-300 rounded-lg
-                       focus:outline-none focus:border-amber-500 text-stone-900"
+                         focus:outline-none focus:border-amber-500 text-stone-900"
             />
           </div>
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
             className="px-4 py-2 border border-stone-300 rounded-lg
-                     focus:outline-none focus:border-amber-500 text-stone-700"
+                       focus:outline-none focus:border-amber-500 text-stone-700"
           >
             <option value="">All Status</option>
             <option value="PENDING">Pending</option>
             <option value="REVIEWING">Reviewing</option>
             <option value="ACCEPTED">Accepted</option>
             <option value="IN_PROGRESS">In Progress</option>
+            <option value="REVISION">Revision</option>
             <option value="COMPLETED">Completed</option>
             <option value="CANCELLED">Cancelled</option>
           </select>
@@ -134,19 +161,32 @@ const Commissions = () => {
             key={commission.id}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.1 }}
+            transition={{ delay: index * 0.05 }}
             className="bg-white rounded-xl border border-stone-200 shadow-sm overflow-hidden"
           >
             <div className="p-6">
-              {/* Header */}
+              {/* Card Header */}
               <div className="flex items-start justify-between mb-4">
                 <div>
-                  <p className="text-sm text-stone-500">{commission.commissionNumber}</p>
-                  <h3 className="text-lg font-semibold text-stone-900">{commission.artStyle}</h3>
+                  <p className="text-xs text-stone-400 font-mono">
+                    {commission.commissionNumber}
+                  </p>
+                  <h3 className="text-lg font-semibold text-stone-900">
+                    {commission.artStyle}
+                  </h3>
                 </div>
-                <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusStyle(commission.status)}`}>
-                  {formatStatus(commission.status)}
-                </span>
+                <div className="flex flex-col items-end gap-1.5">
+                  <span className={`px-3 py-1 rounded-full text-xs font-medium border 
+                                   ${getStatusStyle(commission.status)}`}>
+                    {formatStatus(commission.status)}
+                  </span>
+                  {/* ✅ Payment status badge */}
+                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium flex items-center gap-1
+                                   ${getPaymentStyle(commission.paymentStatus)}`}>
+                    <CreditCard size={10} />
+                    {getPaymentLabel(commission.paymentStatus)}
+                  </span>
+                </div>
               </div>
 
               {/* Description */}
@@ -155,41 +195,72 @@ const Commissions = () => {
               </p>
 
               {/* Details Grid */}
-              <div className="grid grid-cols-2 gap-4 mb-4">
+              <div className="grid grid-cols-2 gap-3 mb-4">
                 <div className="flex items-center gap-2 text-sm text-stone-600">
-                  <User size={16} className="text-stone-400" />
-                  {commission.customer?.firstName} {commission.customer?.lastName}
+                  <User size={15} className="text-stone-400 flex-shrink-0" />
+                  <span className="truncate">
+                    {commission.customer?.firstName} {commission.customer?.lastName}
+                  </span>
                 </div>
                 <div className="flex items-center gap-2 text-sm text-stone-600">
-                  <DollarSign size={16} className="text-stone-400" />
-                  Est: ${commission.estimatedPrice?.toLocaleString()}
+                  <DollarSign size={15} className="text-stone-400 flex-shrink-0" />
+                  {commission.finalPrice 
+                    ? <span className="font-medium text-stone-900">
+                        ${Number(commission.finalPrice).toLocaleString()}
+                      </span>
+                    : <span className="text-stone-400 italic text-xs">
+                        Est: ${Number(commission.estimatedPrice).toLocaleString()}
+                      </span>
+                  }
                 </div>
                 <div className="flex items-center gap-2 text-sm text-stone-600">
-                  <Calendar size={16} className="text-stone-400" />
-                  Due: {commission.deadline ? new Date(commission.deadline).toLocaleDateString() : 'N/A'}
+                  <Calendar size={15} className="text-stone-400 flex-shrink-0" />
+                  {commission.deadline 
+                    ? new Date(commission.deadline).toLocaleDateString() 
+                    : 'No deadline'}
                 </div>
                 <div className="flex items-center gap-2 text-sm text-stone-600">
-                  <Image size={16} className="text-stone-400" />
-                  {commission.referenceImages?.length || 0} refs
+                  <Image size={15} className="text-stone-400 flex-shrink-0" />
+                  {commission.referenceImages?.length || 0} reference{commission.referenceImages?.length !== 1 ? 's' : ''}
                 </div>
               </div>
 
-              {/* Size */}
-              <div className="text-sm text-stone-500 mb-4">
-                Size: {commission.size}
-              </div>
+              {/* ✅ Payment progress bar for accepted commissions */}
+              {commission.status === 'ACCEPTED' && commission.paymentStatus === 'UNPAID' && (
+                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-xs text-blue-700 font-medium">
+                    ⏳ Awaiting 70% deposit from client
+                  </p>
+                </div>
+              )}
 
-              {/* Actions */}
-              <div className="flex items-center justify-between pt-4 border-t border-stone-200">
+              {commission.paymentStatus === 'DEPOSIT_PAID' && (
+                <div className="mb-4 p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                  <p className="text-xs text-purple-700 font-medium">
+                    ✅ Deposit received — work in progress
+                  </p>
+                </div>
+              )}
+
+              {commission.paymentStatus === 'FULLY_PAID' && (
+                <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <p className="text-xs text-green-700 font-medium">
+                    ✅ Fully paid — commission complete
+                  </p>
+                </div>
+              )}
+
+              {/* Footer */}
+              <div className="flex items-center justify-between pt-4 border-t border-stone-100">
                 <p className="text-xs text-stone-400">
-                  Submitted: {new Date(commission.createdAt).toLocaleDateString()}
+                  {new Date(commission.createdAt).toLocaleDateString()}
                 </p>
                 <Link
                   to={`/admin/commissions/${commission.id}`}
-                  className="inline-flex items-center gap-2 text-sm text-amber-600 
-                           hover:text-amber-700 font-medium"
+                  className="inline-flex items-center gap-1.5 text-sm text-amber-600
+                             hover:text-amber-700 font-medium"
                 >
-                  <Eye size={16} />
+                  <Eye size={15} />
                   View Details
                 </Link>
               </div>
@@ -198,6 +269,7 @@ const Commissions = () => {
         ))}
       </div>
 
+      {/* Empty state */}
       {!isLoading && filteredCommissions.length === 0 && (
         <div className="bg-white rounded-xl border border-stone-200 p-12 text-center">
           <Image size={48} className="mx-auto text-stone-300 mb-4" />

@@ -11,39 +11,41 @@ import {
   LogOut,
   ChevronRight,
   Bell,
-  Check
+  Check,
+  CheckCheck,
+  Trash2,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { notificationsAPI } from '../../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const AdminLayout = () => {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen]       = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [notifications, setNotifications] = useState([]);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const [notifications, setNotifications]   = useState([]);
+  const [unreadCount, setUnreadCount]       = useState(0);
   
-  const location = useLocation();
-  const navigate = useNavigate();
+  const location   = useLocation();
+  const navigate   = useNavigate();
   const { user, logout } = useAuth();
-  const notifRef = useRef(null);
+  const notifRef   = useRef(null);
 
-  // Poll for notifications every 30 seconds
+  // ── Fetch notifications ───────────────────────────────
+  const fetchNotifications = async () => {
+    try {
+      const response = await notificationsAPI.getAll();
+      setNotifications(response.data.notifications);
+      setUnreadCount(response.data.unreadCount);
+    } catch (error) {
+      console.error('Failed to fetch notifications');
+    }
+  };
+
+  // Poll every 30 seconds
   useEffect(() => {
-    const fetchNotifications = async () => {
-      try {
-        const response = await notificationsAPI.getAll();
-        setNotifications(response.data.notifications);
-        setUnreadCount(response.data.unreadCount);
-      } catch (error) {
-        console.error('Failed to fetch notifications');
-      }
-    };
-
-    fetchNotifications(); // Initial fetch
-    const interval = setInterval(fetchNotifications, 30000); // Poll
-
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -58,10 +60,13 @@ const AdminLayout = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // ── Mark one as read + navigate ───────────────────────
   const handleMarkAsRead = async (id, link) => {
     try {
       await notificationsAPI.markAsRead(id);
-      setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+      setNotifications(prev =>
+        prev.map(n => n.id === id ? { ...n, isRead: true } : n)
+      );
       setUnreadCount(prev => Math.max(0, prev - 1));
       setShowNotifications(false);
       if (link) navigate(link);
@@ -70,6 +75,7 @@ const AdminLayout = () => {
     }
   };
 
+  // ── Mark all as read ──────────────────────────────────
   const handleMarkAllRead = async () => {
     try {
       await notificationsAPI.markAllAsRead();
@@ -80,17 +86,51 @@ const AdminLayout = () => {
     }
   };
 
+  // ── Delete notification ───────────────────────────────
+  const handleDelete = async (id, e) => {
+    e.stopPropagation(); // prevent triggering parent onClick
+    try {
+      await notificationsAPI.delete(id);
+      const deleted = notifications.find(n => n.id === id);
+      setNotifications(prev => prev.filter(n => n.id !== id));
+      if (deleted && !deleted.isRead) {
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  // ── Format relative time ──────────────────────────────
+  const formatTime = (dateStr) => {
+    const diff = Math.floor((new Date() - new Date(dateStr)) / 1000);
+    if (diff < 60)    return 'Just now';
+    if (diff < 3600)  return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+    return `${Math.floor(diff / 86400)}d ago`;
+  };
+
+  // ── Notification type badge style ─────────────────────
+  const getTypeStyle = (type) => {
+    switch (type) {
+      case 'ORDER':      return 'bg-blue-100 text-blue-700';
+      case 'COMMISSION': return 'bg-amber-100 text-amber-700';
+      case 'SYSTEM':     return 'bg-stone-100 text-stone-600';
+      default:           return 'bg-purple-100 text-purple-700';
+    }
+  };
+
   const handleLogout = () => {
     logout();
     navigate('/');
   };
 
   const menuItems = [
-    { path: '/admin', icon: LayoutDashboard, label: 'Dashboard', exact: true },
-    { path: '/admin/artworks', icon: Image, label: 'Artworks' },
-    { path: '/admin/orders', icon: ShoppingBag, label: 'Orders' },
-    { path: '/admin/commissions', icon: Palette, label: 'Commissions' },
-    { path: '/admin/settings', icon: Settings, label: 'Settings' },
+    { path: '/admin',             icon: LayoutDashboard, label: 'Dashboard',   exact: true },
+    { path: '/admin/artworks',    icon: Image,           label: 'Artworks'                },
+    { path: '/admin/orders',      icon: ShoppingBag,     label: 'Orders'                  },
+    { path: '/admin/commissions', icon: Palette,         label: 'Commissions'             },
+    { path: '/admin/settings',    icon: Settings,        label: 'Settings'                },
   ];
 
   const isActive = (path, exact = false) => {
@@ -100,6 +140,7 @@ const AdminLayout = () => {
 
   return (
     <div className="min-h-screen bg-stone-100">
+
       {/* Mobile Menu Overlay */}
       {mobileMenuOpen && (
         <div 
@@ -108,7 +149,7 @@ const AdminLayout = () => {
         />
       )}
 
-      {/* Sidebar */}
+      {/* ── Sidebar ──────────────────────────────────────── */}
       <aside 
         className={`fixed top-0 left-0 h-full bg-stone-900 text-white z-50 
                    transition-all duration-300 ease-in-out
@@ -178,13 +219,12 @@ const AdminLayout = () => {
         </div>
       </aside>
 
-      {/* Main Content */}
-      <div 
-        className={`transition-all duration-300 
-                   ${sidebarOpen ? 'lg:ml-64' : 'lg:ml-20'}`}
-      >
+      {/* ── Main Content ──────────────────────────────────── */}
+      <div className={`transition-all duration-300 ${sidebarOpen ? 'lg:ml-64' : 'lg:ml-20'}`}>
+
         {/* Top Header */}
-        <header className="h-16 bg-white border-b border-stone-200 flex items-center justify-between px-6 sticky top-0 z-30">
+        <header className="h-16 bg-white border-b border-stone-200 flex items-center 
+                           justify-between px-6 sticky top-0 z-30">
           <div className="flex items-center gap-4">
             <button
               onClick={() => setMobileMenuOpen(true)}
@@ -196,84 +236,162 @@ const AdminLayout = () => {
               {menuItems.find(item => isActive(item.path, item.exact))?.label || 'Admin'}
             </h1>
           </div>
-          
+
           <div className="flex items-center gap-4">
-            {/* Notification Bell */}
+
+            {/* ── Notification Bell ───────────────────────── */}
             <div className="relative" ref={notifRef}>
               <button 
-                onClick={() => setShowNotifications(!showNotifications)}
-                className="relative p-2 hover:bg-stone-100 rounded-lg transition-colors text-stone-600 hover:text-amber-600"
+                onClick={() => {
+                  setShowNotifications(!showNotifications);
+                  if (!showNotifications) fetchNotifications(); // refresh on open
+                }}
+                className="relative p-2 hover:bg-stone-100 rounded-lg transition-colors 
+                           text-stone-600 hover:text-amber-600"
               >
                 <Bell size={20} />
+
+                {/* Unread badge - shows count now */}
                 {unreadCount > 0 && (
-                  <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white" />
+                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] 
+                                   bg-red-500 text-white text-[10px] font-bold rounded-full 
+                                   flex items-center justify-center px-1 border-2 border-white">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
                 )}
               </button>
 
-              {/* Notification Dropdown */}
+              {/* ── Notification Dropdown ─────────────────── */}
               <AnimatePresence>
                 {showNotifications && (
                   <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 10 }}
-                    className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-xl border border-stone-200 overflow-hidden z-50"
+                    initial={{ opacity: 0, y: 8,  scale: 0.96 }}
+                    animate={{ opacity: 1, y: 0,  scale: 1    }}
+                    exit={{    opacity: 0, y: 8,  scale: 0.96 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute right-0 mt-2 w-96 bg-white rounded-xl shadow-2xl 
+                               border border-stone-200 overflow-hidden z-50"
                   >
-                    <div className="p-4 border-b border-stone-100 flex justify-between items-center bg-stone-50">
-                      <h3 className="font-semibold text-stone-900">Notifications</h3>
+                    {/* Dropdown Header */}
+                    <div className="p-4 border-b border-stone-100 flex justify-between 
+                                    items-center bg-stone-50">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold text-stone-900">Notifications</h3>
+                        {unreadCount > 0 && (
+                          <span className="px-2 py-0.5 bg-red-100 text-red-600 
+                                           text-xs rounded-full font-medium">
+                            {unreadCount} new
+                          </span>
+                        )}
+                      </div>
                       {unreadCount > 0 && (
                         <button 
                           onClick={handleMarkAllRead}
-                          className="text-xs text-amber-600 hover:text-amber-700 flex items-center gap-1"
+                          className="text-xs text-amber-600 hover:text-amber-700 
+                                     flex items-center gap-1 font-medium transition-colors"
                         >
-                          <Check size={12} /> Mark all read
+                          <CheckCheck size={13} />
+                          Mark all read
                         </button>
                       )}
                     </div>
-                    
-                    <div className="max-h-96 overflow-y-auto">
+
+                    {/* Notification List */}
+                    <div className="max-h-[420px] overflow-y-auto divide-y divide-stone-50">
                       {notifications.length > 0 ? (
                         notifications.map((notif) => (
                           <div 
                             key={notif.id}
                             onClick={() => handleMarkAsRead(notif.id, notif.link)}
-                            className={`p-4 border-b border-stone-50 hover:bg-stone-50 cursor-pointer transition-colors ${
-                              !notif.isRead ? 'bg-amber-50/50' : ''
-                            }`}
+                            className={`flex items-start gap-3 p-4 cursor-pointer 
+                                        transition-colors group
+                                        ${!notif.isRead 
+                                          ? 'bg-amber-50 hover:bg-amber-100' 
+                                          : 'bg-white hover:bg-stone-50'
+                                        }`}
                           >
-                            <div className="flex justify-between items-start mb-1">
-                              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                                notif.type === 'ORDER' 
-                                  ? 'bg-blue-100 text-blue-700' 
-                                  : 'bg-purple-100 text-purple-700'
-                              }`}>
-                                {notif.type}
-                              </span>
-                              <span className="text-xs text-stone-400">
-                                {new Date(notif.createdAt).toLocaleDateString()}
-                              </span>
+                            {/* Unread dot */}
+                            <div className="mt-1.5 flex-shrink-0">
+                              <div className={`w-2 h-2 rounded-full ${
+                                !notif.isRead ? 'bg-amber-500' : 'bg-transparent'
+                              }`} />
                             </div>
-                            <p className={`text-sm ${!notif.isRead ? 'font-medium text-stone-900' : 'text-stone-600'}`}>
-                              {notif.message}
-                            </p>
+
+                            {/* Content */}
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-sm leading-snug ${
+                                !notif.isRead 
+                                  ? 'font-medium text-stone-900' 
+                                  : 'text-stone-500'
+                              }`}>
+                                {notif.message}
+                              </p>
+                              <div className="flex items-center gap-2 mt-1.5">
+                                <span className={`text-xs px-1.5 py-0.5 rounded font-medium
+                                                 ${getTypeStyle(notif.type)}`}>
+                                  {notif.type}
+                                </span>
+                                <span className="text-xs text-stone-400">
+                                  {formatTime(notif.createdAt)}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Action buttons - visible on hover */}
+                            <div className="flex items-center gap-1 opacity-0 
+                                            group-hover:opacity-100 transition-opacity 
+                                            flex-shrink-0">
+                              {!notif.isRead && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleMarkAsRead(notif.id, null);
+                                  }}
+                                  title="Mark as read"
+                                  className="p-1 text-stone-400 hover:text-green-600
+                                             hover:bg-green-50 rounded transition-colors"
+                                >
+                                  <Check size={13} />
+                                </button>
+                              )}
+                              <button
+                                onClick={(e) => handleDelete(notif.id, e)}
+                                title="Delete"
+                                className="p-1 text-stone-400 hover:text-red-500
+                                           hover:bg-red-50 rounded transition-colors"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
                           </div>
                         ))
                       ) : (
-                        <div className="p-8 text-center text-stone-500 text-sm">
-                          No notifications yet
+                        <div className="p-10 text-center">
+                          <Bell size={32} className="text-stone-200 mx-auto mb-3" />
+                          <p className="text-stone-400 text-sm">No notifications yet</p>
                         </div>
                       )}
                     </div>
+
+                    {/* Footer */}
+                    {notifications.length > 0 && (
+                      <div className="p-3 border-t border-stone-100 bg-stone-50 text-center">
+                        <p className="text-xs text-stone-400">
+                          {notifications.length} total · {unreadCount} unread
+                        </p>
+                      </div>
+                    )}
                   </motion.div>
                 )}
               </AnimatePresence>
             </div>
-            
+
             {/* View Site */}
             <Link
               to="/"
               target="_blank"
-              className="text-sm text-stone-600 hover:text-amber-600 transition-colors hidden sm:block"
+              className="text-sm text-stone-600 hover:text-amber-600 
+                         transition-colors hidden sm:block"
             >
               View Site →
             </Link>

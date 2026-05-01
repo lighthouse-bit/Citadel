@@ -28,11 +28,11 @@ const Navbar = ({ onOpenAuth }) => {
   }, [location]);
 
   const navLinks = [
-    { path: '/gallery', label: 'Gallery' },
-    { path: '/shop', label: 'Collection' },
-    { path: '/commission', label: 'Bespoke' },
-    { path: '/about', label: 'Atelier' },
-  ];
+  { path: '/gallery', label: 'Gallery' },       // All works (portfolio)
+  { path: '/shop', label: 'Shop' },             // Available only (purchase)
+  { path: '/commission', label: 'Bespoke' },
+  { path: '/about', label: 'Atelier' },
+];
 
   const handleUserClick = () => {
     if (isAuthenticated) {

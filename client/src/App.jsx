@@ -8,6 +8,7 @@ import { SettingsProvider } from './context/SettingsContext';
 import { ArtworksProvider } from './context/ArtworksContext';
 import VerifyEmail from './pages/VerifyEmail';
 import VerificationBanner from './components/auth/VerificationBanner';
+import CommissionPayment from './pages/CommissionPayment';
 
 // Layout Components
 import Navbar from './components/common/Navbar';
@@ -84,6 +85,11 @@ function App() {
                   
                   {/* Account Dashboard (Protected via Redirect in Component) */}
                   <Route path="/account" element={<PublicLayout><Account /></PublicLayout>} />
+                  <Route path="/commission/payment/:id" element={
+                      <PublicLayout>
+                        <CommissionPayment />
+                      </PublicLayout>
+                    } />
 
                   {/* ==================== Admin Routes ==================== */}
                   <Route path="/admin/login" element={<AdminLogin />} />

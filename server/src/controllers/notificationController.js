@@ -42,3 +42,19 @@ exports.markAllAsRead = async (req, res) => {
     res.status(500).json({ error: 'Failed to update notifications' });
   }
 };
+
+// DELETE /api/notifications/:id  ✅ New
+exports.deleteNotification = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    await prisma.notification.delete({
+      where: { id },
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting notification:', error);
+    res.status(500).json({ error: 'Failed to delete notification' });
+  }
+};

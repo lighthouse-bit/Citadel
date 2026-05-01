@@ -18,6 +18,10 @@ app.use(cors({
   origin: process.env.CLIENT_URL || 'http://localhost:3000',
   credentials: true
 }));
+
+// IMPORTANT: Webhook route needs raw body, must be BEFORE json middleware
+app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -37,16 +41,14 @@ app.use('/api/notifications', notificationRoutes);
 
 // 404 handler
 app.use((req, res) => {
+  console.log('404 Not Found:', req.method, req.originalUrl);
   res.status(404).json({ error: 'Route not found' });
 });
 
 // Error handling
 app.use((err, req, res, next) => {
   console.error('Error:', err);
-  res.status(err.status || 500).json({ 
-    error: err.message || 'Something went wrong!',
-    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
-  });
+  res.status(err.status || 500).json({ error: err.message || 'Something went wrong!' });
 });
 
 module.exports = app;

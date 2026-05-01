@@ -2,12 +2,14 @@ import axios from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-// Create axios instance
+// ==========================================
+// AXIOS INSTANCE
+// ==========================================
 const api = axios.create({
   baseURL: API_URL,
 });
 
-// Add auth token to requests
+// Attach token to every request automatically
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('citadel_token');
   if (token) {
@@ -16,66 +18,155 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Artworks API
+// Handle token expiry globally
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      // Token expired or invalid - clear storage
+      localStorage.removeItem('citadel_token');
+      localStorage.removeItem('citadel_user');
+      // Optionally redirect to home
+      // window.location.href = '/';
+    }
+    return Promise.reject(error);
+  }
+);
+
+// ==========================================
+// ARTWORKS API
+// ==========================================
 export const artworksAPI = {
+  // Get all artworks with optional filters
   getAll: (params) => api.get('/artworks', { params }),
+
+  // Get a single artwork by ID
   getById: (id) => api.get(`/artworks/${id}`),
+
+  // Get featured artworks (for homepage)
   getFeatured: () => api.get('/artworks/featured'),
+
+  // Create new artwork (Admin - multipart/form-data for images)
   create: (formData) => api.post('/artworks', formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
   }),
+
+  // Update existing artwork (Admin)
   update: (id, formData) => api.put(`/artworks/${id}`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
   }),
+
+  // Delete artwork (Admin)
   delete: (id) => api.delete(`/artworks/${id}`),
 };
 
-// Commissions API
+// ==========================================
+// COMMISSIONS API
+// ==========================================
 export const commissionsAPI = {
+  // Submit new commission request (Public/User)
   create: (formData) => api.post('/commissions', formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
   }),
+
+  // Get commissions - handles both Admin (all) and User (own only)
   getAll: (params) => {
-    // If specifically asking for user data, hit the secure 'my-commissions' endpoint
+    // If fetching for logged-in user profile, use secure endpoint
     if (params && params.scope === 'user') {
       return api.get('/commissions/my-commissions');
     }
-    // Otherwise, hit the general endpoint (admin guarded on backend)
+    // Admin: Get all commissions with optional filters
     return api.get('/commissions', { params });
   },
+
+  // ✅ Get single commission for logged-in user (used by payment page)
+  getMyCommissionById: (id) => api.get(`/commissions/my-commissions/${id}`),
+
+  // Get single commission by ID (Admin only)
   getById: (id) => api.get(`/commissions/${id}`),
+
+  // Update commission status (Admin)
   updateStatus: (id, data) => api.patch(`/commissions/${id}/status`, data),
+
+  // Upload progress image (Admin)
   addProgressImage: (id, formData) => api.post(`/commissions/${id}/progress`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
   }),
 };
 
-// Orders API
+// ==========================================
+// ORDERS API
+// ==========================================
 export const ordersAPI = {
+  // Create new order (User/Guest)
   create: (data) => api.post('/orders', data),
-  getAll: (params) => {
-    // Orders currently filter by email query param, but backend should ideally use token
-    return api.get('/orders', { params });
-  },
+
+  // Get orders - supports filtering by customerEmail for user dashboard
+  getAll: (params) => api.get('/orders', { params }),
+
+  // Get single order by ID
   getById: (id) => api.get(`/orders/${id}`),
+
+  // Update order status or tracking (Admin)
   updateStatus: (id, data) => api.patch(`/orders/${id}/status`, data),
 };
 
-// Payments API
+// ==========================================
+// PAYMENTS API
+// ==========================================
 export const paymentsAPI = {
-  createIntent: (data) => api.post('/payments/create-intent', data),
-  commissionPayment: (data) => api.post('/payments/commission-payment', data),
+  // Artwork: Full 100% payment intent
+  createArtworkPayment: (orderId) =>
+    api.post('/payments/artwork-payment', { orderId }),
+
+  // Commission: 70% deposit payment intent
+  createCommissionDeposit: (commissionId) =>
+    api.post('/payments/commission-deposit', { commissionId }),
+
+  // Commission: 30% balance payment intent
+  createCommissionBalance: (commissionId) =>
+    api.post('/payments/commission-balance', { commissionId }),
 };
 
-// Dashboard API
+// ==========================================
+// AUTH API
+// ==========================================
+export const authAPI = {
+  // Register new user
+  register: (data) => api.post('/auth/register', data),
+
+  // Login
+  login: (data) => api.post('/auth/login', data),
+
+  // Get current logged in user profile
+  getProfile: () => api.get('/auth/me'),
+
+  // Verify email with token from URL
+  verifyEmail: (token) => api.get('/auth/verify-email', { params: { token } }),
+
+  // Resend verification email
+  resendVerification: () => api.post('/auth/resend-verification'),
+};
+
+// ==========================================
+// DASHBOARD API (Admin)
+// ==========================================
 export const dashboardAPI = {
+  // Get stats: revenue, counts, recent activity
   getStats: () => api.get('/dashboard/stats'),
 };
 
-// Notifications API
+// ==========================================
+// NOTIFICATIONS API (Admin)
+// ==========================================
 export const notificationsAPI = {
+  // Get all notifications
   getAll: () => api.get('/notifications'),
+
+  // Mark one notification as read
   markAsRead: (id) => api.patch(`/notifications/${id}/read`),
+
+  // Mark ALL notifications as read
   markAllAsRead: () => api.patch('/notifications/read-all'),
 };
 
