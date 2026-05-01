@@ -5,12 +5,12 @@ const SettingsContext = createContext();
 
 // Default settings
 const defaultSettings = {
-  siteName: 'Citadel',
+  siteName: 'Highmarc',
   siteTagline: 'Fine Art Atelier',
   artistName: 'Artist Name',
   artistBio: 'Fine artist specializing in portraits and landscapes. Each piece in my collection represents a convergence of technical mastery and emotional depth, carefully crafted to resonate with the discerning collector.',
   contactEmail: 'contact@citadel-art.com',
-  phone: '+1 (555) 123-4567',
+  phone: '+2348087535982',
   address: 'Johnson Tower Ikeja GRA, Lagos',
   socialInstagram: 'https://instagram.com/citadelart',
   socialTwitter: 'https://twitter.com/citadelart',
@@ -34,18 +34,22 @@ export const SettingsProvider = ({ children }) => {
       const savedSettings = localStorage.getItem('citadel_settings');
       if (savedSettings) {
         const parsed = JSON.parse(savedSettings);
-        setSettings(prev => ({ ...prev, ...parsed }));
+        // ✅ Merge with defaults so any new keys are always present
+        setSettings({ ...defaultSettings, ...parsed });
       }
     } catch (error) {
       console.error('Failed to load settings:', error);
+      // ✅ Fall back to defaults silently
+      setSettings(defaultSettings);
     } finally {
+      // ✅ Always mark as loaded so the app doesn't hang
       setIsLoaded(true);
     }
   }, []);
 
-  // Save settings to localStorage
+  // ✅ Save to context + localStorage atomically
   const updateSettings = (newSettings) => {
-    const updated = { ...settings, ...newSettings };
+    const updated = { ...defaultSettings, ...newSettings };
     setSettings(updated);
     try {
       localStorage.setItem('citadel_settings', JSON.stringify(updated));
@@ -55,13 +59,17 @@ export const SettingsProvider = ({ children }) => {
     return updated;
   };
 
-  // Reset to default settings
+  // ✅ Reset saves defaults to localStorage instead of removing the key
   const resetSettings = () => {
     setSettings(defaultSettings);
-    localStorage.removeItem('citadel_settings');
+    try {
+      localStorage.setItem('citadel_settings', JSON.stringify(defaultSettings));
+    } catch (error) {
+      console.error('Failed to reset settings:', error);
+    }
   };
 
-  // Get a single setting
+  // Get a single setting with fallback
   const getSetting = (key) => {
     return settings[key] ?? defaultSettings[key];
   };
@@ -72,6 +80,7 @@ export const SettingsProvider = ({ children }) => {
     resetSettings,
     getSetting,
     isLoaded,
+    defaultSettings,
   };
 
   return (
@@ -88,3 +97,5 @@ export const useSettings = () => {
   }
   return context;
 };
+
+export default SettingsContext;
