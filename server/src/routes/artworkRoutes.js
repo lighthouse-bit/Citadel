@@ -114,13 +114,14 @@ router.get('/:id', async (req, res) => {
 router.post('/', authenticateAdmin, async (req, res) => {
   try {
     // 🔍 TEMPORARY DEBUG — remove after fixing
-    console.log('=== CREATE ARTWORK ===');
-    console.log('Content-Type:', req.headers['content-type']);
-    console.log('Body keys:', Object.keys(req.body));
-    console.log('Images received:', JSON.stringify(req.body.images));
-    console.log('Images type:', typeof req.body.images);
-    console.log('Images is array:', Array.isArray(req.body.images));
-    console.log('=====================');
+     console.log('=== CREATE ARTWORK DEBUG ===');
+    console.log('1. Content-Type:', req.headers['content-type']);
+    console.log('2. Body keys:', Object.keys(req.body));
+    console.log('3. images value:', req.body.images);
+    console.log('4. images type:', typeof req.body.images);
+    console.log('5. images is array:', Array.isArray(req.body.images));
+    console.log('6. Full body:', JSON.stringify(req.body, null, 2));
+    console.log('============================');
     const {
       title,
       description,
