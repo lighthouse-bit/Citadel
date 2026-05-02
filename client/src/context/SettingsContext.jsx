@@ -3,7 +3,7 @@ import { createContext, useContext, useState, useEffect } from 'react';
 
 const SettingsContext = createContext();
 
-// Default settings
+// Default settings sjkfkfd
 const defaultSettings = {
   siteName: 'Highmarc',
   siteTagline: 'Fine Art Atelier',
