@@ -11,23 +11,45 @@ import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { commissionsAPI } from '../../services/api';
 
+// ✅ Direct Cloudinary upload — bypasses Vercel 4.5MB limit
+const uploadToCloudinary = async (file) => {
+  const cloudName    = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+  const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('upload_preset', uploadPreset);
+  formData.append('folder', 'citadel/progress');
+
+  const response = await fetch(
+    `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
+    { method: 'POST', body: formData }
+  );
+
+  if (!response.ok) throw new Error('Failed to upload image to Cloudinary');
+
+  const data = await response.json();
+  return {
+    url:      data.secure_url,
+    publicId: data.public_id,
+  };
+};
+
 const CommissionDetail = () => {
-  const { id }     = useParams();
-  const navigate   = useNavigate();
+  const { id }   = useParams();
+  const navigate = useNavigate();
 
-  const [commission, setCommission] = useState(null);
-  const [isLoading, setIsLoading]   = useState(true);
-  const [isSaving, setIsSaving]     = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-
-  const [finalPrice, setFinalPrice] = useState('');
-  const [newNote, setNewNote]       = useState('');
-
+  const [commission, setCommission]     = useState(null);
+  const [isLoading, setIsLoading]       = useState(true);
+  const [isSaving, setIsSaving]         = useState(false);
+  const [isUploading, setIsUploading]   = useState(false);
+  const [finalPrice, setFinalPrice]     = useState('');
+  const [newNote, setNewNote]           = useState('');
   const [showImageModal, setShowImageModal]   = useState(false);
   const [selectedImage, setSelectedImage]     = useState(null);
   const [showAcceptModal, setShowAcceptModal] = useState(false);
 
-  // ── Fetch commission ────────────────────────────────────
+  // ── Fetch commission ──────────────────────────────────────────────────────
   const fetchCommission = async () => {
     setIsLoading(true);
     try {
@@ -47,7 +69,7 @@ const CommissionDetail = () => {
     fetchCommission();
   }, [id, navigate]);
 
-  // ── Style helpers ───────────────────────────────────────
+  // ── Style helpers ─────────────────────────────────────────────────────────
   const getStatusStyle = (status) => {
     const styles = {
       PENDING:     'bg-yellow-100 text-yellow-800 border-yellow-200',
@@ -63,25 +85,25 @@ const CommissionDetail = () => {
 
   const getPaymentBadge = (paymentStatus) => {
     const map = {
-      UNPAID:       { style: 'bg-red-100   text-red-700',   label: 'Unpaid'            },
+      UNPAID:       { style: 'bg-red-100   text-red-700',   label: 'Unpaid'             },
       DEPOSIT_PAID: { style: 'bg-blue-100  text-blue-700',  label: 'Deposit Paid (70%)' },
       FULLY_PAID:   { style: 'bg-green-100 text-green-700', label: 'Fully Paid'         },
     };
     return map[paymentStatus] || { style: 'bg-stone-100 text-stone-700', label: paymentStatus };
   };
 
-  // ── Status options ──────────────────────────────────────
+  // ── Status options ────────────────────────────────────────────────────────
   const statusOptions = [
-    { value: 'PENDING',     label: 'Pending',           description: 'Waiting for review'                       },
-    { value: 'REVIEWING',   label: 'Reviewing',         description: 'Under consideration'                      },
-    { value: 'ACCEPTED',    label: 'Accept & Set Price', description: 'Set price and notify client to pay deposit'},
-    { value: 'IN_PROGRESS', label: 'In Progress',       description: 'Work has begun (deposit paid)'            },
-    { value: 'REVISION',    label: 'Revision',          description: 'Client requested changes'                 },
-    { value: 'COMPLETED',   label: 'Completed',         description: 'Work finished, awaiting balance payment'  },
-    { value: 'CANCELLED',   label: 'Cancelled',         description: 'Commission cancelled'                     },
+    { value: 'PENDING',     label: 'Pending',            description: 'Waiting for review'                        },
+    { value: 'REVIEWING',   label: 'Reviewing',          description: 'Under consideration'                       },
+    { value: 'ACCEPTED',    label: 'Accept & Set Price', description: 'Set price and notify client to pay deposit' },
+    { value: 'IN_PROGRESS', label: 'In Progress',        description: 'Work has begun (deposit paid)'             },
+    { value: 'REVISION',    label: 'Revision',           description: 'Client requested changes'                  },
+    { value: 'COMPLETED',   label: 'Completed',          description: 'Work finished, awaiting balance payment'   },
+    { value: 'CANCELLED',   label: 'Cancelled',          description: 'Commission cancelled'                      },
   ];
 
-  // ── Handle status change ────────────────────────────────
+  // ── Handle status change ──────────────────────────────────────────────────
   const handleStatusChange = async (newStatus) => {
     if (newStatus === 'ACCEPTED') {
       if (!finalPrice || parseFloat(finalPrice) <= 0) {
@@ -101,11 +123,10 @@ const CommissionDetail = () => {
     }
   };
 
-  // ── Confirm accept - FIXED: single API call ─────────────
+  // ── Confirm accept ────────────────────────────────────────────────────────
   const confirmAccept = async () => {
     setIsSaving(true);
     try {
-      // ✅ Single call: set status AND finalPrice together
       const response = await commissionsAPI.updateStatus(id, {
         status:     'ACCEPTED',
         finalPrice: parseFloat(finalPrice),
@@ -127,7 +148,7 @@ const CommissionDetail = () => {
     }
   };
 
-  // ── Save price only ─────────────────────────────────────
+  // ── Save price only ───────────────────────────────────────────────────────
   const handleSavePrice = async () => {
     if (!finalPrice || parseFloat(finalPrice) <= 0) {
       toast.error('Please enter a valid price');
@@ -148,7 +169,7 @@ const CommissionDetail = () => {
     }
   };
 
-  // ── Add note ────────────────────────────────────────────
+  // ── Add note ──────────────────────────────────────────────────────────────
   const handleAddNote = async () => {
     if (!newNote.trim()) return;
     setIsSaving(true);
@@ -179,25 +200,38 @@ const CommissionDetail = () => {
     }
   };
 
-  // ── Upload progress image ───────────────────────────────
+  // ── Upload progress image ─────────────────────────────────────────────────
+  // ✅ Now uploads directly to Cloudinary then sends URL to backend
   const handleProgressUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
     setIsUploading(true);
-    const formData = new FormData();
-    formData.append('image', file);
-    formData.append('description', 'Progress update');
 
     try {
-      const response = await commissionsAPI.addProgressImage(id, formData);
+      // Step 1 — Upload to Cloudinary directly
+      toast.loading('Uploading image...');
+      const cloudinaryResult = await uploadToCloudinary(file);
+      toast.dismiss();
+
+      // Step 2 — Send Cloudinary URL to backend
+      const response = await commissionsAPI.addProgressImage(id, {
+        url:         cloudinaryResult.url,
+        publicId:    cloudinaryResult.publicId,
+        description: 'Progress update',
+      });
+
+      // Step 3 — Update UI
       setCommission(prev => ({
         ...prev,
         progressImages: [...(prev.progressImages || []), response.data],
       }));
-      toast.success('Progress image uploaded');
+
+      toast.success('Progress image uploaded successfully!');
     } catch (error) {
-      toast.error('Failed to upload image');
+      console.error('Progress upload error:', error);
+      toast.dismiss();
+      toast.error('Failed to upload image. Please try again.');
     } finally {
       setIsUploading(false);
       e.target.value = ''; // reset file input
@@ -219,8 +253,8 @@ const CommissionDetail = () => {
   return (
     <div className="space-y-6 pb-12">
 
-      {/* ── Page Header ──────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 
+      {/* ── Page Header ──────────────────────────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4
                       sticky top-0 bg-stone-100 z-10 py-4 border-b border-stone-200">
         <div>
           <button
@@ -241,22 +275,23 @@ const CommissionDetail = () => {
             <CreditCard size={12} className="inline mr-1" />
             {paymentBadge.label}
           </span>
-          <span className={`px-3 py-1.5 rounded-full text-xs font-bold border 
+          <span className={`px-3 py-1.5 rounded-full text-xs font-bold border
                            ${getStatusStyle(commission.status)}`}>
             {commission.status.replace('_', ' ')}
           </span>
         </div>
       </div>
 
-      {/* ✅ Payment Alert Banner */}
+      {/* ── Payment Alert Banners ─────────────────────────────────────────── */}
       {commission.status === 'ACCEPTED' && commission.paymentStatus === 'UNPAID' && (
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-center gap-3">
           <Clock size={20} className="text-blue-600 flex-shrink-0" />
           <div>
             <p className="text-blue-800 font-medium text-sm">Awaiting Client Deposit</p>
             <p className="text-blue-600 text-xs mt-0.5">
-              Client has been notified to pay the 70% deposit 
-              {commission.finalPrice && ` ($${(Number(commission.finalPrice) * 0.7).toFixed(2)})`} 
+              Client has been notified to pay the 70% deposit
+              {commission.finalPrice &&
+                ` ($${(Number(commission.finalPrice) * 0.7).toFixed(2)})`}
               before work begins.
             </p>
           </div>
@@ -267,12 +302,16 @@ const CommissionDetail = () => {
         <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 flex items-center gap-3">
           <CheckCircle size={20} className="text-purple-600 flex-shrink-0" />
           <div>
-            <p className="text-purple-800 font-medium text-sm">Deposit Received — Work in Progress</p>
+            <p className="text-purple-800 font-medium text-sm">
+              Deposit Received — Work in Progress
+            </p>
             <p className="text-purple-600 text-xs mt-0.5">
-              70% deposit paid on {commission.depositPaidAt 
-                ? new Date(commission.depositPaidAt).toLocaleDateString() 
+              70% deposit paid on{' '}
+              {commission.depositPaidAt
+                ? new Date(commission.depositPaidAt).toLocaleDateString()
                 : 'N/A'}.
-              Remaining balance: {commission.finalPrice && 
+              Remaining balance:{' '}
+              {commission.finalPrice &&
                 `$${(Number(commission.finalPrice) * 0.3).toFixed(2)}`}
             </p>
           </div>
@@ -283,10 +322,13 @@ const CommissionDetail = () => {
         <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center gap-3">
           <CheckCircle size={20} className="text-green-600 flex-shrink-0" />
           <div>
-            <p className="text-green-800 font-medium text-sm">Fully Paid — Commission Complete</p>
+            <p className="text-green-800 font-medium text-sm">
+              Fully Paid — Commission Complete
+            </p>
             <p className="text-green-600 text-xs mt-0.5">
-              Final balance received on {commission.balancePaidAt 
-                ? new Date(commission.balancePaidAt).toLocaleDateString() 
+              Final balance received on{' '}
+              {commission.balancePaidAt
+                ? new Date(commission.balancePaidAt).toLocaleDateString()
                 : 'N/A'}.
               Total: ${Number(commission.finalPrice).toLocaleString()}
             </p>
@@ -296,7 +338,7 @@ const CommissionDetail = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-        {/* ── LEFT COLUMN ──────────────────────────────────── */}
+        {/* ── LEFT COLUMN ──────────────────────────────────────────────────── */}
         <div className="lg:col-span-2 space-y-6">
 
           {/* Project Details */}
@@ -325,8 +367,6 @@ const CommissionDetail = () => {
           {/* Status Management */}
           <div className="bg-white rounded-xl border border-stone-200 shadow-sm p-6">
             <h2 className="text-lg font-semibold text-stone-900 mb-4">Manage Status</h2>
-
-            {/* Workflow diagram */}
             <div className="bg-stone-50 border border-stone-200 rounded-lg p-4 mb-6">
               <p className="text-xs text-stone-500 font-medium uppercase tracking-wider mb-3">
                 Commission Workflow
@@ -336,19 +376,23 @@ const CommissionDetail = () => {
                 <span className="text-stone-400">→</span>
                 <span className="px-2 py-1 bg-amber-100 text-amber-800 rounded">2. Reviewing</span>
                 <span className="text-stone-400">→</span>
-                <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded font-bold">3. Accept & Set Price</span>
+                <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded font-bold">
+                  3. Accept & Set Price
+                </span>
                 <span className="text-stone-400">→</span>
-                <span className="px-2 py-1 bg-stone-200 text-stone-600 rounded">Client pays 70%</span>
+                <span className="px-2 py-1 bg-stone-200 text-stone-600 rounded">
+                  Client pays 70%
+                </span>
                 <span className="text-stone-400">→</span>
                 <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded">4. In Progress</span>
                 <span className="text-stone-400">→</span>
                 <span className="px-2 py-1 bg-green-100 text-green-800 rounded">5. Completed</span>
                 <span className="text-stone-400">→</span>
-                <span className="px-2 py-1 bg-stone-200 text-stone-600 rounded">Client pays 30%</span>
+                <span className="px-2 py-1 bg-stone-200 text-stone-600 rounded">
+                  Client pays 30%
+                </span>
               </div>
             </div>
-
-            {/* Status buttons */}
             <div className="flex flex-wrap gap-2">
               {statusOptions.map((option) => (
                 <button
@@ -381,11 +425,18 @@ const CommissionDetail = () => {
                 {commission.referenceImages.map((image, index) => (
                   <button
                     key={image.id || index}
-                    onClick={() => { setSelectedImage(image.url); setShowImageModal(true); }}
-                    className="aspect-square overflow-hidden rounded-lg hover:opacity-90 
+                    onClick={() => {
+                      setSelectedImage(image.url);
+                      setShowImageModal(true);
+                    }}
+                    className="aspect-square overflow-hidden rounded-lg hover:opacity-90
                                transition-opacity border border-stone-200"
                   >
-                    <img src={image.url} alt={`Reference ${index + 1}`} className="w-full h-full object-cover" />
+                    <img
+                      src={image.url}
+                      alt={`Reference ${index + 1}`}
+                      className="w-full h-full object-cover"
+                    />
                   </button>
                 ))}
               </div>
@@ -398,14 +449,15 @@ const CommissionDetail = () => {
           <div className="bg-white rounded-xl border border-stone-200 shadow-sm p-6">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-lg font-semibold text-stone-900">Work in Progress</h2>
-              <label className="inline-flex items-center gap-2 text-sm text-amber-700 
-                               hover:text-amber-800 font-medium cursor-pointer bg-amber-50 
-                               px-3 py-1.5 rounded-lg border border-amber-100">
-                {isUploading 
-                  ? <Loader size={16} className="animate-spin" /> 
+              <label className="inline-flex items-center gap-2 text-sm text-amber-700
+                               hover:text-amber-800 font-medium cursor-pointer bg-amber-50
+                               px-3 py-1.5 rounded-lg border border-amber-100
+                               transition-colors">
+                {isUploading
+                  ? <Loader size={16} className="animate-spin" />
                   : <Upload size={16} />
                 }
-                Upload Update
+                {isUploading ? 'Uploading...' : 'Upload Update'}
                 <input
                   type="file"
                   className="hidden"
@@ -419,19 +471,22 @@ const CommissionDetail = () => {
             {commission.progressImages?.length > 0 ? (
               <div className="space-y-4">
                 {commission.progressImages.map((progress, index) => (
-                  <div key={progress.id || index} 
-                       className="flex gap-4 p-4 bg-stone-50 rounded-lg border border-stone-100">
+                  <div
+                    key={progress.id || index}
+                    className="flex gap-4 p-4 bg-stone-50 rounded-lg border border-stone-100"
+                  >
                     <button
-                      onClick={() => { 
-                        setSelectedImage(progress.imageUrl || progress.url); 
-                        setShowImageModal(true); 
+                      onClick={() => {
+                        setSelectedImage(progress.imageUrl || progress.url);
+                        setShowImageModal(true);
                       }}
-                      className="w-24 h-24 flex-shrink-0 overflow-hidden rounded-lg border border-stone-200"
+                      className="w-24 h-24 flex-shrink-0 overflow-hidden rounded-lg
+                                 border border-stone-200"
                     >
-                      <img 
-                        src={progress.imageUrl || progress.url} 
-                        alt="Progress" 
-                        className="w-full h-full object-cover" 
+                      <img
+                        src={progress.imageUrl || progress.url}
+                        alt="Progress"
+                        className="w-full h-full object-cover"
                       />
                     </button>
                     <div>
@@ -462,8 +517,8 @@ const CommissionDetail = () => {
                   <div
                     key={note.id}
                     className={`p-4 rounded-lg border ${
-                      note.isInternal 
-                        ? 'bg-amber-50 border-amber-100' 
+                      note.isInternal
+                        ? 'bg-amber-50 border-amber-100'
                         : 'bg-stone-50 border-stone-100'
                     }`}
                   >
@@ -472,7 +527,7 @@ const CommissionDetail = () => {
                         {new Date(note.createdAt).toLocaleString()}
                       </span>
                       {note.isInternal && (
-                        <span className="text-[10px] font-bold text-amber-700 
+                        <span className="text-[10px] font-bold text-amber-700
                                          bg-amber-100 px-2 py-0.5 rounded-full uppercase">
                           System
                         </span>
@@ -486,25 +541,24 @@ const CommissionDetail = () => {
               )}
             </div>
 
-            {/* Add note */}
             <div className="flex gap-2">
               <input
                 type="text"
                 value={newNote}
                 onChange={(e) => setNewNote(e.target.value)}
                 placeholder="Add a note..."
-                className="flex-1 px-4 py-2.5 border border-stone-300 rounded-lg text-sm 
+                className="flex-1 px-4 py-2.5 border border-stone-300 rounded-lg text-sm
                            focus:outline-none focus:border-amber-500"
                 onKeyPress={(e) => e.key === 'Enter' && handleAddNote()}
               />
               <button
                 onClick={handleAddNote}
                 disabled={!newNote.trim() || isSaving}
-                className="px-4 py-2.5 bg-stone-900 text-white rounded-lg 
+                className="px-4 py-2.5 bg-stone-900 text-white rounded-lg
                            hover:bg-stone-800 disabled:opacity-50"
               >
-                {isSaving 
-                  ? <Loader size={18} className="animate-spin" /> 
+                {isSaving
+                  ? <Loader size={18} className="animate-spin" />
                   : <Send size={18} />
                 }
               </button>
@@ -512,7 +566,7 @@ const CommissionDetail = () => {
           </div>
         </div>
 
-        {/* ── RIGHT COLUMN ─────────────────────────────────── */}
+        {/* ── RIGHT COLUMN ─────────────────────────────────────────────────── */}
         <div className="space-y-6">
 
           {/* Client Info */}
@@ -532,7 +586,7 @@ const CommissionDetail = () => {
               </div>
               <div className="flex items-center gap-3 text-sm pt-2 border-t border-stone-100">
                 <Mail size={16} className="text-stone-400" />
-                <a 
+                <a
                   href={`mailto:${commission.customer?.email}`}
                   className="text-amber-700 hover:underline truncate"
                 >
@@ -553,7 +607,6 @@ const CommissionDetail = () => {
             <h2 className="text-lg font-semibold text-stone-900 mb-4">Pricing & Payment</h2>
             <div className="space-y-4">
 
-              {/* Estimated price */}
               <div className="flex justify-between items-center p-3 bg-stone-50 rounded-lg">
                 <span className="text-sm text-stone-600">Client's Estimate</span>
                 <span className="font-medium text-stone-900">
@@ -561,28 +614,29 @@ const CommissionDetail = () => {
                 </span>
               </div>
 
-              {/* Final price input */}
               <div>
-                <label className="block text-xs font-medium text-stone-500 
+                <label className="block text-xs font-medium text-stone-500
                                   uppercase tracking-wider mb-1.5">
                   Your Final Price <span className="text-red-500">*</span>
                 </label>
                 <div className="flex gap-2">
                   <div className="relative flex-1">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-500">$</span>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-500">
+                      $
+                    </span>
                     <input
                       type="number"
                       value={finalPrice}
                       onChange={(e) => setFinalPrice(e.target.value)}
                       placeholder="0.00"
-                      className="w-full pl-7 pr-3 py-2 border border-stone-300 rounded-lg 
+                      className="w-full pl-7 pr-3 py-2 border border-stone-300 rounded-lg
                                  text-sm focus:outline-none focus:border-amber-500"
                     />
                   </div>
                   <button
                     onClick={handleSavePrice}
                     disabled={isSaving || !finalPrice}
-                    className="px-3 py-2 bg-stone-900 text-white rounded-lg 
+                    className="px-3 py-2 bg-stone-900 text-white rounded-lg
                                hover:bg-stone-800 disabled:opacity-50"
                   >
                     <Save size={16} />
@@ -593,7 +647,6 @@ const CommissionDetail = () => {
                 </p>
               </div>
 
-              {/* Payment breakdown */}
               {commission.finalPrice && (
                 <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-2">
                   <p className="text-xs font-medium text-amber-800 uppercase tracking-wider mb-2">
@@ -630,11 +683,10 @@ const CommissionDetail = () => {
                 </div>
               )}
 
-              {/* Payment status */}
               <div className="pt-4 border-t border-stone-100">
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-sm text-stone-600">Payment Status</span>
-                  <span className={`px-2.5 py-1 rounded-full text-xs font-bold uppercase 
+                  <span className={`px-2.5 py-1 rounded-full text-xs font-bold uppercase
                                    ${paymentBadge.style}`}>
                     {paymentBadge.label}
                   </span>
@@ -657,28 +709,46 @@ const CommissionDetail = () => {
           <div className="bg-white rounded-xl border border-stone-200 shadow-sm p-6">
             <h2 className="text-lg font-semibold text-stone-900 mb-4">Timeline</h2>
             <div className="space-y-4">
-              <TimelineItem icon={Calendar}     label="Submitted"    date={commission.createdAt}   color="stone" />
+              <TimelineItem
+                icon={Calendar} label="Submitted"
+                date={commission.createdAt} color="stone"
+              />
               {commission.depositPaidAt && (
-                <TimelineItem icon={CreditCard} label="Deposit Paid" date={commission.depositPaidAt} color="blue" />
+                <TimelineItem
+                  icon={CreditCard} label="Deposit Paid"
+                  date={commission.depositPaidAt} color="blue"
+                />
               )}
               {commission.startedAt && (
-                <TimelineItem icon={CheckCircle} label="Work Started" date={commission.startedAt}  color="purple" />
+                <TimelineItem
+                  icon={CheckCircle} label="Work Started"
+                  date={commission.startedAt} color="purple"
+                />
               )}
               {commission.deadline && (
-                <TimelineItem icon={AlertCircle} label="Deadline"    date={commission.deadline}    color="amber" isDeadline />
+                <TimelineItem
+                  icon={AlertCircle} label="Deadline"
+                  date={commission.deadline} color="amber" isDeadline
+                />
               )}
               {commission.balancePaidAt && (
-                <TimelineItem icon={CreditCard} label="Balance Paid" date={commission.balancePaidAt} color="green" />
+                <TimelineItem
+                  icon={CreditCard} label="Balance Paid"
+                  date={commission.balancePaidAt} color="green"
+                />
               )}
               {commission.completedAt && (
-                <TimelineItem icon={CheckCircle} label="Completed"   date={commission.completedAt} color="green" />
+                <TimelineItem
+                  icon={CheckCircle} label="Completed"
+                  date={commission.completedAt} color="green"
+                />
               )}
             </div>
           </div>
         </div>
       </div>
 
-      {/* ── Accept Confirmation Modal ─────────────────────── */}
+      {/* ── Accept Confirmation Modal ─────────────────────────────────────── */}
       <AnimatePresence>
         {showAcceptModal && (
           <motion.div
@@ -697,7 +767,8 @@ const CommissionDetail = () => {
             >
               <h3 className="text-xl font-serif text-stone-900 mb-4">Accept Commission</h3>
               <p className="text-stone-600 mb-6">
-                By accepting, the client will be notified and asked to pay the 70% deposit before work begins.
+                By accepting, the client will be notified and asked to pay the 70% deposit
+                before work begins.
               </p>
 
               <div className="bg-stone-50 rounded-lg p-4 mb-6 space-y-3">
@@ -736,7 +807,7 @@ const CommissionDetail = () => {
               <div className="flex justify-end gap-3">
                 <button
                   onClick={() => setShowAcceptModal(false)}
-                  className="px-6 py-2.5 border border-stone-300 rounded-lg 
+                  className="px-6 py-2.5 border border-stone-300 rounded-lg
                              text-stone-700 hover:bg-stone-50"
                 >
                   Cancel
@@ -744,7 +815,7 @@ const CommissionDetail = () => {
                 <button
                   onClick={confirmAccept}
                   disabled={isSaving}
-                  className="px-6 py-2.5 bg-blue-600 text-white rounded-lg 
+                  className="px-6 py-2.5 bg-blue-600 text-white rounded-lg
                              hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
                 >
                   {isSaving ? (
@@ -759,7 +830,7 @@ const CommissionDetail = () => {
         )}
       </AnimatePresence>
 
-      {/* ── Image Modal ───────────────────────────────────── */}
+      {/* ── Image Modal ───────────────────────────────────────────────────── */}
       <AnimatePresence>
         {showImageModal && (
           <motion.div
@@ -788,7 +859,7 @@ const CommissionDetail = () => {
   );
 };
 
-// ── Timeline Item Component ─────────────────────────────
+// ── Timeline Item Component ───────────────────────────────────────────────────
 const TimelineItem = ({ icon: Icon, label, date, color, isDeadline = false }) => {
   const colorStyles = {
     stone:  'bg-stone-100  text-stone-500',
