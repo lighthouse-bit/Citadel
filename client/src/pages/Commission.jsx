@@ -3,15 +3,40 @@ import { useState, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Upload, X, Check, Info, Clock, Mail } from 'lucide-react';
+import { Upload, X, Check, Info, Clock, Mail, Loader } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { commissionsAPI } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
-import { useSettings } from '../hooks/useSettings'; // ✅ Add this
+import { useSettings } from '../hooks/useSettings';
+
+// ✅ Direct Cloudinary upload — bypasses Vercel 4.5MB limit
+const uploadToCloudinary = async (file) => {
+  const cloudName    = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+  const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('upload_preset', uploadPreset);
+  formData.append('folder', 'citadel/commissions');
+
+  const response = await fetch(
+    `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
+    { method: 'POST', body: formData }
+  );
+
+  if (!response.ok) throw new Error('Failed to upload image to Cloudinary');
+
+  const data = await response.json();
+  return {
+    url:          data.secure_url,
+    publicId:     data.public_id,
+    originalName: file.name,
+  };
+};
 
 const Commission = () => {
   const { user }     = useAuth();
-  const { settings } = useSettings(); // ✅ Add this
+  const { settings } = useSettings();
 
   const [formData, setFormData] = useState({
     firstName:   '',
@@ -24,27 +49,29 @@ const Commission = () => {
     budget:      '',
     deadline:    '',
   });
+
   const [uploadedImages, setUploadedImages] = useState([]);
   const [isSubmitting, setIsSubmitting]     = useState(false);
+  const [uploadProgress, setUploadProgress] = useState('');
 
   useEffect(() => {
     if (user) {
       setFormData(prev => ({
         ...prev,
-        firstName: user.name?.split(' ')[0] || '',
-        lastName:  user.name?.split(' ')[1] || '',
-        email:     user.email || '',
+        firstName: user.firstName || user.name?.split(' ')[0] || '',
+        lastName:  user.lastName  || user.name?.split(' ')[1] || '',
+        email:     user.email     || '',
       }));
     }
   }, [user]);
 
   const artStyles = [
-    { id: 'realistic',    name: 'Realistic Portrait', basePrice: 500 },
-    { id: 'abstract',     name: 'Abstract',           basePrice: 400 },
-    { id: 'impressionist',name: 'Impressionist',      basePrice: 450 },
-    { id: 'contemporary', name: 'Contemporary',       basePrice: 450 },
-    { id: 'charcoal',     name: 'Charcoal Drawing',   basePrice: 250 },
-    { id: 'watercolor',   name: 'Watercolor',         basePrice: 350 },
+    { id: 'realistic',     name: 'Realistic Portrait', basePrice: 500 },
+    { id: 'abstract',      name: 'Abstract',           basePrice: 400 },
+    { id: 'impressionist', name: 'Impressionist',      basePrice: 450 },
+    { id: 'contemporary',  name: 'Contemporary',       basePrice: 450 },
+    { id: 'charcoal',      name: 'Charcoal Drawing',   basePrice: 250 },
+    { id: 'watercolor',    name: 'Watercolor',         basePrice: 350 },
   ];
 
   const sizes = [
@@ -65,8 +92,8 @@ const Commission = () => {
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: { 'image/*': ['.jpeg', '.jpg', '.png', '.webp'] },
-    maxSize: 10485760,
+    accept:   { 'image/*': ['.jpeg', '.jpg', '.png', '.webp'] },
+    maxSize:  10485760, // 10MB — Cloudinary handles directly ✅
     maxFiles: 5,
   });
 
@@ -89,16 +116,57 @@ const Commission = () => {
       return;
     }
 
+    if (!formData.artStyle) {
+      toast.error('Please select an art style');
+      return;
+    }
+
+    if (!formData.size) {
+      toast.error('Please select a size');
+      return;
+    }
+
     setIsSubmitting(true);
 
-    const submitData = new FormData();
-    Object.keys(formData).forEach(key => submitData.append(key, formData[key]));
-    uploadedImages.forEach(img => submitData.append('referenceImages', img.file));
-
     try {
+      // ── Step 1: Upload images directly to Cloudinary ──────────────────
+      setUploadProgress(`Uploading ${uploadedImages.length} image(s)...`);
+
+      const uploadedCloudinaryImages = await Promise.all(
+        uploadedImages.map(img => uploadToCloudinary(img.file))
+      );
+
+      setUploadProgress('Submitting commission request...');
+
+      // ── Step 2: Send JSON with Cloudinary URLs to backend ─────────────
+      // ✅ No binary files — stays well under Vercel 4.5MB limit
+      const submitData = {
+        // Contact info
+        firstName:   formData.firstName,
+        lastName:    formData.lastName,
+        email:       formData.email,
+        phone:       formData.phone,
+
+        // Artwork details
+        artStyle:    formData.artStyle,
+        size:        formData.size,
+        description: formData.description,
+        budget:      formData.budget,
+        deadline:    formData.deadline,
+
+        // ✅ Cloudinary URLs instead of binary files
+        referenceImages: uploadedCloudinaryImages.map(img => ({
+          url:          img.url,
+          publicId:     img.publicId,
+          originalName: img.originalName,
+        })),
+      };
+
       await commissionsAPI.create(submitData);
+
       toast.success('Commission request submitted successfully!');
 
+      // Reset form
       setFormData(prev => ({
         firstName:   user ? prev.firstName : '',
         lastName:    user ? prev.lastName  : '',
@@ -111,19 +179,26 @@ const Commission = () => {
         deadline:    '',
       }));
       setUploadedImages([]);
+
     } catch (error) {
       console.error('Commission error:', error);
-      toast.error('Failed to submit. Please try again.');
+      if (error.message?.includes('Cloudinary')) {
+        toast.error('Image upload failed. Please try again.');
+      } else {
+        toast.error(
+          error.response?.data?.error || 'Failed to submit. Please try again.'
+        );
+      }
     } finally {
       setIsSubmitting(false);
+      setUploadProgress('');
     }
   };
 
-  // ✅ If commissions are closed, show a closed page
+  // ✅ Commissions closed
   if (!settings.commissionOpen) {
     return (
       <div className="pt-20 min-h-screen bg-stone-50">
-        {/* Hero */}
         <section className="relative py-24" style={{ backgroundColor: '#1a1a1a' }}>
           <div
             className="absolute inset-0"
@@ -150,41 +225,34 @@ const Commission = () => {
           </div>
         </section>
 
-        {/* Closed Message */}
         <section className="py-24 px-6">
           <div className="max-w-2xl mx-auto text-center">
             <div className="bg-white rounded-xl border border-stone-200 shadow-sm p-12">
-              <div className="w-20 h-20 bg-red-100 rounded-full flex items-center 
+              <div className="w-20 h-20 bg-red-100 rounded-full flex items-center
                               justify-center mx-auto mb-6">
                 <Clock size={36} className="text-red-500" />
               </div>
-
               <h2 className="text-2xl font-serif text-stone-900 mb-4">
                 Currently Unavailable
               </h2>
-
               <p className="text-stone-500 mb-8 leading-relaxed">
-                Our commission slots are currently full. Please check back later 
+                Our commission slots are currently full. Please check back later
                 or reach out directly to be added to our waitlist.
               </p>
-
-              {/* Contact option */}
               <a
                 href={`mailto:${settings.contactEmail}`}
-                className="inline-flex items-center gap-2 px-8 py-3 bg-stone-900 
+                className="inline-flex items-center gap-2 px-8 py-3 bg-stone-900
                            text-white rounded-lg hover:bg-stone-800 transition-colors mb-4"
               >
                 <Mail size={18} />
                 Contact Us at {settings.contactEmail}
               </a>
-
               <p className="text-stone-400 text-sm mt-6">
                 In the meantime, browse our existing collection of original artworks.
               </p>
-
               <Link
                 to="/gallery"
-                className="inline-flex items-center gap-2 mt-4 text-amber-700 
+                className="inline-flex items-center gap-2 mt-4 text-amber-700
                            hover:text-amber-800 font-medium transition-colors"
               >
                 Browse Gallery →
@@ -196,10 +264,10 @@ const Commission = () => {
     );
   }
 
-  // ✅ Commissions are OPEN - show the form
+  // ✅ Commissions open
   return (
     <div className="pt-20 min-h-screen bg-stone-50">
-      {/* Hero Section */}
+      {/* Hero */}
       <section className="relative py-24" style={{ backgroundColor: '#1a1a1a' }}>
         <div
           className="absolute inset-0"
@@ -223,10 +291,8 @@ const Commission = () => {
           <p className="text-stone-300 max-w-2xl mx-auto leading-relaxed">
             Transform your vision into a unique piece of art.
           </p>
-
-          {/* ✅ Show wait time from settings */}
           {settings.commissionWaitTime && (
-            <div className="mt-6 inline-flex items-center gap-2 bg-white/10 
+            <div className="mt-6 inline-flex items-center gap-2 bg-white/10
                             backdrop-blur px-4 py-2 rounded-full">
               <Clock size={14} className="text-amber-400" />
               <span className="text-amber-300 text-sm">
@@ -237,7 +303,7 @@ const Commission = () => {
         </div>
       </section>
 
-      {/* Form Section */}
+      {/* Form */}
       <section className="py-16">
         <div className="max-w-4xl mx-auto px-6">
           <form onSubmit={handleSubmit} className="space-y-10">
@@ -318,8 +384,8 @@ const Commission = () => {
               </p>
               <div
                 {...getRootProps()}
-                className={`border-2 border-dashed rounded-lg p-10 text-center cursor-pointer
-                            transition-all duration-300 ${
+                className={`border-2 border-dashed rounded-lg p-10 text-center
+                            cursor-pointer transition-all duration-300 ${
                   isDragActive
                     ? 'border-amber-600 bg-amber-50'
                     : 'border-stone-300 hover:border-amber-500 bg-stone-50'
@@ -335,7 +401,9 @@ const Commission = () => {
                       Drag & drop images here, or{' '}
                       <span className="text-amber-600 font-medium">click to browse</span>
                     </p>
-                    <p className="text-stone-400 text-sm">JPG, PNG, WebP up to 10MB</p>
+                    <p className="text-stone-400 text-sm">
+                      JPG, PNG, WebP up to 10MB — uploaded directly to Cloudinary
+                    </p>
                   </div>
                 )}
               </div>
@@ -357,13 +425,15 @@ const Commission = () => {
                       <button
                         type="button"
                         onClick={() => removeImage(index)}
-                        className="absolute top-1 right-1 bg-red-500 text-white p-1 
-                                   rounded-full opacity-0 group-hover:opacity-100 
+                        className="absolute top-1 right-1 bg-red-500 text-white p-1
+                                   rounded-full opacity-0 group-hover:opacity-100
                                    transition-opacity hover:bg-red-600"
                       >
                         <X size={14} />
                       </button>
-                      <p className="text-xs text-stone-500 mt-1 truncate">{image.name}</p>
+                      <p className="text-xs text-stone-500 mt-1 truncate">
+                        {image.name}
+                      </p>
                     </motion.div>
                   ))}
                 </div>
@@ -394,8 +464,12 @@ const Commission = () => {
                           : 'border-stone-200 hover:border-amber-400 bg-white'
                       }`}
                     >
-                      <span className="block text-stone-900 font-medium">{style.name}</span>
-                      <span className="text-amber-700 text-sm">From ${style.basePrice}</span>
+                      <span className="block text-stone-900 font-medium">
+                        {style.name}
+                      </span>
+                      <span className="text-amber-700 text-sm">
+                        From ${style.basePrice}
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -444,14 +518,18 @@ const Commission = () => {
 
               {/* Deadline */}
               <div>
-                <label className="block text-stone-600 text-sm mb-2">Preferred Deadline</label>
+                <label className="block text-stone-600 text-sm mb-2">
+                  Preferred Deadline
+                </label>
                 <input
                   type="date"
                   value={formData.deadline}
                   onChange={(e) => setFormData({ ...formData, deadline: e.target.value })}
-                  min={new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}
-                  className="w-full md:w-auto bg-stone-50 border border-stone-300 px-4 py-3
-                             text-stone-900 focus:border-amber-600 focus:outline-none transition-colors"
+                  min={new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
+                    .toISOString().split('T')[0]}
+                  className="w-full md:w-auto bg-stone-50 border border-stone-300
+                             px-4 py-3 text-stone-900 focus:border-amber-600
+                             focus:outline-none transition-colors"
                 />
                 <p className="text-stone-500 text-sm mt-2">
                   Minimum 2 weeks required · Current wait: {settings.commissionWaitTime}
@@ -477,6 +555,15 @@ const Commission = () => {
               </motion.div>
             )}
 
+            {/* Upload Progress */}
+            {isSubmitting && uploadProgress && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4
+                              flex items-center gap-3">
+                <Loader size={18} className="animate-spin text-amber-600" />
+                <p className="text-amber-800 text-sm">{uploadProgress}</p>
+              </div>
+            )}
+
             {/* Submit */}
             <button
               type="submit"
@@ -489,9 +576,9 @@ const Commission = () => {
             >
               {isSubmitting ? (
                 <>
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent 
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent
                                   rounded-full animate-spin" />
-                  Submitting...
+                  {uploadProgress || 'Submitting...'}
                 </>
               ) : (
                 <>
@@ -505,9 +592,18 @@ const Commission = () => {
           {/* Process Steps */}
           <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-8">
             {[
-              { title: 'Consultation', description: "We'll discuss your vision and provide a detailed quote within 48 hours." },
-              { title: 'Creation',     description: 'Watch your artwork come to life with regular progress updates.'           },
-              { title: 'Delivery',     description: `${settings.shippingInfo}`                                                 },
+              {
+                title:       'Consultation',
+                description: "We'll discuss your vision and provide a detailed quote within 48 hours.",
+              },
+              {
+                title:       'Creation',
+                description: 'Watch your artwork come to life with regular progress updates.',
+              },
+              {
+                title:       'Delivery',
+                description: settings.shippingInfo,
+              },
             ].map((step, index) => (
               <div key={index} className="text-center">
                 <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-700
