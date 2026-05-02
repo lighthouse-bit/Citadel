@@ -6,63 +6,108 @@ import { ArrowLeft, Upload, X, Save, Loader } from 'lucide-react';
 import { artworksAPI } from '../../services/api';
 import toast from 'react-hot-toast';
 
+// ✅ Direct Cloudinary upload — bypasses Vercel 4.5MB limit
+const uploadToCloudinary = async (file, onProgress = null) => {
+  const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+  const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('upload_preset', uploadPreset);
+  formData.append('folder', 'citadel');
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+
+    if (onProgress) {
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable) {
+          const percent = Math.round((e.loaded / e.total) * 100);
+          onProgress(percent);
+        }
+      });
+    }
+
+    xhr.addEventListener('load', () => {
+      if (xhr.status === 200) {
+        const data = JSON.parse(xhr.responseText);
+        resolve({
+          url: data.secure_url,
+          publicId: data.public_id,
+        });
+      } else {
+        reject(new Error('Cloudinary upload failed'));
+      }
+    });
+
+    xhr.addEventListener('error', () => reject(new Error('Upload failed')));
+
+    xhr.open(
+      'POST',
+      `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`
+    );
+    xhr.send(formData);
+  });
+};
+
 const ArtworkForm = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const isEditing = Boolean(id);
 
-  const [isLoading, setIsLoading] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [images, setImages] = useState([]);
-  const [formData, setFormData] = useState({
-    title: '',
+  const [isLoading, setIsLoading]   = useState(false);
+  const [isSaving, setIsSaving]     = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [images, setImages]         = useState([]);
+  const [formData, setFormData]     = useState({
+    title:       '',
     description: '',
-    price: '',
-    category: 'PAINTING',
-    medium: '',
-    year: new Date().getFullYear(),
-    width: '',
-    height: '',
-    unit: 'inches',
-    status: 'AVAILABLE',
-    featured: false,
+    price:       '',
+    category:    'PAINTING',
+    medium:      '',
+    year:        new Date().getFullYear(),
+    width:       '',
+    height:      '',
+    unit:        'inches',
+    status:      'AVAILABLE',
+    featured:    false,
   });
 
   useEffect(() => {
-    if (isEditing) {
-      loadArtwork();
-    }
+    if (isEditing) loadArtwork();
   }, [id, isEditing]);
 
   const loadArtwork = async () => {
     setIsLoading(true);
     try {
       const response = await artworksAPI.getById(id);
-      const artwork = response.data;
-      
+      const artwork  = response.data;
+
       setFormData({
-        title: artwork.title,
+        title:       artwork.title,
         description: artwork.description,
-        price: artwork.price?.toString() || '',
-        category: artwork.category,
-        medium: artwork.medium || '',
-        year: artwork.year || new Date().getFullYear(),
-        width: artwork.width?.toString() || '',
-        height: artwork.height?.toString() || '',
-        unit: artwork.unit || 'inches',
-        status: artwork.status,
-        featured: artwork.featured || false,
+        price:       artwork.price?.toString() || '',
+        category:    artwork.category,
+        medium:      artwork.medium || '',
+        year:        artwork.year || new Date().getFullYear(),
+        width:       artwork.width?.toString() || '',
+        height:      artwork.height?.toString() || '',
+        unit:        artwork.unit || 'inches',
+        status:      artwork.status,
+        featured:    artwork.featured || false,
       });
-      
-      // Set existing images
+
       if (artwork.images) {
-        setImages(artwork.images.map((img, i) => ({
-          id: img.id,
-          preview: img.url,
-          url: img.url,
-          existing: true,
-          order: i
-        })));
+        setImages(
+          artwork.images.map((img, i) => ({
+            id:       img.id,
+            preview:  img.url,
+            url:      img.url,
+            publicId: img.publicId,
+            existing: true,
+            order:    i,
+          }))
+        );
       }
     } catch (error) {
       console.error('Error loading artwork:', error);
@@ -76,7 +121,7 @@ const ArtworkForm = () => {
   const onDrop = (acceptedFiles) => {
     const newImages = acceptedFiles.map(file => ({
       file,
-      preview: URL.createObjectURL(file),
+      preview:  URL.createObjectURL(file),
       existing: false,
     }));
     setImages(prev => [...prev, ...newImages].slice(0, 10));
@@ -84,8 +129,8 @@ const ArtworkForm = () => {
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: { 'image/*': ['.jpeg', '.jpg', '.png', '.webp'] },
-    maxSize: 10485760,
+    accept:  { 'image/*': ['.jpeg', '.jpg', '.png', '.webp'] },
+    maxSize: 10485760, // 10MB per file — Cloudinary handles this directly ✅
   });
 
   const removeImage = (index) => {
@@ -96,44 +141,94 @@ const ArtworkForm = () => {
     const { name, value, type, checked } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : value
+      [name]: type === 'checkbox' ? checked : value,
     }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSaving(true);
+    setUploadProgress(0);
 
     try {
-      // Create FormData for file upload
-      const submitData = new FormData();
-      
-      // Append all form fields
-      Object.keys(formData).forEach(key => {
-        submitData.append(key, formData[key]);
-      });
+      // ── Step 1: Upload new images to Cloudinary directly ──────────────
+      const newImages      = images.filter(img => !img.existing && img.file);
+      const existingImages = images.filter(img => img.existing);
 
-      // Append only new images (not existing ones)
-      const newImages = images.filter(img => !img.existing && img.file);
-      newImages.forEach((img) => {
-        submitData.append('images', img.file);
-      });
+      let uploadedImages = [];
 
-      let response;
+      if (newImages.length > 0) {
+        toast.loading(`Uploading ${newImages.length} image(s) to Cloudinary...`);
+
+        const uploadPromises = newImages.map((img, index) =>
+          uploadToCloudinary(img.file, (percent) => {
+            // Calculate overall progress across all uploads
+            setUploadProgress(
+              Math.round((index / newImages.length) * 100 + percent / newImages.length)
+            );
+          })
+        );
+
+        uploadedImages = await Promise.all(uploadPromises);
+        toast.dismiss();
+        setUploadProgress(100);
+      }
+
+      // ── Step 2: Send artwork data + Cloudinary URLs to your backend ───
+      // ✅ No binary files — just JSON — stays well under 4.5MB limit
+      const submitData = {
+        ...formData,
+        price:    parseFloat(formData.price),
+        year:     parseInt(formData.year),
+        width:    formData.width    ? parseFloat(formData.width)  : null,
+        height:   formData.height   ? parseFloat(formData.height) : null,
+        featured: Boolean(formData.featured),
+
+        // ✅ Send Cloudinary URLs + existing images together
+        images: [
+          // Keep existing images
+          ...existingImages.map((img, i) => ({
+            url:       img.url,
+            publicId:  img.publicId || '',
+            isPrimary: i === 0,
+            order:     i,
+            existing:  true,
+            id:        img.id,
+          })),
+          // Add newly uploaded images
+          ...uploadedImages.map((img, i) => ({
+            url:       img.url,
+            publicId:  img.publicId,
+            isPrimary: existingImages.length === 0 && i === 0,
+            order:     existingImages.length + i,
+            existing:  false,
+          })),
+        ],
+      };
+
+      // ── Step 3: Save to your backend / database ───────────────────────
       if (isEditing) {
-        response = await artworksAPI.update(id, submitData);
+        await artworksAPI.update(id, submitData);
         toast.success('Artwork updated successfully!');
       } else {
-        response = await artworksAPI.create(submitData);
+        await artworksAPI.create(submitData);
         toast.success('Artwork created successfully!');
       }
-      
+
       navigate('/admin/artworks');
+
     } catch (error) {
       console.error('Error saving artwork:', error);
-      toast.error(error.response?.data?.error || 'Failed to save artwork');
+      toast.dismiss();
+
+      if (error.message?.includes('Cloudinary')) {
+        toast.error('Image upload failed. Check your Cloudinary settings.');
+      } else {
+        toast.error(error.response?.data?.error || 'Failed to save artwork');
+      }
     } finally {
       setIsSaving(false);
+      setUploadProgress(0);
     }
   };
 
@@ -151,13 +246,13 @@ const ArtworkForm = () => {
       <div className="mb-8">
         <button
           onClick={() => navigate('/admin/artworks')}
-          className="inline-flex items-center gap-2 text-stone-600 hover:text-stone-900 
-                   transition-colors mb-4"
+          className="inline-flex items-center gap-2 text-stone-600 hover:text-stone-900
+                     transition-colors mb-4"
         >
           <ArrowLeft size={18} />
           Back to Artworks
         </button>
-        <h1 
+        <h1
           className="text-2xl text-stone-900"
           style={{ fontFamily: "'Playfair Display', serif" }}
         >
@@ -166,26 +261,46 @@ const ArtworkForm = () => {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-8">
-        {/* Images */}
+
+        {/* ── Images ──────────────────────────────────────────────────── */}
         <div className="bg-white rounded-xl border border-stone-200 shadow-sm p-6">
           <h2 className="text-lg font-semibold text-stone-900 mb-4">Images</h2>
-          
+
           <div
             {...getRootProps()}
             className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer
-                      transition-all duration-300 
-                      ${isDragActive 
-                        ? 'border-amber-500 bg-amber-50' 
-                        : 'border-stone-300 hover:border-amber-400'
-                      }`}
+                        transition-all duration-300
+                        ${isDragActive
+                          ? 'border-amber-500 bg-amber-50'
+                          : 'border-stone-300 hover:border-amber-400'
+                        }`}
           >
             <input {...getInputProps()} />
             <Upload className="w-10 h-10 text-stone-400 mx-auto mb-4" />
             <p className="text-stone-600 mb-1">
-              Drag & drop images here, or <span className="text-amber-600">browse</span>
+              Drag & drop images here, or{' '}
+              <span className="text-amber-600">browse</span>
             </p>
-            <p className="text-stone-400 text-sm">Up to 10 images, max 10MB each</p>
+            <p className="text-stone-400 text-sm">
+              Up to 10 images, max 10MB each — uploaded directly to Cloudinary
+            </p>
           </div>
+
+          {/* ✅ Upload progress bar */}
+          {isSaving && uploadProgress > 0 && uploadProgress < 100 && (
+            <div className="mt-4">
+              <div className="flex justify-between text-sm text-stone-600 mb-1">
+                <span>Uploading images...</span>
+                <span>{uploadProgress}%</span>
+              </div>
+              <div className="w-full bg-stone-200 rounded-full h-2">
+                <div
+                  className="bg-amber-600 h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${uploadProgress}%` }}
+                />
+              </div>
+            </div>
+          )}
 
           {images.length > 0 && (
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-6">
@@ -200,13 +315,21 @@ const ArtworkForm = () => {
                     type="button"
                     onClick={() => removeImage(index)}
                     className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full
-                             opacity-0 group-hover:opacity-100 transition-opacity"
+                               opacity-0 group-hover:opacity-100 transition-opacity"
                   >
                     <X size={14} />
                   </button>
                   {index === 0 && (
-                    <span className="absolute bottom-2 left-2 px-2 py-1 bg-amber-600 text-white 
-                                   text-xs rounded">Primary</span>
+                    <span className="absolute bottom-2 left-2 px-2 py-1 bg-amber-600
+                                     text-white text-xs rounded">
+                      Primary
+                    </span>
+                  )}
+                  {image.existing && (
+                    <span className="absolute bottom-2 right-2 px-2 py-1 bg-stone-600
+                                     text-white text-xs rounded">
+                      Saved
+                    </span>
                   )}
                 </div>
               ))}
@@ -214,10 +337,12 @@ const ArtworkForm = () => {
           )}
         </div>
 
-        {/* Basic Info - Same as before */}
+        {/* ── Basic Info ───────────────────────────────────────────────── */}
         <div className="bg-white rounded-xl border border-stone-200 shadow-sm p-6">
-          <h2 className="text-lg font-semibold text-stone-900 mb-4">Basic Information</h2>
-          
+          <h2 className="text-lg font-semibold text-stone-900 mb-4">
+            Basic Information
+          </h2>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="md:col-span-2">
               <label className="block text-sm text-stone-600 mb-2">
@@ -230,7 +355,7 @@ const ArtworkForm = () => {
                 value={formData.title}
                 onChange={handleChange}
                 className="w-full px-4 py-3 border border-stone-300 rounded-lg
-                         focus:outline-none focus:border-amber-500 text-stone-900"
+                           focus:outline-none focus:border-amber-500 text-stone-900"
                 placeholder="Artwork title"
               />
             </div>
@@ -246,7 +371,8 @@ const ArtworkForm = () => {
                 value={formData.description}
                 onChange={handleChange}
                 className="w-full px-4 py-3 border border-stone-300 rounded-lg
-                         focus:outline-none focus:border-amber-500 text-stone-900 resize-none"
+                           focus:outline-none focus:border-amber-500
+                           text-stone-900 resize-none"
                 placeholder="Describe this artwork..."
               />
             </div>
@@ -264,7 +390,7 @@ const ArtworkForm = () => {
                 value={formData.price}
                 onChange={handleChange}
                 className="w-full px-4 py-3 border border-stone-300 rounded-lg
-                         focus:outline-none focus:border-amber-500 text-stone-900"
+                           focus:outline-none focus:border-amber-500 text-stone-900"
                 placeholder="0.00"
               />
             </div>
@@ -278,7 +404,7 @@ const ArtworkForm = () => {
                 value={formData.category}
                 onChange={handleChange}
                 className="w-full px-4 py-3 border border-stone-300 rounded-lg
-                         focus:outline-none focus:border-amber-500 text-stone-900"
+                           focus:outline-none focus:border-amber-500 text-stone-900"
               >
                 <option value="PAINTING">Painting</option>
                 <option value="DRAWING">Drawing</option>
@@ -297,7 +423,7 @@ const ArtworkForm = () => {
                 value={formData.medium}
                 onChange={handleChange}
                 className="w-full px-4 py-3 border border-stone-300 rounded-lg
-                         focus:outline-none focus:border-amber-500 text-stone-900"
+                           focus:outline-none focus:border-amber-500 text-stone-900"
                 placeholder="e.g., Oil on Canvas"
               />
             </div>
@@ -312,16 +438,16 @@ const ArtworkForm = () => {
                 value={formData.year}
                 onChange={handleChange}
                 className="w-full px-4 py-3 border border-stone-300 rounded-lg
-                         focus:outline-none focus:border-amber-500 text-stone-900"
+                           focus:outline-none focus:border-amber-500 text-stone-900"
               />
             </div>
           </div>
         </div>
 
-        {/* Dimensions */}
+        {/* ── Dimensions ──────────────────────────────────────────────── */}
         <div className="bg-white rounded-xl border border-stone-200 shadow-sm p-6">
           <h2 className="text-lg font-semibold text-stone-900 mb-4">Dimensions</h2>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
               <label className="block text-sm text-stone-600 mb-2">Width</label>
@@ -333,7 +459,7 @@ const ArtworkForm = () => {
                 value={formData.width}
                 onChange={handleChange}
                 className="w-full px-4 py-3 border border-stone-300 rounded-lg
-                         focus:outline-none focus:border-amber-500 text-stone-900"
+                           focus:outline-none focus:border-amber-500 text-stone-900"
               />
             </div>
 
@@ -347,7 +473,7 @@ const ArtworkForm = () => {
                 value={formData.height}
                 onChange={handleChange}
                 className="w-full px-4 py-3 border border-stone-300 rounded-lg
-                         focus:outline-none focus:border-amber-500 text-stone-900"
+                           focus:outline-none focus:border-amber-500 text-stone-900"
               />
             </div>
 
@@ -358,7 +484,7 @@ const ArtworkForm = () => {
                 value={formData.unit}
                 onChange={handleChange}
                 className="w-full px-4 py-3 border border-stone-300 rounded-lg
-                         focus:outline-none focus:border-amber-500 text-stone-900"
+                           focus:outline-none focus:border-amber-500 text-stone-900"
               >
                 <option value="inches">Inches</option>
                 <option value="cm">Centimeters</option>
@@ -368,10 +494,12 @@ const ArtworkForm = () => {
           </div>
         </div>
 
-        {/* Status & Settings */}
+        {/* ── Status & Settings ────────────────────────────────────────── */}
         <div className="bg-white rounded-xl border border-stone-200 shadow-sm p-6">
-          <h2 className="text-lg font-semibold text-stone-900 mb-4">Status & Settings</h2>
-          
+          <h2 className="text-lg font-semibold text-stone-900 mb-4">
+            Status & Settings
+          </h2>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm text-stone-600 mb-2">Status</label>
@@ -380,7 +508,7 @@ const ArtworkForm = () => {
                 value={formData.status}
                 onChange={handleChange}
                 className="w-full px-4 py-3 border border-stone-300 rounded-lg
-                         focus:outline-none focus:border-amber-500 text-stone-900"
+                           focus:outline-none focus:border-amber-500 text-stone-900"
               >
                 <option value="AVAILABLE">Available</option>
                 <option value="SOLD">Sold</option>
@@ -396,7 +524,8 @@ const ArtworkForm = () => {
                   name="featured"
                   checked={formData.featured}
                   onChange={handleChange}
-                  className="w-5 h-5 rounded border-stone-300 text-amber-600 focus:ring-amber-500"
+                  className="w-5 h-5 rounded border-stone-300 text-amber-600
+                             focus:ring-amber-500"
                 />
                 <span className="text-stone-700">Featured artwork</span>
               </label>
@@ -404,27 +533,35 @@ const ArtworkForm = () => {
           </div>
         </div>
 
-        {/* Actions */}
+        {/* ── Actions ─────────────────────────────────────────────────── */}
         <div className="flex justify-end gap-4">
           <button
             type="button"
             onClick={() => navigate('/admin/artworks')}
             className="px-6 py-3 border border-stone-300 rounded-lg text-stone-700
-                     hover:bg-stone-50 transition-colors"
+                       hover:bg-stone-50 transition-colors"
           >
             Cancel
           </button>
           <button
             type="submit"
-            disabled={isSaving || !formData.title || !formData.description || !formData.price}
+            disabled={
+              isSaving ||
+              !formData.title ||
+              !formData.description ||
+              !formData.price
+            }
             className="px-6 py-3 bg-stone-900 text-white rounded-lg
-                     hover:bg-stone-800 transition-colors inline-flex items-center gap-2
-                     disabled:opacity-50 disabled:cursor-not-allowed"
+                       hover:bg-stone-800 transition-colors inline-flex
+                       items-center gap-2 disabled:opacity-50
+                       disabled:cursor-not-allowed"
           >
             {isSaving ? (
               <>
                 <Loader size={18} className="animate-spin" />
-                Saving...
+                {uploadProgress > 0 && uploadProgress < 100
+                  ? `Uploading ${uploadProgress}%...`
+                  : 'Saving...'}
               </>
             ) : (
               <>
