@@ -1,9 +1,9 @@
 // src/pages/admin/CommissionDetail.jsx
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { 
-  ArrowLeft, User, Mail, Phone, Calendar, 
-  DollarSign, Image as ImageIcon, Send, Loader, 
+import {
+  ArrowLeft, User, Mail, Phone, Calendar,
+  Image as ImageIcon, Send, Loader,
   Save, Upload, X, CheckCircle, AlertCircle, CreditCard,
   Clock
 } from 'lucide-react';
@@ -26,7 +26,10 @@ const uploadToCloudinary = async (file) => {
     { method: 'POST', body: formData }
   );
 
-  if (!response.ok) throw new Error('Failed to upload image to Cloudinary');
+  if (!response.ok) {
+    const err = await response.json();
+    throw new Error(err.error?.message || 'Failed to upload image to Cloudinary');
+  }
 
   const data = await response.json();
   return {
@@ -39,12 +42,12 @@ const CommissionDetail = () => {
   const { id }   = useParams();
   const navigate = useNavigate();
 
-  const [commission, setCommission]     = useState(null);
-  const [isLoading, setIsLoading]       = useState(true);
-  const [isSaving, setIsSaving]         = useState(false);
-  const [isUploading, setIsUploading]   = useState(false);
-  const [finalPrice, setFinalPrice]     = useState('');
-  const [newNote, setNewNote]           = useState('');
+  const [commission, setCommission]           = useState(null);
+  const [isLoading, setIsLoading]             = useState(true);
+  const [isSaving, setIsSaving]               = useState(false);
+  const [isUploading, setIsUploading]         = useState(false);
+  const [finalPrice, setFinalPrice]           = useState('');
+  const [newNote, setNewNote]                 = useState('');
   const [showImageModal, setShowImageModal]   = useState(false);
   const [selectedImage, setSelectedImage]     = useState(null);
   const [showAcceptModal, setShowAcceptModal] = useState(false);
@@ -127,7 +130,7 @@ const CommissionDetail = () => {
   const confirmAccept = async () => {
     setIsSaving(true);
     try {
-      const response = await commissionsAPI.updateStatus(id, {
+      await commissionsAPI.updateStatus(id, {
         status:     'ACCEPTED',
         finalPrice: parseFloat(finalPrice),
         note:       `Commission accepted. Final price: $${parseFloat(finalPrice).toLocaleString()}. Client notified to pay 70% deposit.`,
@@ -201,7 +204,8 @@ const CommissionDetail = () => {
   };
 
   // ── Upload progress image ─────────────────────────────────────────────────
-  // ✅ Now uploads directly to Cloudinary then sends URL to backend
+  // ✅ Step 1: Upload to Cloudinary directly
+  // ✅ Step 2: Send JSON with URL to backend via fetch (bypasses Axios issue)
   const handleProgressUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -209,32 +213,52 @@ const CommissionDetail = () => {
     setIsUploading(true);
 
     try {
-      // Step 1 — Upload to Cloudinary directly
+      // Step 1 — Upload to Cloudinary
       toast.loading('Uploading image...');
       const cloudinaryResult = await uploadToCloudinary(file);
       toast.dismiss();
 
-      // Step 2 — Send Cloudinary URL to backend
-      const response = await commissionsAPI.addProgressImage(id, {
-        url:         cloudinaryResult.url,
-        publicId:    cloudinaryResult.publicId,
-        description: 'Progress update',
-      });
+      // Step 2 — Send to backend using fetch directly
+      // ✅ Bypasses any Axios content-type issue
+      const token = localStorage.getItem('citadel_token');
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
+      const res = await fetch(
+        `${apiUrl}/commissions/${id}/progress`,
+        {
+          method:  'POST',
+          headers: {
+            'Content-Type':  'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            url:         cloudinaryResult.url,
+            publicId:    cloudinaryResult.publicId,
+            description: 'Progress update',
+          }),
+        }
+      );
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to save progress image');
+      }
 
       // Step 3 — Update UI
       setCommission(prev => ({
         ...prev,
-        progressImages: [...(prev.progressImages || []), response.data],
+        progressImages: [...(prev.progressImages || []), data],
       }));
 
       toast.success('Progress image uploaded successfully!');
     } catch (error) {
       console.error('Progress upload error:', error);
       toast.dismiss();
-      toast.error('Failed to upload image. Please try again.');
+      toast.error(error.message || 'Failed to upload image. Please try again.');
     } finally {
       setIsUploading(false);
-      e.target.value = ''; // reset file input
+      e.target.value = '';
     }
   };
 
@@ -348,7 +372,8 @@ const CommissionDetail = () => {
               <h3 className="text-sm font-medium text-stone-500 uppercase tracking-wider mb-2">
                 Description
               </h3>
-              <p className="text-stone-700 leading-relaxed bg-stone-50 p-4 rounded-lg border border-stone-100">
+              <p className="text-stone-700 leading-relaxed bg-stone-50 p-4 rounded-lg
+                            border border-stone-100">
                 {commission.description}
               </p>
             </div>
@@ -372,9 +397,13 @@ const CommissionDetail = () => {
                 Commission Workflow
               </p>
               <div className="flex flex-wrap gap-2 text-xs">
-                <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded">1. Pending</span>
+                <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded">
+                  1. Pending
+                </span>
                 <span className="text-stone-400">→</span>
-                <span className="px-2 py-1 bg-amber-100 text-amber-800 rounded">2. Reviewing</span>
+                <span className="px-2 py-1 bg-amber-100 text-amber-800 rounded">
+                  2. Reviewing
+                </span>
                 <span className="text-stone-400">→</span>
                 <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded font-bold">
                   3. Accept & Set Price
@@ -384,9 +413,13 @@ const CommissionDetail = () => {
                   Client pays 70%
                 </span>
                 <span className="text-stone-400">→</span>
-                <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded">4. In Progress</span>
+                <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded">
+                  4. In Progress
+                </span>
                 <span className="text-stone-400">→</span>
-                <span className="px-2 py-1 bg-green-100 text-green-800 rounded">5. Completed</span>
+                <span className="px-2 py-1 bg-green-100 text-green-800 rounded">
+                  5. Completed
+                </span>
                 <span className="text-stone-400">→</span>
                 <span className="px-2 py-1 bg-stone-200 text-stone-600 rounded">
                   Client pays 30%
@@ -451,8 +484,7 @@ const CommissionDetail = () => {
               <h2 className="text-lg font-semibold text-stone-900">Work in Progress</h2>
               <label className="inline-flex items-center gap-2 text-sm text-amber-700
                                hover:text-amber-800 font-medium cursor-pointer bg-amber-50
-                               px-3 py-1.5 rounded-lg border border-amber-100
-                               transition-colors">
+                               px-3 py-1.5 rounded-lg border border-amber-100 transition-colors">
                 {isUploading
                   ? <Loader size={16} className="animate-spin" />
                   : <Upload size={16} />
@@ -501,7 +533,8 @@ const CommissionDetail = () => {
                 ))}
               </div>
             ) : (
-              <div className="text-center py-8 bg-stone-50 rounded-lg border border-dashed border-stone-300">
+              <div className="text-center py-8 bg-stone-50 rounded-lg
+                              border border-dashed border-stone-300">
                 <ImageIcon size={32} className="mx-auto text-stone-300 mb-2" />
                 <p className="text-stone-500 text-sm">No progress images yet.</p>
               </div>
@@ -574,7 +607,8 @@ const CommissionDetail = () => {
             <h2 className="text-lg font-semibold text-stone-900 mb-4">Client</h2>
             <div className="space-y-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center">
+                <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center
+                                justify-center">
                   <User size={20} className="text-amber-700" />
                 </div>
                 <div>
@@ -693,12 +727,14 @@ const CommissionDetail = () => {
                 </div>
                 {commission.depositPaidAt && (
                   <p className="text-xs text-stone-500">
-                    Deposit paid: {new Date(commission.depositPaidAt).toLocaleDateString()}
+                    Deposit paid:{' '}
+                    {new Date(commission.depositPaidAt).toLocaleDateString()}
                   </p>
                 )}
                 {commission.balancePaidAt && (
                   <p className="text-xs text-stone-500">
-                    Balance paid: {new Date(commission.balancePaidAt).toLocaleDateString()}
+                    Balance paid:{' '}
+                    {new Date(commission.balancePaidAt).toLocaleDateString()}
                   </p>
                 )}
               </div>
@@ -876,7 +912,9 @@ const TimelineItem = ({ icon: Icon, label, date, color, isDeadline = false }) =>
       </div>
       <div>
         <p className="text-xs text-stone-500 uppercase tracking-wide">{label}</p>
-        <p className={`text-sm font-medium ${isDeadline ? 'text-amber-700' : 'text-stone-900'}`}>
+        <p className={`text-sm font-medium ${
+          isDeadline ? 'text-amber-700' : 'text-stone-900'
+        }`}>
           {new Date(date).toLocaleDateString(undefined, {
             year: 'numeric', month: 'long', day: 'numeric',
           })}

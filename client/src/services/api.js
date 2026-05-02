@@ -60,9 +60,12 @@ export const commissionsAPI = {
   getById:             (id) => api.get(`/commissions/${id}`),
   updateStatus:    (id, data) => api.patch(`/commissions/${id}/status`, data),
 
-  // ✅ JSON — progress image URL from Cloudinary
-  // data = { url, publicId, description }
-  addProgressImage: (id, data) => api.post(`/commissions/${id}/progress`, data),
+  // ✅ Explicit JSON header to ensure Axios sends correctly
+  addProgressImage: (id, data) => api.post(
+    `/commissions/${id}/progress`,
+    data,
+    { headers: { 'Content-Type': 'application/json' } }
+  ),
 };
 
 // ==========================================
@@ -79,20 +82,20 @@ export const ordersAPI = {
 // PAYMENTS API
 // ==========================================
 export const paymentsAPI = {
-  createArtworkPayment:     (orderId)      => api.post('/payments/artwork-payment',      { orderId }),
-  createCommissionDeposit:  (commissionId) => api.post('/payments/commission-deposit',   { commissionId }),
-  createCommissionBalance:  (commissionId) => api.post('/payments/commission-balance',   { commissionId }),
+  createArtworkPayment:    (orderId)      => api.post('/payments/artwork-payment',    { orderId }),
+  createCommissionDeposit: (commissionId) => api.post('/payments/commission-deposit', { commissionId }),
+  createCommissionBalance: (commissionId) => api.post('/payments/commission-balance', { commissionId }),
 };
 
 // ==========================================
 // AUTH API
 // ==========================================
 export const authAPI = {
-  register:            (data)  => api.post('/auth/register', data),
-  login:               (data)  => api.post('/auth/login', data),
-  getProfile:          ()      => api.get('/auth/me'),
-  verifyEmail:         (token) => api.get('/auth/verify-email', { params: { token } }),
-  resendVerification:  ()      => api.post('/auth/resend-verification'),
+  register:           (data)  => api.post('/auth/register', data),
+  login:              (data)  => api.post('/auth/login', data),
+  getProfile:         ()      => api.get('/auth/me'),
+  verifyEmail:        (token) => api.get('/auth/verify-email', { params: { token } }),
+  resendVerification: ()      => api.post('/auth/resend-verification'),
 };
 
 // ==========================================
@@ -106,9 +109,9 @@ export const dashboardAPI = {
 // NOTIFICATIONS API (Admin)
 // ==========================================
 export const notificationsAPI = {
-  getAll:       ()   => api.get('/notifications'),
-  markAsRead:   (id) => api.patch(`/notifications/${id}/read`),
-  markAllAsRead: ()  => api.patch('/notifications/read-all'),
+  getAll:        ()   => api.get('/notifications'),
+  markAsRead:    (id) => api.patch(`/notifications/${id}/read`),
+  markAllAsRead: ()   => api.patch('/notifications/read-all'),
 };
 
 export default api;
