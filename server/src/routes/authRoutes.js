@@ -6,7 +6,7 @@ const { authenticateUser } = require('../middleware/auth');
 // Register
 router.post('/register', authController.register);
 
-// Login
+// Login snkfs
 router.post('/login', authController.login);
 
 // email
