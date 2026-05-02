@@ -23,11 +23,8 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Token expired or invalid - clear storage
       localStorage.removeItem('citadel_token');
       localStorage.removeItem('citadel_user');
-      // Optionally redirect to home
-      // window.location.href = '/';
     }
     return Promise.reject(error);
   }
@@ -46,15 +43,11 @@ export const artworksAPI = {
   // Get featured artworks (for homepage)
   getFeatured: () => api.get('/artworks/featured'),
 
-  // Create new artwork (Admin - multipart/form-data for images)
-  create: (formData) => api.post('/artworks', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' }
-  }),
+  // ✅ Now sends JSON — images already uploaded directly to Cloudinary
+  create: (data) => api.post('/artworks', data),
 
-  // Update existing artwork (Admin)
-  update: (id, formData) => api.put(`/artworks/${id}`, formData, {
-    headers: { 'Content-Type': 'multipart/form-data' }
-  }),
+  // ✅ Now sends JSON — images already uploaded directly to Cloudinary
+  update: (id, data) => api.put(`/artworks/${id}`, data),
 
   // Delete artwork (Admin)
   delete: (id) => api.delete(`/artworks/${id}`),
@@ -65,21 +58,20 @@ export const artworksAPI = {
 // ==========================================
 export const commissionsAPI = {
   // Submit new commission request (Public/User)
+  // ✅ Still uses multipart/form-data — commission has reference images
   create: (formData) => api.post('/commissions', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' }
+    headers: { 'Content-Type': 'multipart/form-data' },
   }),
 
   // Get commissions - handles both Admin (all) and User (own only)
   getAll: (params) => {
-    // If fetching for logged-in user profile, use secure endpoint
     if (params && params.scope === 'user') {
       return api.get('/commissions/my-commissions');
     }
-    // Admin: Get all commissions with optional filters
     return api.get('/commissions', { params });
   },
 
-  // ✅ Get single commission for logged-in user (used by payment page)
+  // Get single commission for logged-in user (used by payment page)
   getMyCommissionById: (id) => api.get(`/commissions/my-commissions/${id}`),
 
   // Get single commission by ID (Admin only)
@@ -89,9 +81,12 @@ export const commissionsAPI = {
   updateStatus: (id, data) => api.patch(`/commissions/${id}/status`, data),
 
   // Upload progress image (Admin)
-  addProgressImage: (id, formData) => api.post(`/commissions/${id}/progress`, formData, {
-    headers: { 'Content-Type': 'multipart/form-data' }
-  }),
+  // ✅ Still uses multipart/form-data — progress images uploaded through backend
+  addProgressImage: (id, formData) => api.post(
+    `/commissions/${id}/progress`,
+    formData,
+    { headers: { 'Content-Type': 'multipart/form-data' } }
+  ),
 };
 
 // ==========================================
