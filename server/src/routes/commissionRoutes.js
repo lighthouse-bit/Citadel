@@ -4,29 +4,34 @@ const router     = express.Router();
 const commissionController = require('../controllers/commissionController');
 const { authenticateAdmin, authenticateUser } = require('../middleware/auth');
 
+// ✅ No multer needed anywhere — all images go through Cloudinary directly
+
 // ─────────────────────────────────────────────────────────
 // PUBLIC / USER ROUTES
 // ─────────────────────────────────────────────────────────
 
-// ✅ No multer needed — images come as Cloudinary URLs in JSON body
+// Submit new commission — JSON body with Cloudinary URLs
 router.post(
   '/',
   authenticateUser,
   commissionController.createCommission
 );
 
+// Get current user's commissions
 router.get(
   '/my-commissions',
   authenticateUser,
   commissionController.getMyCommissions
 );
 
+// Get single commission for logged-in user
 router.get(
   '/my-commissions/:id',
   authenticateUser,
   commissionController.getMyCommissionById
 );
 
+// Confirm payment
 router.post(
   '/:id/confirm-payment',
   authenticateUser,
@@ -39,11 +44,14 @@ router.post(
 
 router.get('/',    authenticateAdmin, commissionController.getAllCommissions);
 router.get('/:id', authenticateAdmin, commissionController.getCommissionById);
-router.patch('/:id/status', authenticateAdmin, commissionController.updateCommissionStatus);
 
-// ✅ Progress images still go through backend via Cloudinary service
-// But we need to update this too — share commissionController.js
-// and I'll update addProgressImage as well
+router.patch(
+  '/:id/status',
+  authenticateAdmin,
+  commissionController.updateCommissionStatus
+);
+
+// ✅ Progress image — now accepts JSON with Cloudinary URL
 router.post(
   '/:id/progress',
   authenticateAdmin,
