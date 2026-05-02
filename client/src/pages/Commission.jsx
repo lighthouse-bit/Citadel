@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 import { commissionsAPI } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import { useSettings } from '../hooks/useSettings';
+import SEO from '../components/common/SEO';
 
 // ✅ Direct Cloudinary upload — bypasses Vercel 4.5MB limit
 const uploadToCloudinary = async (file) => {
@@ -198,6 +199,7 @@ const Commission = () => {
   // ✅ Commissions closed
   if (!settings.commissionOpen) {
     return (
+      
       <div className="pt-20 min-h-screen bg-stone-50">
         <section className="relative py-24" style={{ backgroundColor: '#1a1a1a' }}>
           <div
@@ -266,6 +268,13 @@ const Commission = () => {
 
   // ✅ Commissions open
   return (
+    <>
+    <SEO
+      title="Bespoke Commissions"
+      description="Commission a unique custom artwork. Portraits, landscapes and abstract pieces tailored to your vision."
+      keywords="art commission, custom portrait, bespoke artwork, commissioned painting"
+      url="/commission"
+    />
     <div className="pt-20 min-h-screen bg-stone-50">
       {/* Hero */}
       <section className="relative py-24" style={{ backgroundColor: '#1a1a1a' }}>
@@ -621,6 +630,7 @@ const Commission = () => {
         </div>
       </section>
     </div>
+    </>
   );
 };
 

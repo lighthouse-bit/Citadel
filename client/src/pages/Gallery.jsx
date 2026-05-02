@@ -6,6 +6,7 @@ import { Filter, Grid, LayoutGrid, ShoppingBag, Eye, Search, X, ImageOff } from 
 import { useCart } from '../hooks/useCart';
 import { artworksAPI } from '../services/api';
 import toast from 'react-hot-toast';
+import SEO from '../components/common/SEO';
 
 // ─────────────────────────────────────────────────────────
 // Artwork Image Component
@@ -199,6 +200,13 @@ const Gallery = () => {
   };
 
   return (
+    <>
+    <SEO
+      title="Gallery"
+      description="Browse our curated collection of original fine art paintings, drawings and mixed media works."
+      keywords="art gallery, original paintings, fine art collection, buy artwork"
+      url="/gallery"
+    />
     <div className="pt-20 min-h-screen bg-stone-50">
 
       {/* ── Header ───────────────────────────────────────── */}
@@ -547,6 +555,7 @@ const Gallery = () => {
         </div>
       </section>
     </div>
+    </>
   );
 };
 

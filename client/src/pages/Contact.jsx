@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { MapPin, Mail, Phone, Send, Loader, Instagram, Twitter, Facebook } from 'lucide-react';
 import { useSettings } from '../hooks/useSettings';
 import toast from 'react-hot-toast';
+import Settings from './admin/Settings';
 
 const Contact = () => {
   const { settings } = useSettings();
@@ -36,6 +37,12 @@ const Contact = () => {
   };
 
   return (
+    <>
+    <SEO
+      title="Contact Us"
+      description="Get in touch with Citadel Fine Art Atelier. We'd love to hear from you."
+      url="/contact"
+    />
     <div className="pt-20 min-h-screen bg-stone-50">
       {/* Hero */}
       <section className="py-20 bg-white">
@@ -281,6 +288,7 @@ const Contact = () => {
         </div>
       </section>
     </div>
+    </>
   );
 };
 

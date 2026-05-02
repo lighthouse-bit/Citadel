@@ -17,6 +17,7 @@ import {
 import { useCart } from '../hooks/useCart';
 import { artworksAPI } from '../services/api'; // Changed import
 import toast from 'react-hot-toast';
+import SEO from '../components/common/SEO';
 
 // Reusable Image Component (Same as Gallery)
 const ArtworkImage = ({ src, alt, className = "" }) => {
@@ -132,6 +133,16 @@ const ArtworkDetail = () => {
   const currentImage = artwork.images?.[selectedImageIndex]?.url;
 
   return (
+    <>
+    // ✅ Dynamic SEO per artwork
+    <SEO
+      title={artwork.title}
+      description={artwork.description?.substring(0, 160)}
+      keywords={`${artwork.title}, ${artwork.category?.toLowerCase()}, fine art, buy artwork`}
+      image={artwork.images?.[0]?.url}
+      url={`/artwork/${artwork.id}`}
+      type="product"
+    />
     <div className="pt-20 min-h-screen bg-stone-50">
       {/* Breadcrumb */}
       <div className="bg-white border-b border-stone-200 py-4">
@@ -379,6 +390,7 @@ const ArtworkDetail = () => {
         )}
       </AnimatePresence>
     </div>
+    </>
   );
 };
 

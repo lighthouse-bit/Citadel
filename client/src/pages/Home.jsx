@@ -4,12 +4,14 @@ import { motion } from 'framer-motion';
 import { ArrowRight, Star, Eye } from 'lucide-react';
 import { artworksAPI } from '../services/api';
 import { useSettings } from '../hooks/useSettings';
+import SEO from '../components/common/SEO';
 
 // Helper for Image handling (Inline for simplicity)
 const ArtworkImage = ({ src, alt, className }) => {
   const [imgSrc, setImgSrc] = useState(src || "https://images.unsplash.com/photo-1547891654-e66ed7ebb968?w=800&h=1000&fit=crop");
   
   return (
+    
     <img
       src={imgSrc}
       alt={alt}
@@ -48,6 +50,14 @@ const Home = () => {
   }, []);
 
   return (
+    <>
+    <SEO
+        title="Fine Art Atelier"
+        description="Discover original fine art paintings, portraits and bespoke commissions at Citadel Art Atelier."
+        keywords="fine art, original paintings, art commissions, portraits, buy art online"
+        url="/"
+      />
+      
     <div className="bg-stone-50">
       {/* Hero Section */}
       <section 
@@ -453,6 +463,7 @@ const Home = () => {
         </div>
       </section>
     </div>
+    </>
   );
 };
 

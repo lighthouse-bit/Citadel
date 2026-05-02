@@ -6,6 +6,7 @@ import { Filter, Grid, LayoutGrid, ShoppingBag, Search, X } from 'lucide-react';
 import { useCart } from '../hooks/useCart';
 import { artworksAPI } from '../services/api';
 import toast from 'react-hot-toast';
+import SEO from '../components/common/SEO';
 
 const ArtworkImage = ({ src, alt, className }) => {
   const FALLBACK = "https://images.unsplash.com/photo-1547891654-e66ed7ebb968?w=800&h=1000&fit=crop";
@@ -95,6 +96,13 @@ const Shop = () => {
   };
 
   return (
+    <>
+    <SEO
+        title="Shop"
+        description="Purchase original fine art pieces. Each artwork comes with a certificate of authenticity and worldwide shipping."
+        keywords="buy art online, original artwork for sale, fine art shop"
+        url="/shop"
+      />
     <div className="pt-20 min-h-screen bg-stone-50">
       
       {/* Header */}
@@ -372,6 +380,7 @@ const Shop = () => {
         </div>
       </section>
     </div>
+    </>
   );
 };
 
