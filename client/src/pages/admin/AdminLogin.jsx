@@ -147,11 +147,11 @@ const AdminLogin = () => {
             </button>
           </form>
 
-          <div className="mt-8 p-4 bg-amber-50 rounded-lg border border-amber-200">
+          {/* <div className="mt-8 p-4 bg-amber-50 rounded-lg border border-amber-200">
             <p className="text-sm text-amber-800 font-medium mb-2">Demo Credentials:</p>
             <p className="text-sm text-amber-700">Email: admin@citadel.com</p>
             <p className="text-sm text-amber-700">Password: admin123</p>
-          </div>
+          </div> */}
         </div>
 
         <p className="text-center text-stone-500 text-sm mt-8">
