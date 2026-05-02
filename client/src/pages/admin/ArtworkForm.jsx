@@ -206,6 +206,14 @@ const ArtworkForm = () => {
         ],
       };
 
+      // 🔍 TEMPORARY DEBUG
+      console.log('=== FRONTEND SUBMIT DEBUG ===');
+      console.log('uploadedImages:', uploadedImages);
+      console.log('submitData.images:', submitData.images);
+      console.log('submitData type:', typeof submitData);
+      console.log('=============================');
+
+
       // ── Step 3: Save to your backend / database ───────────────────────
       if (isEditing) {
         await artworksAPI.update(id, submitData);

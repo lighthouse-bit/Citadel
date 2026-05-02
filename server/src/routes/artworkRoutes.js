@@ -113,6 +113,14 @@ router.get('/:id', async (req, res) => {
 // ✅ Now accepts JSON with Cloudinary URLs — no file upload through server
 router.post('/', authenticateAdmin, async (req, res) => {
   try {
+    // 🔍 TEMPORARY DEBUG — remove after fixing
+    console.log('=== CREATE ARTWORK ===');
+    console.log('Content-Type:', req.headers['content-type']);
+    console.log('Body keys:', Object.keys(req.body));
+    console.log('Images received:', JSON.stringify(req.body.images));
+    console.log('Images type:', typeof req.body.images);
+    console.log('Images is array:', Array.isArray(req.body.images));
+    console.log('=====================');
     const {
       title,
       description,
