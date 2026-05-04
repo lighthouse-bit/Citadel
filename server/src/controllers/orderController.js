@@ -1,5 +1,8 @@
 // server/src/controllers/orderController.js
 const prisma = require('../config/database');
+const {
+  sendOrderInvoiceEmail,
+} = require('../services/emailService');
 
 // ─────────────────────────────────────────────────────────
 // Create order (Public/User)
@@ -20,10 +23,8 @@ exports.createOrder = async (req, res) => {
     let customerId;
 
     if (loggedInUser) {
-      // Logged-in user
       customerId = loggedInUser.id;
     } else {
-      // Guest user - find or create
       let customer = await prisma.customer.findUnique({
         where: { email },
       });
@@ -54,8 +55,8 @@ exports.createOrder = async (req, res) => {
     });
 
     if (dbArtworks.length !== items.length) {
-      return res.status(400).json({ 
-        error: 'One or more items are no longer available.' 
+      return res.status(400).json({
+        error: 'One or more items are no longer available.',
       });
     }
 
@@ -75,8 +76,8 @@ exports.createOrder = async (req, res) => {
           shippingCost,
           tax,
           total,
-          status:           'PENDING',
-          paymentStatus:    'UNPAID',
+          status:            'PENDING',
+          paymentStatus:     'UNPAID',
           customerId,
           shippingAddressId: address.id,
           items: {
@@ -200,16 +201,14 @@ exports.getOrderById = async (req, res) => {
 // ─────────────────────────────────────────────────────────
 exports.updateOrderStatus = async (req, res) => {
   try {
-    const { id }                                  = req.params;
+    const { id }                                    = req.params;
     const { status, trackingNumber, internalNotes } = req.body;
 
     const updateData = {};
 
-    // ── Status update ─────────────────────────────────────
     if (status) {
       updateData.status = status.toUpperCase();
 
-      // Set timestamps based on status
       if (status.toUpperCase() === 'SHIPPED') {
         updateData.shippedAt = new Date();
       }
@@ -218,17 +217,14 @@ exports.updateOrderStatus = async (req, res) => {
       }
     }
 
-    // ── Tracking number ───────────────────────────────────
     if (trackingNumber !== undefined) {
       updateData.trackingNumber = trackingNumber;
     }
 
-    // ── Internal notes ────────────────────────────────────
     if (internalNotes !== undefined) {
       updateData.internalNotes = internalNotes;
     }
 
-    // ── Update order ──────────────────────────────────────
     const order = await prisma.order.update({
       where:   { id },
       data:    updateData,
@@ -241,7 +237,6 @@ exports.updateOrderStatus = async (req, res) => {
       },
     });
 
-    // ── Create admin notification on status change ─────────
     if (status) {
       const statusMessages = {
         CONFIRMED:  `✅ Order #${order.orderNumber} confirmed`,
@@ -259,7 +254,7 @@ exports.updateOrderStatus = async (req, res) => {
             message: statusMessages[status.toUpperCase()],
             link:    `/admin/orders/${order.id}`,
           },
-        });
+        }).catch(() => {});
       }
     }
 
@@ -277,14 +272,20 @@ exports.updateOrderStatus = async (req, res) => {
 // ─────────────────────────────────────────────────────────
 exports.confirmOrderPayment = async (req, res) => {
   try {
-    const { id }             = req.params;
+    const { id }              = req.params;
     const { paymentIntentId } = req.body;
 
     const order = await prisma.order.findUnique({
       where:   { id },
-      include: { 
+      include: {
         customer: true,
-        items:    true,
+        items: {
+          include: {
+            artwork: {
+              include: { images: { take: 1 } },
+            },
+          },
+        },
       },
     });
 
@@ -292,7 +293,7 @@ exports.confirmOrderPayment = async (req, res) => {
       return res.status(404).json({ error: 'Order not found' });
     }
 
-    // Guard: don't double-update
+    // ✅ Guard — don't double-update
     if (order.paymentStatus === 'FULLY_PAID') {
       return res.json({ success: true, message: 'Already updated' });
     }
@@ -301,8 +302,8 @@ exports.confirmOrderPayment = async (req, res) => {
     await prisma.order.update({
       where: { id },
       data: {
-        paymentStatus:        'FULLY_PAID',
-        status:               'CONFIRMED',
+        paymentStatus:         'FULLY_PAID',
+        status:                'CONFIRMED',
         stripePaymentIntentId: paymentIntentId || order.stripePaymentIntentId,
       },
     });
@@ -323,7 +324,25 @@ exports.confirmOrderPayment = async (req, res) => {
         message: `💰 Payment received for Order #${order.orderNumber} — $${Number(order.total).toLocaleString()} from ${order.customer.firstName} ${order.customer.lastName}`,
         link:    `/admin/orders/${order.id}`,
       },
-    });
+    }).catch(() => {});
+
+    // ── ✅ Send invoice email to customer ─────────────────
+    if (order.customer?.email) {
+      await sendOrderInvoiceEmail({
+        email:       order.customer.email,
+        firstName:   order.customer.firstName,
+        orderNumber: order.orderNumber,
+        items:       order.items.map(item => ({
+          title: item.title || item.artwork?.title || 'Artwork',
+          price: parseFloat(item.price),
+        })),
+        subtotal:  parseFloat(order.subtotal),
+        shipping:  parseFloat(order.shippingCost),
+        tax:       parseFloat(order.tax),
+        total:     parseFloat(order.total),
+        createdAt: order.createdAt,
+      }).catch(err => console.error('❌ Invoice email error:', err.message));
+    }
 
     res.json({ success: true });
 
