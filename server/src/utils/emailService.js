@@ -1,10 +1,11 @@
+// server/src/services/emailService.js
 const nodemailer = require('nodemailer');
 
 const createTransporter = () => {
   return nodemailer.createTransport({
     host:   process.env.EMAIL_HOST,
     port:   parseInt(process.env.EMAIL_PORT),
-    secure: process.env.EMAIL_PORT == 465, // true for 465, false for 587
+    secure: process.env.EMAIL_PORT == 465,
     auth: {
       user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_PASS,
@@ -17,7 +18,7 @@ const sendVerificationEmail = async (email, token, firstName) => {
   console.log(`📧 Sending verification email to ${email}...`);
 
   try {
-    const transporter    = createTransporter();
+    const transporter     = createTransporter();
     const verificationUrl = `${process.env.CLIENT_URL}/verify-email?token=${token}`;
 
     const mailOptions = {
@@ -32,31 +33,24 @@ const sendVerificationEmail = async (email, token, firstName) => {
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
         </head>
         <body style="margin:0;padding:0;background:#f5f5f4;font-family:Georgia,serif;">
-          <div style="max-width:600px;margin:40px auto;background:#ffffff;border:1px solid #e7e5e4;">
-            
-            <!-- Header -->
+          <div style="max-width:600px;margin:40px auto;background:#ffffff;
+                      border:1px solid #e7e5e4;">
             <div style="background:#1c1917;padding:40px;text-align:center;">
               <h1 style="color:#ffffff;margin:0;font-size:32px;letter-spacing:4px;
-                         font-weight:400;">
-                CITADEL
-              </h1>
+                         font-weight:400;">CITADEL</h1>
               <p style="color:#d97706;margin:8px 0 0;font-size:11px;
                         letter-spacing:3px;text-transform:uppercase;">
                 Fine Art Atelier
               </p>
             </div>
-
-            <!-- Body -->
             <div style="padding:48px 40px;">
               <h2 style="color:#1c1917;font-size:24px;font-weight:400;margin:0 0 16px;">
                 Welcome, ${firstName}
               </h2>
               <p style="color:#57534e;font-size:16px;line-height:1.6;margin:0 0 32px;">
-                Thank you for joining Citadel. Please verify your email address 
+                Thank you for joining Citadel. Please verify your email address
                 to complete your registration and access your account.
               </p>
-
-              <!-- Button -->
               <div style="text-align:center;margin:32px 0;">
                 <a href="${verificationUrl}"
                    style="display:inline-block;background:#1c1917;color:#ffffff;
@@ -65,23 +59,19 @@ const sendVerificationEmail = async (email, token, firstName) => {
                   Verify My Account
                 </a>
               </div>
-
               <p style="color:#78716c;font-size:13px;line-height:1.6;margin:32px 0 0;">
                 If the button doesn't work, copy and paste this link into your browser:
               </p>
               <p style="color:#d97706;font-size:13px;word-break:break-all;margin:8px 0 0;">
                 ${verificationUrl}
               </p>
-
               <p style="color:#a8a29e;font-size:12px;margin:32px 0 0;">
-                This link expires in 24 hours. If you did not create an account, 
+                This link expires in 24 hours. If you did not create an account,
                 you can safely ignore this email.
               </p>
             </div>
-
-            <!-- Footer -->
-            <div style="background:#f5f5f4;padding:24px 40px;border-top:1px solid #e7e5e4;
-                        text-align:center;">
+            <div style="background:#f5f5f4;padding:24px 40px;
+                        border-top:1px solid #e7e5e4;text-align:center;">
               <p style="color:#a8a29e;font-size:12px;margin:0;">
                 © ${new Date().getFullYear()} Citadel Art Atelier. All rights reserved.
               </p>
@@ -121,29 +111,22 @@ const sendCommissionConfirmationEmail = async (email, firstName, commissionNumbe
         <body style="margin:0;padding:0;background:#f5f5f4;font-family:Georgia,serif;">
           <div style="max-width:600px;margin:40px auto;background:#ffffff;
                       border:1px solid #e7e5e4;">
-
-            <!-- Header -->
             <div style="background:#1c1917;padding:40px;text-align:center;">
               <h1 style="color:#ffffff;margin:0;font-size:32px;letter-spacing:4px;
-                         font-weight:400;">
-                CITADEL
-              </h1>
+                         font-weight:400;">CITADEL</h1>
               <p style="color:#d97706;margin:8px 0 0;font-size:11px;
                         letter-spacing:3px;text-transform:uppercase;">
                 Fine Art Atelier
               </p>
             </div>
-
-            <!-- Body -->
             <div style="padding:48px 40px;">
               <h2 style="color:#1c1917;font-size:24px;font-weight:400;margin:0 0 16px;">
                 Thank you, ${firstName}
               </h2>
               <p style="color:#57534e;font-size:16px;line-height:1.6;margin:0 0 24px;">
-                Your commission request <strong>${commissionNumber}</strong> has been 
+                Your commission request <strong>${commissionNumber}</strong> has been
                 received. We will review your request and get back to you within 48 hours.
               </p>
-
               <div style="background:#f5f5f4;padding:24px;border-left:3px solid #d97706;
                           margin:24px 0;">
                 <p style="color:#57534e;font-size:14px;margin:0;">
@@ -158,17 +141,13 @@ const sendCommissionConfirmationEmail = async (email, firstName, commissionNumbe
                   <li>You pay the remaining 30% on completion</li>
                 </ol>
               </div>
-
               <p style="color:#78716c;font-size:14px;line-height:1.6;">
-                Questions? Reply to this email or contact us at 
-                <a href="mailto:${process.env.EMAIL_USER}" 
-                   style="color:#d97706;">
+                Questions? Reply to this email or contact us at
+                <a href="mailto:${process.env.EMAIL_USER}" style="color:#d97706;">
                   ${process.env.EMAIL_USER}
                 </a>
               </p>
             </div>
-
-            <!-- Footer -->
             <div style="background:#f5f5f4;padding:24px 40px;
                         border-top:1px solid #e7e5e4;text-align:center;">
               <p style="color:#a8a29e;font-size:12px;margin:0;">
@@ -207,29 +186,22 @@ const sendOrderConfirmationEmail = async (email, firstName, orderNumber, total) 
         <body style="margin:0;padding:0;background:#f5f5f4;font-family:Georgia,serif;">
           <div style="max-width:600px;margin:40px auto;background:#ffffff;
                       border:1px solid #e7e5e4;">
-
-            <!-- Header -->
             <div style="background:#1c1917;padding:40px;text-align:center;">
               <h1 style="color:#ffffff;margin:0;font-size:32px;letter-spacing:4px;
-                         font-weight:400;">
-                CITADEL
-              </h1>
+                         font-weight:400;">CITADEL</h1>
               <p style="color:#d97706;margin:8px 0 0;font-size:11px;
                         letter-spacing:3px;text-transform:uppercase;">
                 Fine Art Atelier
               </p>
             </div>
-
-            <!-- Body -->
             <div style="padding:48px 40px;">
               <h2 style="color:#1c1917;font-size:24px;font-weight:400;margin:0 0 16px;">
                 Order Confirmed, ${firstName}
               </h2>
               <p style="color:#57534e;font-size:16px;line-height:1.6;margin:0 0 24px;">
-                Your order <strong>${orderNumber}</strong> has been confirmed. 
+                Your order <strong>${orderNumber}</strong> has been confirmed.
                 Your artwork will be carefully packaged and shipped to you.
               </p>
-
               <div style="background:#f5f5f4;padding:24px;margin:24px 0;">
                 <div style="display:flex;justify-content:space-between;">
                   <span style="color:#57534e;font-size:14px;">Order Number</span>
@@ -245,14 +217,11 @@ const sendOrderConfirmationEmail = async (email, firstName, orderNumber, total) 
                   </span>
                 </div>
               </div>
-
               <p style="color:#78716c;font-size:14px;line-height:1.6;">
-                You will receive a shipping notification with tracking information 
+                You will receive a shipping notification with tracking information
                 once your artwork is dispatched.
               </p>
             </div>
-
-            <!-- Footer -->
             <div style="background:#f5f5f4;padding:24px 40px;
                         border-top:1px solid #e7e5e4;text-align:center;">
               <p style="color:#a8a29e;font-size:12px;margin:0;">
@@ -274,8 +243,163 @@ const sendOrderConfirmationEmail = async (email, firstName, orderNumber, total) 
   }
 };
 
+// ── Contact Form Email ────────────────────────────────────────────────────────
+const sendContactEmail = async ({ name, email, subject, message }) => {
+  console.log(`📧 Sending contact email from ${email}...`);
+
+  try {
+    const transporter = createTransporter();
+
+    // ✅ Email to YOU (admin) — notification of new message
+    const adminMailOptions = {
+      from:    `"Citadel Contact Form" <${process.env.EMAIL_USER}>`,
+      to:      process.env.EMAIL_USER,
+      replyTo: email, // ✅ Reply goes directly to the visitor
+      subject: `New Contact Message: ${subject || 'No Subject'} — from ${name}`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <body style="margin:0;padding:0;background:#f5f5f4;font-family:Georgia,serif;">
+          <div style="max-width:600px;margin:40px auto;background:#ffffff;
+                      border:1px solid #e7e5e4;">
+            <div style="background:#1c1917;padding:40px;text-align:center;">
+              <h1 style="color:#ffffff;margin:0;font-size:32px;letter-spacing:4px;
+                         font-weight:400;">CITADEL</h1>
+              <p style="color:#d97706;margin:8px 0 0;font-size:11px;
+                        letter-spacing:3px;text-transform:uppercase;">
+                New Contact Message
+              </p>
+            </div>
+            <div style="padding:48px 40px;">
+              <h2 style="color:#1c1917;font-size:20px;font-weight:400;margin:0 0 24px;">
+                You have a new message from your website
+              </h2>
+              <div style="background:#f5f5f4;padding:24px;border-radius:8px;margin:0 0 24px;">
+                <table style="width:100%;border-collapse:collapse;">
+                  <tr>
+                    <td style="padding:8px 0;color:#78716c;font-size:14px;width:80px;">
+                      Name
+                    </td>
+                    <td style="padding:8px 0;color:#1c1917;font-size:14px;font-weight:bold;">
+                      ${name}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding:8px 0;color:#78716c;font-size:14px;">Email</td>
+                    <td style="padding:8px 0;">
+                      <a href="mailto:${email}" style="color:#d97706;font-size:14px;">
+                        ${email}
+                      </a>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding:8px 0;color:#78716c;font-size:14px;">Subject</td>
+                    <td style="padding:8px 0;color:#1c1917;font-size:14px;">
+                      ${subject || 'No subject'}
+                    </td>
+                  </tr>
+                </table>
+              </div>
+              <h3 style="color:#1c1917;font-size:16px;font-weight:600;margin:0 0 12px;">
+                Message:
+              </h3>
+              <div style="background:#fffbeb;border-left:3px solid #d97706;
+                          padding:20px;border-radius:0 8px 8px 0;">
+                <p style="color:#57534e;font-size:15px;line-height:1.7;margin:0;
+                           white-space:pre-wrap;">
+                  ${message}
+                </p>
+              </div>
+              <p style="color:#a8a29e;font-size:13px;margin:32px 0 0;">
+                💡 To reply, simply reply to this email —
+                it will go directly to ${name} at ${email}
+              </p>
+            </div>
+            <div style="background:#f5f5f4;padding:24px 40px;
+                        border-top:1px solid #e7e5e4;text-align:center;">
+              <p style="color:#a8a29e;font-size:12px;margin:0;">
+                © ${new Date().getFullYear()} Citadel Art Atelier. All rights reserved.
+              </p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+    };
+
+    // ✅ Auto-reply to the visitor
+    const visitorMailOptions = {
+      from:    `"Citadel Art Atelier" <${process.env.EMAIL_USER}>`,
+      to:      email,
+      subject: 'We received your message — Citadel Art Atelier',
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <body style="margin:0;padding:0;background:#f5f5f4;font-family:Georgia,serif;">
+          <div style="max-width:600px;margin:40px auto;background:#ffffff;
+                      border:1px solid #e7e5e4;">
+            <div style="background:#1c1917;padding:40px;text-align:center;">
+              <h1 style="color:#ffffff;margin:0;font-size:32px;letter-spacing:4px;
+                         font-weight:400;">CITADEL</h1>
+              <p style="color:#d97706;margin:8px 0 0;font-size:11px;
+                        letter-spacing:3px;text-transform:uppercase;">
+                Fine Art Atelier
+              </p>
+            </div>
+            <div style="padding:48px 40px;">
+              <h2 style="color:#1c1917;font-size:24px;font-weight:400;margin:0 0 16px;">
+                Thank you, ${name}
+              </h2>
+              <p style="color:#57534e;font-size:16px;line-height:1.6;margin:0 0 24px;">
+                We have received your message and will get back to you
+                within 24-48 hours.
+              </p>
+              <div style="background:#f5f5f4;padding:24px;border-radius:8px;margin:24px 0;">
+                <p style="color:#78716c;font-size:12px;text-transform:uppercase;
+                           letter-spacing:1px;margin:0 0 12px;">
+                  Your Message
+                </p>
+                <p style="color:#57534e;font-size:14px;line-height:1.6;margin:0;
+                           white-space:pre-wrap;">
+                  ${message}
+                </p>
+              </div>
+              <p style="color:#78716c;font-size:14px;line-height:1.6;margin:24px 0 0;">
+                In the meantime, feel free to browse our collection at
+                <a href="${process.env.CLIENT_URL}" style="color:#d97706;">
+                  ${process.env.CLIENT_URL}
+                </a>
+              </p>
+            </div>
+            <div style="background:#f5f5f4;padding:24px 40px;
+                        border-top:1px solid #e7e5e4;text-align:center;">
+              <p style="color:#a8a29e;font-size:12px;margin:0;">
+                © ${new Date().getFullYear()} Citadel Art Atelier. All rights reserved.
+              </p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+    };
+
+    // ✅ Send both emails simultaneously
+    await Promise.all([
+      transporter.sendMail(adminMailOptions),
+      transporter.sendMail(visitorMailOptions),
+    ]);
+
+    console.log('✅ Contact emails sent successfully');
+  } catch (error) {
+    console.error('❌ Contact email error:', error.message);
+    throw error;
+  }
+};
+
+// ── Exports ───────────────────────────────────────────────────────────────────
 module.exports = {
   sendVerificationEmail,
   sendCommissionConfirmationEmail,
   sendOrderConfirmationEmail,
+  sendContactEmail,              
 };

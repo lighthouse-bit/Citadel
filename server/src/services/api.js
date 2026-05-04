@@ -143,4 +143,11 @@ export const notificationsAPI = {
   delete:        (id)  => api.delete(`/notifications/${id}`),
 };
 
+// ==========================================
+// CONTACT API
+// ==========================================
+export const contactAPI = {
+  send: (data) => api.post('/contact', data),
+};
+
 export default api;
