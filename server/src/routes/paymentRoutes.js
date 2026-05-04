@@ -1,10 +1,14 @@
 // server/src/routes/paymentRoutes.js
 const express = require('express');
-const router = express.Router();
-const prisma = require('../config/database');
+const router  = express.Router();
+const prisma  = require('../config/database');
+const {
+  sendOrderInvoiceEmail,
+  sendCommissionDepositInvoiceEmail,
+  sendCommissionBalanceInvoiceEmail,
+} = require('../services/emailService');
 
-// ✅ Use the SAME middleware names as commissionRoutes.js
-const { authenticateAdmin, authenticateUser } = require('../middleware/auth');
+const { authenticateUser } = require('../middleware/auth');
 
 let stripe = null;
 if (process.env.STRIPE_SECRET_KEY) {
@@ -60,7 +64,6 @@ router.post('/artwork-payment', authenticateUser, async (req, res) => {
       clientSecret: paymentIntent.client_secret,
       total:        parseFloat(order.total),
     });
-
   } catch (error) {
     console.error('Error creating artwork payment:', error);
     res.status(500).json({ error: 'Failed to create artwork payment' });
@@ -92,7 +95,6 @@ router.post('/commission-deposit', authenticateUser, async (req, res) => {
       return res.status(404).json({ error: 'Commission not found' });
     }
 
-    // Guard checks
     if (commission.status !== 'ACCEPTED') {
       return res.status(400).json({
         error: 'Commission must be accepted before payment can be made',
@@ -114,13 +116,11 @@ router.post('/commission-deposit', authenticateUser, async (req, res) => {
       });
     }
 
-    // Calculate amounts
-    const depositPct    = commission.depositPercentage / 100; // 70 → 0.70
+    const depositPct    = commission.depositPercentage / 100;
     const finalPrice    = parseFloat(commission.finalPrice);
     const depositAmount = parseFloat((finalPrice * depositPct).toFixed(2));
     const balanceAmount = parseFloat((finalPrice - depositAmount).toFixed(2));
 
-    // Create Stripe Payment Intent
     const paymentIntent = await stripe.paymentIntents.create({
       amount:        Math.round(depositAmount * 100),
       currency:      'usd',
@@ -133,7 +133,6 @@ router.post('/commission-deposit', authenticateUser, async (req, res) => {
       },
     });
 
-    // Save to DB
     await prisma.commission.update({
       where: { id: commissionId },
       data: {
@@ -150,7 +149,6 @@ router.post('/commission-deposit', authenticateUser, async (req, res) => {
       balanceAmount,
       depositPercentage: commission.depositPercentage,
     });
-
   } catch (error) {
     console.error('Error creating commission deposit:', error);
     res.status(500).json({ error: 'Failed to create deposit payment' });
@@ -182,7 +180,6 @@ router.post('/commission-balance', authenticateUser, async (req, res) => {
       return res.status(404).json({ error: 'Commission not found' });
     }
 
-    // Guard checks
     if (commission.paymentStatus !== 'DEPOSIT_PAID') {
       return res.status(400).json({
         error: 'Deposit must be paid before the final balance',
@@ -195,12 +192,10 @@ router.post('/commission-balance', authenticateUser, async (req, res) => {
       });
     }
 
-    // Calculate balance
     const finalPrice    = parseFloat(commission.finalPrice);
     const depositAmount = parseFloat(commission.depositAmount);
     const balanceAmount = parseFloat((finalPrice - depositAmount).toFixed(2));
 
-    // Create Stripe Payment Intent
     const paymentIntent = await stripe.paymentIntents.create({
       amount:        Math.round(balanceAmount * 100),
       currency:      'usd',
@@ -213,12 +208,9 @@ router.post('/commission-balance', authenticateUser, async (req, res) => {
       },
     });
 
-    // Save to DB
     await prisma.commission.update({
       where: { id: commissionId },
-      data: {
-        balancePaymentIntentId: paymentIntent.id,
-      },
+      data:  { balancePaymentIntentId: paymentIntent.id },
     });
 
     res.json({
@@ -228,7 +220,6 @@ router.post('/commission-balance', authenticateUser, async (req, res) => {
       balanceAmount,
       depositPercentage: commission.depositPercentage,
     });
-
   } catch (error) {
     console.error('Error creating commission balance:', error);
     res.status(500).json({ error: 'Failed to create balance payment' });
@@ -262,6 +253,9 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
     case 'payment_intent.succeeded':
       await handleSuccessfulPayment(event.data.object);
       break;
+    case 'payment_intent.payment_failed':
+      await handleFailedPayment(event.data.object);
+      break;
     default:
       console.log(`Unhandled event type: ${event.type}`);
   }
@@ -270,40 +264,72 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
 });
 
 // ─────────────────────────────────────────────────────────
-// WEBHOOK HANDLER
+// WEBHOOK HANDLER — Payment Succeeded
 // ─────────────────────────────────────────────────────────
 async function handleSuccessfulPayment(paymentIntent) {
   const { orderId, commissionId, paymentType } = paymentIntent.metadata;
 
-  // Artwork order
+  // ── Artwork Order ──────────────────────────────────────
   if (orderId) {
-    await prisma.order.update({
-      where: { id: orderId },
-      data: {
-        paymentStatus: 'FULLY_PAID',
-        status:        'CONFIRMED',
-      },
-    });
-
-    const order = await prisma.order.findUnique({
-      where:   { id: orderId },
-      include: { items: true },
-    });
-
-    if (order?.items?.length > 0) {
-      await prisma.artwork.updateMany({
-        where: { id: { in: order.items.map(i => i.artworkId) } },
-        data:  { status: 'SOLD' },
+    try {
+      const order = await prisma.order.update({
+        where:   { id: orderId },
+        data: {
+          paymentStatus: 'FULLY_PAID',
+          status:        'CONFIRMED',
+        },
+        include: {
+          customer: true,
+          items: {
+            include: { artwork: true },
+          },
+        },
       });
+
+      // Mark artworks as SOLD
+      if (order.items?.length > 0) {
+        await prisma.artwork.updateMany({
+          where: { id: { in: order.items.map(i => i.artworkId) } },
+          data:  { status: 'SOLD' },
+        });
+      }
+
+      // Create admin notification
+      await prisma.notification.create({
+        data: {
+          type:    'ORDER',
+          message: `Payment received for Order #${order.orderNumber} — $${Number(order.total).toLocaleString()}`,
+          link:    `/admin/orders/${order.id}`,
+        },
+      }).catch(() => {});
+
+      // ✅ Send invoice email to customer
+      if (order.customer?.email) {
+        await sendOrderInvoiceEmail({
+          email:       order.customer.email,
+          firstName:   order.customer.firstName,
+          orderNumber: order.orderNumber,
+          items:       order.items,
+          subtotal:    parseFloat(order.subtotal),
+          shipping:    parseFloat(order.shippingCost),
+          tax:         parseFloat(order.tax),
+          total:       parseFloat(order.total),
+          createdAt:   order.createdAt,
+        }).catch(err => console.error('Invoice email error:', err.message));
+      }
+
+      console.log('✅ Artwork order paid:', order.orderNumber);
+    } catch (err) {
+      console.error('Error handling artwork payment:', err);
     }
   }
 
-  // Commission payment
-  if (commissionId) {
-    const paidAmount = paymentIntent.amount / 100;
+  // ── Commission Deposit ─────────────────────────────────
+  if (commissionId && paymentType === 'deposit') {
+    try {
+      const paidAmount = paymentIntent.amount / 100;
 
-    if (paymentType === 'deposit') {
-      await prisma.commission.update({
+      const commission = await prisma.commission.update({
         where: { id: commissionId },
         data: {
           paymentStatus: 'DEPOSIT_PAID',
@@ -312,10 +338,44 @@ async function handleSuccessfulPayment(paymentIntent) {
           depositPaidAt: new Date(),
           startedAt:     new Date(),
         },
+        include: { customer: true },
       });
 
-    } else if (paymentType === 'balance') {
-      await prisma.commission.update({
+      // Create admin notification
+      await prisma.notification.create({
+        data: {
+          type:    'COMMISSION',
+          message: `💰 Deposit paid for Commission #${commission.commissionNumber} — Work can begin!`,
+          link:    `/admin/commissions/${commission.id}`,
+        },
+      }).catch(() => {});
+
+      // ✅ Send deposit invoice email to customer
+      if (commission.customer?.email) {
+        await sendCommissionDepositInvoiceEmail({
+          email:            commission.customer.email,
+          firstName:        commission.customer.firstName,
+          commissionNumber: commission.commissionNumber,
+          artStyle:         commission.artStyle,
+          size:             commission.size,
+          finalPrice:       parseFloat(commission.finalPrice),
+          depositAmount:    paidAmount,
+          balanceAmount:    parseFloat(commission.balanceAmount),
+          depositPercent:   commission.depositPercentage,
+          paidAt:           new Date(),
+        }).catch(err => console.error('Deposit invoice email error:', err.message));
+      }
+
+      console.log('✅ Commission deposit paid:', commission.commissionNumber);
+    } catch (err) {
+      console.error('Error handling commission deposit:', err);
+    }
+  }
+
+  // ── Commission Balance ─────────────────────────────────
+  if (commissionId && paymentType === 'balance') {
+    try {
+      const commission = await prisma.commission.update({
         where: { id: commissionId },
         data: {
           paymentStatus: 'FULLY_PAID',
@@ -323,6 +383,57 @@ async function handleSuccessfulPayment(paymentIntent) {
           balancePaidAt: new Date(),
           completedAt:   new Date(),
         },
+        include: { customer: true },
+      });
+
+      // Create admin notification
+      await prisma.notification.create({
+        data: {
+          type:    'COMMISSION',
+          message: `✅ Final balance paid for Commission #${commission.commissionNumber} — Fully paid!`,
+          link:    `/admin/commissions/${commission.id}`,
+        },
+      }).catch(() => {});
+
+      // ✅ Send final invoice email to customer
+      if (commission.customer?.email) {
+        await sendCommissionBalanceInvoiceEmail({
+          email:            commission.customer.email,
+          firstName:        commission.customer.firstName,
+          commissionNumber: commission.commissionNumber,
+          artStyle:         commission.artStyle,
+          size:             commission.size,
+          finalPrice:       parseFloat(commission.finalPrice),
+          depositAmount:    parseFloat(commission.depositAmount),
+          balanceAmount:    parseFloat(commission.balanceAmount),
+          paidAt:           new Date(),
+        }).catch(err => console.error('Balance invoice email error:', err.message));
+      }
+
+      console.log('✅ Commission fully paid:', commission.commissionNumber);
+    } catch (err) {
+      console.error('Error handling commission balance:', err);
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────
+// WEBHOOK HANDLER — Payment Failed
+// ─────────────────────────────────────────────────────────
+async function handleFailedPayment(paymentIntent) {
+  console.log('❌ Payment failed:', paymentIntent.id);
+  const { orderId } = paymentIntent.metadata;
+
+  if (orderId) {
+    const order = await prisma.order.findUnique({
+      where:   { id: orderId },
+      include: { items: true },
+    });
+
+    if (order) {
+      await prisma.artwork.updateMany({
+        where: { id: { in: order.items.map(i => i.artworkId) } },
+        data:  { status: 'AVAILABLE' },
       });
     }
   }
