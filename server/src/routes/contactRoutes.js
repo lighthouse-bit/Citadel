@@ -1,7 +1,7 @@
 // server/src/routes/contactRoutes.js
 const express = require('express');
 const router  = express.Router();
-const { sendContactEmail } = require('../services/emailService');
+const { sendContactEmail } = require('../utils/emailService');
 
 router.post('/', async (req, res) => {
   try {
