@@ -114,4 +114,11 @@ export const notificationsAPI = {
   markAllAsRead: ()   => api.patch('/notifications/read-all'),
 };
 
+// ==========================================
+// CONTACT API
+// ==========================================
+export const contactAPI = {
+  send: (data) => api.post('/contact', data),
+};
+
 export default api;
