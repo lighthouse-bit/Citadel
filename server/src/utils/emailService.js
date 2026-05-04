@@ -22,9 +22,9 @@ const sendVerificationEmail = async (email, token, firstName) => {
     const verificationUrl = `${process.env.CLIENT_URL}/verify-email?token=${token}`;
 
     const mailOptions = {
-      from:    `"Citadel Art Atelier" <${process.env.EMAIL_USER}>`,
+      from:    `"Highmarc" <${process.env.EMAIL_USER}>`,
       to:      email,
-      subject: 'Verify Your Citadel Account',
+      subject: 'Verify Your Highmarc Account',
       html: `
         <!DOCTYPE html>
         <html>
@@ -40,7 +40,7 @@ const sendVerificationEmail = async (email, token, firstName) => {
                          font-weight:400;">CITADEL</h1>
               <p style="color:#d97706;margin:8px 0 0;font-size:11px;
                         letter-spacing:3px;text-transform:uppercase;">
-                Fine Art Atelier
+                Highmarc
               </p>
             </div>
             <div style="padding:48px 40px;">
@@ -48,7 +48,7 @@ const sendVerificationEmail = async (email, token, firstName) => {
                 Welcome, ${firstName}
               </h2>
               <p style="color:#57534e;font-size:16px;line-height:1.6;margin:0 0 32px;">
-                Thank you for joining Citadel. Please verify your email address
+                Thank you for joining Highmarc. Please verify your email address
                 to complete your registration and access your account.
               </p>
               <div style="text-align:center;margin:32px 0;">
@@ -73,7 +73,7 @@ const sendVerificationEmail = async (email, token, firstName) => {
             <div style="background:#f5f5f4;padding:24px 40px;
                         border-top:1px solid #e7e5e4;text-align:center;">
               <p style="color:#a8a29e;font-size:12px;margin:0;">
-                © ${new Date().getFullYear()} Citadel Art Atelier. All rights reserved.
+                © ${new Date().getFullYear()} Highmarc. All rights reserved.
               </p>
               <p style="color:#a8a29e;font-size:12px;margin:8px 0 0;">
                 ${process.env.CLIENT_URL}
@@ -102,7 +102,7 @@ const sendCommissionConfirmationEmail = async (email, firstName, commissionNumbe
     const transporter = createTransporter();
 
     const mailOptions = {
-      from:    `"Citadel Art Atelier" <${process.env.EMAIL_USER}>`,
+      from:    `"Highmarc" <${process.env.EMAIL_USER}>`,
       to:      email,
       subject: `Commission Request Received — ${commissionNumber}`,
       html: `
@@ -116,7 +116,7 @@ const sendCommissionConfirmationEmail = async (email, firstName, commissionNumbe
                          font-weight:400;">CITADEL</h1>
               <p style="color:#d97706;margin:8px 0 0;font-size:11px;
                         letter-spacing:3px;text-transform:uppercase;">
-                Fine Art Atelier
+                Highmarc
               </p>
             </div>
             <div style="padding:48px 40px;">
@@ -151,7 +151,7 @@ const sendCommissionConfirmationEmail = async (email, firstName, commissionNumbe
             <div style="background:#f5f5f4;padding:24px 40px;
                         border-top:1px solid #e7e5e4;text-align:center;">
               <p style="color:#a8a29e;font-size:12px;margin:0;">
-                © ${new Date().getFullYear()} Citadel Art Atelier. All rights reserved.
+                © ${new Date().getFullYear()} Highmarc. All rights reserved.
               </p>
             </div>
           </div>
@@ -177,7 +177,7 @@ const sendOrderConfirmationEmail = async (email, firstName, orderNumber, total) 
     const transporter = createTransporter();
 
     const mailOptions = {
-      from:    `"Citadel Art Atelier" <${process.env.EMAIL_USER}>`,
+      from:    `"Highmarc" <${process.env.EMAIL_USER}>`,
       to:      email,
       subject: `Order Confirmed — ${orderNumber}`,
       html: `
@@ -191,7 +191,7 @@ const sendOrderConfirmationEmail = async (email, firstName, orderNumber, total) 
                          font-weight:400;">CITADEL</h1>
               <p style="color:#d97706;margin:8px 0 0;font-size:11px;
                         letter-spacing:3px;text-transform:uppercase;">
-                Fine Art Atelier
+                Highmarc
               </p>
             </div>
             <div style="padding:48px 40px;">
@@ -225,7 +225,7 @@ const sendOrderConfirmationEmail = async (email, firstName, orderNumber, total) 
             <div style="background:#f5f5f4;padding:24px 40px;
                         border-top:1px solid #e7e5e4;text-align:center;">
               <p style="color:#a8a29e;font-size:12px;margin:0;">
-                © ${new Date().getFullYear()} Citadel Art Atelier. All rights reserved.
+                © ${new Date().getFullYear()} Highmarc. All rights reserved.
               </p>
             </div>
           </div>
@@ -318,7 +318,7 @@ const sendContactEmail = async ({ name, email, subject, message }) => {
             <div style="background:#f5f5f4;padding:24px 40px;
                         border-top:1px solid #e7e5e4;text-align:center;">
               <p style="color:#a8a29e;font-size:12px;margin:0;">
-                © ${new Date().getFullYear()} Citadel Art Atelier. All rights reserved.
+                © ${new Date().getFullYear()} Highmarc. All rights reserved.
               </p>
             </div>
           </div>
@@ -329,9 +329,9 @@ const sendContactEmail = async ({ name, email, subject, message }) => {
 
     // ✅ Auto-reply to the visitor
     const visitorMailOptions = {
-      from:    `"Citadel Art Atelier" <${process.env.EMAIL_USER}>`,
+      from:    `"Highmarc" <${process.env.EMAIL_USER}>`,
       to:      email,
-      subject: 'We received your message — Citadel Art Atelier',
+      subject: 'We received your message — Highmarc',
       html: `
         <!DOCTYPE html>
         <html>
@@ -343,7 +343,7 @@ const sendContactEmail = async ({ name, email, subject, message }) => {
                          font-weight:400;">CITADEL</h1>
               <p style="color:#d97706;margin:8px 0 0;font-size:11px;
                         letter-spacing:3px;text-transform:uppercase;">
-                Fine Art Atelier
+                Highmarc
               </p>
             </div>
             <div style="padding:48px 40px;">
@@ -374,7 +374,7 @@ const sendContactEmail = async ({ name, email, subject, message }) => {
             <div style="background:#f5f5f4;padding:24px 40px;
                         border-top:1px solid #e7e5e4;text-align:center;">
               <p style="color:#a8a29e;font-size:12px;margin:0;">
-                © ${new Date().getFullYear()} Citadel Art Atelier. All rights reserved.
+                © ${new Date().getFullYear()} Highmarc. All rights reserved.
               </p>
             </div>
           </div>
@@ -422,9 +422,9 @@ const sendOrderInvoiceEmail = async ({
     `).join('');
 
     const mailOptions = {
-      from:    `"Citadel Art Atelier" <${process.env.EMAIL_USER}>`,
+      from:    `"Highmarc" <${process.env.EMAIL_USER}>`,
       to:      email,
-      subject: `Invoice — Order #${orderNumber} | Citadel Art Atelier`,
+      subject: `Invoice — Order #${orderNumber} | Highmarc`,
       html: `
         <!DOCTYPE html>
         <html>
@@ -438,7 +438,7 @@ const sendOrderInvoiceEmail = async ({
                          font-weight:400;">CITADEL</h1>
               <p style="color:#d97706;margin:8px 0 0;font-size:11px;
                         letter-spacing:3px;text-transform:uppercase;">
-                Fine Art Atelier
+                Highmarc
               </p>
             </div>
 
@@ -555,7 +555,7 @@ const sendOrderInvoiceEmail = async ({
             <div style="background:#f5f5f4;padding:24px 40px;
                         border-top:1px solid #e7e5e4;text-align:center;">
               <p style="color:#a8a29e;font-size:12px;margin:0;">
-                © ${new Date().getFullYear()} Citadel Art Atelier. All rights reserved.
+                © ${new Date().getFullYear()} Highmarc. All rights reserved.
               </p>
               <p style="color:#a8a29e;font-size:12px;margin:8px 0 0;">
                 ${process.env.CLIENT_URL}
@@ -587,9 +587,9 @@ const sendCommissionDepositInvoiceEmail = async ({
     const transporter = createTransporter();
 
     const mailOptions = {
-      from:    `"Citadel Art Atelier" <${process.env.EMAIL_USER}>`,
+      from:    `"Highmarc" <${process.env.EMAIL_USER}>`,
       to:      email,
-      subject: `Deposit Receipt — Commission #${commissionNumber} | Citadel Art Atelier`,
+      subject: `Deposit Receipt — Commission #${commissionNumber} | Highmarc`,
       html: `
         <!DOCTYPE html>
         <html>
@@ -603,7 +603,7 @@ const sendCommissionDepositInvoiceEmail = async ({
                          font-weight:400;">CITADEL</h1>
               <p style="color:#d97706;margin:8px 0 0;font-size:11px;
                         letter-spacing:3px;text-transform:uppercase;">
-                Fine Art Atelier
+                Highmarc
               </p>
             </div>
 
@@ -717,7 +717,7 @@ const sendCommissionDepositInvoiceEmail = async ({
             <div style="background:#f5f5f4;padding:24px 40px;
                         border-top:1px solid #e7e5e4;text-align:center;">
               <p style="color:#a8a29e;font-size:12px;margin:0;">
-                © ${new Date().getFullYear()} Citadel Art Atelier. All rights reserved.
+                © ${new Date().getFullYear()} Highmarc. All rights reserved.
               </p>
               <p style="color:#a8a29e;font-size:12px;margin:8px 0 0;">
                 ${process.env.CLIENT_URL}
@@ -749,9 +749,9 @@ const sendCommissionBalanceInvoiceEmail = async ({
     const transporter = createTransporter();
 
     const mailOptions = {
-      from:    `"Citadel Art Atelier" <${process.env.EMAIL_USER}>`,
+      from:    `"Highmarc" <${process.env.EMAIL_USER}>`,
       to:      email,
-      subject: `Final Invoice — Commission #${commissionNumber} | Citadel Art Atelier`,
+      subject: `Final Invoice — Commission #${commissionNumber} | Highmarc`,
       html: `
         <!DOCTYPE html>
         <html>
@@ -765,7 +765,7 @@ const sendCommissionBalanceInvoiceEmail = async ({
                          font-weight:400;">CITADEL</h1>
               <p style="color:#d97706;margin:8px 0 0;font-size:11px;
                         letter-spacing:3px;text-transform:uppercase;">
-                Fine Art Atelier
+                Highmarc
               </p>
             </div>
 
@@ -869,7 +869,7 @@ const sendCommissionBalanceInvoiceEmail = async ({
             <div style="background:#f5f5f4;padding:24px 40px;
                         border-top:1px solid #e7e5e4;text-align:center;">
               <p style="color:#a8a29e;font-size:12px;margin:0;">
-                © ${new Date().getFullYear()} Citadel Art Atelier. All rights reserved.
+                © ${new Date().getFullYear()} Highmarc. All rights reserved.
               </p>
               <p style="color:#a8a29e;font-size:12px;margin:8px 0 0;">
                 ${process.env.CLIENT_URL}
