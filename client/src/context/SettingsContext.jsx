@@ -7,7 +7,7 @@ const SettingsContext = createContext();
 const defaultSettings = {
   siteName: 'Highmarc',
   siteTagline: 'Fine Art Atelier',
-  artistName: 'Artist Name',
+  artistName: 'Highmarc',
   artistBio: 'Fine artist specializing in portraits and landscapes. Each piece in my collection represents a convergence of technical mastery and emotional depth, carefully crafted to resonate with the discerning collector.',
   contactEmail: 'contact@citadel-art.com',
   phone: '+2348087535982',
@@ -20,7 +20,7 @@ const defaultSettings = {
   shippingInfo: 'Free worldwide shipping on all original artworks. Each piece is carefully packaged and insured.',
   returnPolicy: '14-day return policy for undamaged items in original packaging.',
   aboutPageContent: '',
-  heroTitle: 'CITADEL',
+  heroTitle: 'Highmarc',
   heroSubtitle: 'Where Artistry Meets Timeless Elegance',
 };
 

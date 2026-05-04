@@ -53,11 +53,11 @@ const Home = () => {
     <>
     <SEO
         title="Fine Art Atelier"
-        description="Discover original fine art paintings, portraits and bespoke commissions at Citadel Art Atelier."
+        description="Discover original fine art paintings, portraits and bespoke commissions at Highmarc Art Atelier."
         keywords="fine art, original paintings, art commissions, portraits, buy art online"
         url="/"
       />
-      
+
     <div className="bg-stone-50">
       {/* Hero Section */}
       <section 
@@ -390,7 +390,7 @@ const Home = () => {
             className="text-stone-800 mb-8 leading-relaxed text-2xl md:text-3xl"
             style={{ fontFamily: "'Playfair Display', serif", fontStyle: 'italic' }}
           >
-            "The Citadel collection represents the pinnacle of contemporary fine art. 
+            "The Highmarc collection represents the pinnacle of contemporary fine art. 
             Each piece is a masterwork that transforms our living space into a gallery of distinction."
           </blockquote>
           <cite 
