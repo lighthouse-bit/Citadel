@@ -6,7 +6,7 @@ const {
   sendOrderInvoiceEmail,
   sendCommissionDepositInvoiceEmail,
   sendCommissionBalanceInvoiceEmail,
-} = require('../services/emailService');
+} = require('../utils/emailService');
 
 const { authenticateUser } = require('../middleware/auth');
 
