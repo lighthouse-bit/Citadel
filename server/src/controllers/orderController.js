@@ -2,7 +2,7 @@
 const prisma = require('../config/database');
 const {
   sendOrderInvoiceEmail,
-} = require('../services/emailService');
+} = require('../utils/emailService');
 
 // ─────────────────────────────────────────────────────────
 // Create order (Public/User)
