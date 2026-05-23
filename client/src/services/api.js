@@ -85,6 +85,8 @@ export const paymentsAPI = {
   createArtworkPayment:    (orderId)      => api.post('/payments/artwork-payment',    { orderId }),
   createCommissionDeposit: (commissionId) => api.post('/payments/commission-deposit', { commissionId }),
   createCommissionBalance: (commissionId) => api.post('/payments/commission-balance', { commissionId }),
+  // ✅ New — verify after Paystack redirect
+  verifyPayment: (reference) => api.post('/payments/verify', { reference }),
 };
 
 // ==========================================
