@@ -15,6 +15,14 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Citadel API is running' });
 });
 
+const path = require('path');
+
+// 🔍 Debug — show current directory
+console.log('__dirname:', __dirname);
+console.log('Files in routes:', require('fs').readdirSync(
+  path.join(__dirname, 'routes')
+).join(', '));
+
 // ✅ Load each route with error catching
 const routes = [
   { path: '/api/artworks',      file: './routes/artworkRoutes'      },
