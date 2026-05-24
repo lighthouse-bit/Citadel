@@ -1,4 +1,5 @@
 // server/src/routes/paymentRoutes.js
+
 const express = require('express');
 const router  = express.Router();
 const prisma  = require('../config/database');
@@ -13,6 +14,10 @@ const {
 const { authenticateUser } = require('../middleware/auth');
 
 const PAYSTACK_SECRET = process.env.PAYSTACK_SECRET_KEY;
+
+// ✅ USD → NGN conversion rate
+// You can later move this to ENV or API-based exchange rates
+const USD_TO_NGN = 1600;
 
 // ── Paystack helper — verify transaction ──────────────────────────────────────
 const verifyPaystackTransaction = (reference) => {
@@ -114,8 +119,6 @@ router.post('/artwork-payment', authenticateUser, async (req, res) => {
   try {
 
     if (!PAYSTACK_SECRET) {
-      console.error('PAYSTACK_SECRET_KEY is missing');
-
       return res.status(500).json({
         error: 'Payment processing not configured'
       });
@@ -146,27 +149,41 @@ router.post('/artwork-payment', authenticateUser, async (req, res) => {
       });
     }
 
-    console.log('Artwork payment customer email:', order.customer?.email);
-    console.log('Artwork payment total:', order.total);
+    // ✅ Original USD amount
+    const usdAmount = parseFloat(order.total);
+
+    // ✅ Convert to NGN
+    const ngnAmount = usdAmount * USD_TO_NGN;
+
+    console.log('Artwork USD Amount:', usdAmount);
+    console.log('Artwork NGN Amount:', ngnAmount);
 
     const paystackData = await initializePaystackTransaction({
       email: order.customer?.email,
-      amount: Math.round(parseFloat(order.total) * 100), // USD cents
-      currency: 'USD',
+
+      // ✅ Paystack expects kobo
+      amount: Math.round(ngnAmount * 100),
+
+      // ✅ Switched to NGN
+      currency: 'NGN',
+
       reference: `artwork_${order.id}_${Date.now()}`,
+
       metadata: {
         orderId: order.id,
         orderNumber: order.orderNumber,
         paymentType: 'artwork',
         customerId: order.customerId,
+
+        // Optional metadata tracking
+        usdAmount,
+        ngnAmount,
       },
+
       callback_url: `${process.env.CLIENT_URL}/checkout/success`,
     });
 
     if (!paystackData.status) {
-
-      console.error('PAYSTACK FAILED:', paystackData);
-
       return res.status(500).json({
         error: paystackData.message || 'Failed to initialize payment',
         paystack: paystackData,
@@ -180,10 +197,12 @@ router.post('/artwork-payment', authenticateUser, async (req, res) => {
       },
     });
 
+    // ✅ Frontend STILL receives USD values
     res.json({
       authorizationUrl: paystackData.data.authorization_url,
       reference: paystackData.data.reference,
-      total: parseFloat(order.total),
+      total: usdAmount,
+      currency: 'USD',
     });
 
   } catch (error) {
@@ -206,8 +225,6 @@ router.post('/commission-deposit', authenticateUser, async (req, res) => {
   try {
 
     if (!PAYSTACK_SECRET) {
-      console.error('PAYSTACK_SECRET_KEY is missing');
-
       return res.status(500).json({
         error: 'Payment processing not configured'
       });
@@ -258,21 +275,35 @@ router.post('/commission-deposit', authenticateUser, async (req, res) => {
     const depositAmount = parseFloat((finalPrice * depositPct).toFixed(2));
     const balanceAmount = parseFloat((finalPrice - depositAmount).toFixed(2));
 
+    // ✅ Convert USD → NGN
+    const ngnDepositAmount = depositAmount * USD_TO_NGN;
+
     console.log('Commission customer email:', commission.customer?.email);
-    console.log('Final price:', finalPrice);
-    console.log('Deposit amount:', depositAmount);
+    console.log('Final USD price:', finalPrice);
+    console.log('Deposit USD amount:', depositAmount);
+    console.log('Deposit NGN amount:', ngnDepositAmount);
 
     const paystackData = await initializePaystackTransaction({
       email: commission.customer?.email,
-      amount: Math.round(depositAmount * 100), // USD cents
-      currency: 'USD',
+
+      // ✅ Kobo
+      amount: Math.round(ngnDepositAmount * 100),
+
+      // ✅ NGN
+      currency: 'NGN',
+
       reference: `deposit_${commission.id}_${Date.now()}`,
+
       metadata: {
         commissionId: commission.id,
         commissionNumber: commission.commissionNumber,
         paymentType: 'deposit',
         customerId: commission.customerId,
+
+        usdAmount: depositAmount,
+        ngnAmount: ngnDepositAmount,
       },
+
       callback_url: `${process.env.CLIENT_URL}/commission/payment/${commission.id}?status=success`,
     });
 
@@ -295,13 +326,18 @@ router.post('/commission-deposit', authenticateUser, async (req, res) => {
       },
     });
 
+    // ✅ Frontend STILL receives USD values
     res.json({
       authorizationUrl: paystackData.data.authorization_url,
       reference: paystackData.data.reference,
+
       finalPrice,
       depositAmount,
       balanceAmount,
+
       depositPercentage: commission.depositPercentage,
+
+      currency: 'USD',
     });
 
   } catch (error) {
@@ -324,8 +360,6 @@ router.post('/commission-balance', authenticateUser, async (req, res) => {
   try {
 
     if (!PAYSTACK_SECRET) {
-      console.error('PAYSTACK_SECRET_KEY is missing');
-
       return res.status(500).json({
         error: 'Payment processing not configured'
       });
@@ -366,20 +400,33 @@ router.post('/commission-balance', authenticateUser, async (req, res) => {
     const depositAmount = parseFloat(commission.depositAmount);
     const balanceAmount = parseFloat((finalPrice - depositAmount).toFixed(2));
 
-    console.log('Commission balance customer email:', commission.customer?.email);
-    console.log('Balance amount:', balanceAmount);
+    // ✅ USD → NGN
+    const ngnBalanceAmount = balanceAmount * USD_TO_NGN;
+
+    console.log('Balance USD amount:', balanceAmount);
+    console.log('Balance NGN amount:', ngnBalanceAmount);
 
     const paystackData = await initializePaystackTransaction({
       email: commission.customer?.email,
-      amount: Math.round(balanceAmount * 100), // USD cents
-      currency: 'USD',
+
+      // ✅ Kobo
+      amount: Math.round(ngnBalanceAmount * 100),
+
+      // ✅ NGN
+      currency: 'NGN',
+
       reference: `balance_${commission.id}_${Date.now()}`,
+
       metadata: {
         commissionId: commission.id,
         commissionNumber: commission.commissionNumber,
         paymentType: 'balance',
         customerId: commission.customerId,
+
+        usdAmount: balanceAmount,
+        ngnAmount: ngnBalanceAmount,
       },
+
       callback_url: `${process.env.CLIENT_URL}/commission/payment/${commission.id}?status=success`,
     });
 
@@ -400,13 +447,18 @@ router.post('/commission-balance', authenticateUser, async (req, res) => {
       },
     });
 
+    // ✅ Frontend STILL receives USD values
     res.json({
       authorizationUrl: paystackData.data.authorization_url,
       reference: paystackData.data.reference,
+
       finalPrice,
       depositAmount,
       balanceAmount,
+
       depositPercentage: commission.depositPercentage,
+
+      currency: 'USD',
     });
 
   } catch (error) {
