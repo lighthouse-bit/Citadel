@@ -9,81 +9,11 @@ import { ordersAPI, paymentsAPI } from '../services/api';
 import toast from 'react-hot-toast';
 
 // ─────────────────────────────────────────────────────────
-// Cart Image Helper
+// Checkout Form Component
 // ─────────────────────────────────────────────────────────
-const CartImage = ({ src, alt }) => {
-  const fallback =
-    "https://images.unsplash.com/photo-1547891654-e66ed7ebb968?w=200&h=200&fit=crop";
-
+const CheckoutForm = ({ formData, cartItems, cartTotal, onSubmit, isProcessing }) => {
   return (
-    <img
-      src={src || fallback}
-      alt={alt}
-      className="w-full h-full object-cover"
-      onError={(e) => (e.target.src = fallback)}
-    />
-  );
-};
-
-// ─────────────────────────────────────────────────────────
-// Checkout Form
-// ─────────────────────────────────────────────────────────
-const CheckoutForm = ({ formData, cartItems, cartTotal }) => {
-  const [isProcessing, setIsProcessing] = useState(false);
-
-  const handlePayment = async (e) => {
-    e.preventDefault();
-    setIsProcessing(true);
-
-    try {
-      // 1. Create order
-      const orderPayload = {
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        email: formData.email,
-        items: cartItems.map((item) => ({ id: item.id })),
-        shippingAddress: {
-          line1: formData.address,
-          city: formData.city,
-          state: formData.state || '',
-          postalCode: formData.zip,
-          country: formData.country,
-        },
-      };
-
-      const orderRes = await ordersAPI.create(orderPayload);
-      const order = orderRes.data;
-
-      // 2. Initialize Paystack
-      const paymentRes = await paymentsAPI.createArtworkPayment(order.id);
-      const { authorizationUrl, reference } = paymentRes.data;
-
-      // 3. Save pending order as backup
-      localStorage.setItem(
-        'pending_order',
-        JSON.stringify({
-          orderId: order.id,
-          orderNumber: order.orderNumber,
-          reference,
-          email: formData.email,
-          firstName: formData.firstName,
-        })
-      );
-
-      // 4. Redirect to Paystack
-      window.location.href = authorizationUrl;
-    } catch (error) {
-      console.error(error);
-      toast.error(
-        error.response?.data?.error || 'Failed to process order. Please try again.'
-      );
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  return (
-    <form onSubmit={handlePayment}>
+    <form onSubmit={onSubmit}>
       <div className="bg-white p-8 rounded-xl border mb-6">
         <h2 className="text-xl mb-6">Contact & Shipping</h2>
 
@@ -174,97 +104,6 @@ const CheckoutForm = ({ formData, cartItems, cartTotal }) => {
 };
 
 // ─────────────────────────────────────────────────────────
-// Payment Success Handler (FIXED & COMPLETE)
-// ─────────────────────────────────────────────────────────
-const PaymentSuccessHandler = ({ onSuccess }) => {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    const verifyPayment = async () => {
-      try {
-        const reference = searchParams.get('reference') || searchParams.get('trxref');
-
-        if (!reference) {
-          setError('Missing payment reference. Please contact support.');
-          return;
-        }
-
-        const pendingOrderStr = localStorage.getItem('pending_order');
-        const pendingOrder = pendingOrderStr ? JSON.parse(pendingOrderStr) : {};
-
-        if (!pendingOrder.orderId) {
-          setError('Order information is missing. Please check your orders.');
-          return;
-        }
-
-        // === CRITICAL: Verify with backend ===
-        const response = await paymentsAPI.verifyPayment(reference);
-
-        if (response.data.success) {
-          localStorage.removeItem('pending_order');
-          onSuccess(pendingOrder);
-        } else {
-          setError('Payment verification failed. Please contact support.');
-        }
-      } catch (err) {
-        console.error('Verification failed:', err);
-        setError(
-          err.response?.data?.error ||
-            'Failed to verify payment. If your card was charged, please contact support.'
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    verifyPayment();
-  }, [searchParams, onSuccess]);
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <Loader className="animate-spin mx-auto mb-4 text-amber-600" size={48} />
-          <p className="text-lg font-medium">Verifying your payment...</p>
-          <p className="text-sm text-gray-500 mt-2">Please do not close or refresh this page</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center max-w-md px-6">
-          <AlertCircle className="text-red-500 mx-auto mb-4" size={60} />
-          <h2 className="text-2xl font-semibold mb-2">Payment Verification Issue</h2>
-          <p className="text-gray-600 mb-8">{error}</p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link
-              to="/account"
-              className="bg-black text-white px-8 py-3.5 rounded-xl font-medium"
-            >
-              View My Orders
-            </Link>
-            <button
-              onClick={() => navigate('/shop')}
-              className="border border-gray-300 px-8 py-3.5 rounded-xl font-medium"
-            >
-              Browse More Art
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return null;
-};
-
-// ─────────────────────────────────────────────────────────
 // Main Checkout Page
 // ─────────────────────────────────────────────────────────
 const Checkout = () => {
@@ -273,11 +112,10 @@ const Checkout = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  const [step, setStep] = useState(
-    searchParams.get('reference') || searchParams.get('trxref') ? 'verify' : 'form'
-  );
-
+  const [step, setStep] = useState('form');
   const [completedOrder, setCompletedOrder] = useState(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [verifying, setVerifying] = useState(false);
 
   const [formData, setFormData] = useState({
     email: user?.email || '',
@@ -290,15 +128,103 @@ const Checkout = () => {
     country: 'United States',
   });
 
+  // Handle redirect from Paystack
+  useEffect(() => {
+    const reference = searchParams.get('reference') || searchParams.get('trxref');
+    if (reference) {
+      setStep('verify');
+      verifyPayment(reference);
+    }
+  }, [searchParams]);
+
   const handleChange = (e) => {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
-  const handleSuccess = (order) => {
-    clearCart();
-    setCompletedOrder(order);
-    setStep('success');
+  // Verify payment after Paystack redirect
+  const verifyPayment = async (reference) => {
+    setVerifying(true);
+    try {
+      const response = await paymentsAPI.verifyPayment(reference);
+
+      if (response.data.success) {
+        clearCart();
+        setCompletedOrder(response.data.order || response.data.commission);
+        setStep('success');
+        toast.success('Payment confirmed successfully!');
+      } else {
+        toast.error('Payment verification failed');
+        setStep('form');
+      }
+    } catch (err) {
+      console.error('Verification error:', err);
+      toast.error(
+        err.response?.data?.error || 
+        'Failed to verify payment. Please check your orders or contact support.'
+      );
+      setStep('form');
+    } finally {
+      setVerifying(false);
+    }
   };
+
+  // Handle payment initiation
+  const handlePaymentSubmit = async (e) => {
+    e.preventDefault();
+    setIsProcessing(true);
+
+    try {
+      const orderPayload = {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        items: cartItems.map((item) => ({ id: item.id })),
+        shippingAddress: {
+          line1: formData.address,
+          city: formData.city,
+          state: formData.state || '',
+          postalCode: formData.zip,
+          country: formData.country,
+        },
+      };
+
+      const orderRes = await ordersAPI.create(orderPayload);
+      const order = orderRes.data;
+
+      const paymentRes = await paymentsAPI.createArtworkPayment(order.id);
+      const { authorizationUrl } = paymentRes.data;
+
+      // Save pending order
+      localStorage.setItem(
+        'pending_order',
+        JSON.stringify({
+          orderId: order.id,
+          orderNumber: order.orderNumber,
+          email: formData.email,
+        })
+      );
+
+      window.location.href = authorizationUrl;
+    } catch (error) {
+      console.error(error);
+      toast.error(error.response?.data?.error || 'Failed to process payment');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Loading / Verifying State
+  if (verifying || step === 'verify') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <Loader className="animate-spin mx-auto mb-4 text-amber-600" size={48} />
+          <p className="text-lg font-medium">Verifying your payment...</p>
+          <p className="text-sm text-gray-500 mt-2">Please do not refresh this page</p>
+        </div>
+      </div>
+    );
+  }
 
   // Success Page
   if (step === 'success') {
@@ -312,7 +238,7 @@ const Checkout = () => {
           <CheckCircle className="text-green-500 mx-auto mb-6" size={70} />
           <h2 className="text-3xl font-semibold mb-2">Payment Successful!</h2>
           <p className="text-gray-600 mb-8">
-            Order #{completedOrder?.orderNumber} has been confirmed.
+            Your order has been confirmed.
           </p>
           <button
             onClick={() => navigate('/account')}
@@ -323,11 +249,6 @@ const Checkout = () => {
         </motion.div>
       </div>
     );
-  }
-
-  // Verification Handler
-  if (step === 'verify') {
-    return <PaymentSuccessHandler onSuccess={handleSuccess} />;
   }
 
   // Empty Cart
@@ -345,7 +266,7 @@ const Checkout = () => {
     );
   }
 
-  // Main Checkout
+  // Main Checkout Page
   return (
     <div className="pt-20 max-w-6xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-12">
       <div>
@@ -354,6 +275,8 @@ const Checkout = () => {
           formData={{ ...formData, onChange: handleChange }}
           cartItems={cartItems}
           cartTotal={cartTotal}
+          onSubmit={handlePaymentSubmit}
+          isProcessing={isProcessing}
         />
       </div>
 
@@ -361,10 +284,7 @@ const Checkout = () => {
         <h2 className="text-xl font-semibold mb-6">Order Summary</h2>
         <div className="bg-white border rounded-2xl p-6">
           {cartItems.map((item) => (
-            <div
-              key={item.id}
-              className="flex justify-between py-3 border-b last:border-0"
-            >
+            <div key={item.id} className="flex justify-between py-3 border-b last:border-0">
               <span className="font-medium">{item.title}</span>
               <span>${parseFloat(item.price).toLocaleString()}</span>
             </div>
