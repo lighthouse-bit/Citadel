@@ -125,18 +125,29 @@ router.get('/callback', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────
-// WEBHOOK (Most Reliable)
+// FIXED WEBHOOK FOR VERCEL
 // ─────────────────────────────────────────────
 router.post('/webhook', async (req, res) => {
   const hash = req.headers['x-paystack-signature'];
 
   if (!hash || !PAYSTACK_SECRET) {
+    console.error('Missing webhook signature or secret');
     return res.sendStatus(400);
+  }
+
+  // Handle raw body for Vercel
+  let bodyString = '';
+  if (Buffer.isBuffer(req.body)) {
+    bodyString = req.body.toString();
+  } else if (typeof req.body === 'string') {
+    bodyString = req.body;
+  } else {
+    bodyString = JSON.stringify(req.body);
   }
 
   const expectedHash = crypto
     .createHmac('sha512', PAYSTACK_SECRET)
-    .update(JSON.stringify(req.body))
+    .update(bodyString)
     .digest('hex');
 
   if (hash !== expectedHash) {
@@ -144,14 +155,12 @@ router.post('/webhook', async (req, res) => {
     return res.sendStatus(400);
   }
 
-  const event = req.body;
-
   try {
+    const event = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+
     if (event.event === 'charge.success') {
-      const reference = event.data.reference;
       const metadata = event.data.metadata || {};
 
-      // ARTWORK PAYMENT
       if (metadata.paymentType === 'artwork' && metadata.orderId) {
         await prisma.order.update({
           where: { id: metadata.orderId },
@@ -161,10 +170,8 @@ router.post('/webhook', async (req, res) => {
             paidAt: new Date(),
           },
         });
-        console.log(`✅ Webhook: Order ${metadata.orderId} marked as PAID`);
-      }
-
-      // COMMISSION DEPOSIT
+        console.log(`✅ Webhook: Order ${metadata.orderId} paid`);
+      } 
       else if (metadata.paymentType === 'commission_deposit' && metadata.commissionId) {
         await prisma.commission.update({
           where: { id: metadata.commissionId },
@@ -174,7 +181,7 @@ router.post('/webhook', async (req, res) => {
             status: 'IN_PROGRESS',
           },
         });
-        console.log(`✅ Webhook: Commission deposit ${metadata.commissionId} marked as PAID`);
+        console.log(`✅ Webhook: Commission ${metadata.commissionId} deposit paid`);
       }
     }
 
@@ -307,26 +314,20 @@ router.post('/commission-deposit', authenticateUser, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────
-// VERIFY PAYMENT (Called by Frontend)
+// VERIFY PAYMENT
 // ─────────────────────────────────────────────
 router.post('/verify', async (req, res) => {
   try {
     const { reference } = req.body;
 
     if (!reference) {
-      return res.status(400).json({
-        success: false,
-        error: 'Reference is required',
-      });
+      return res.status(400).json({ success: false, error: 'Reference is required' });
     }
 
     const verificationData = await verifyPaystackTransaction(reference);
 
     if (!verificationData.status || verificationData.data.status !== 'success') {
-      return res.status(400).json({
-        success: false,
-        error: 'Payment verification failed',
-      });
+      return res.status(400).json({ success: false, error: 'Payment verification failed' });
     }
 
     const paymentData = verificationData.data;
@@ -422,17 +423,11 @@ router.post('/verify', async (req, res) => {
       });
     }
 
-    return res.status(400).json({
-      success: false,
-      error: 'Unknown payment type',
-    });
+    return res.status(400).json({ success: false, error: 'Unknown payment type' });
 
   } catch (err) {
     console.error('VERIFY ERROR:', err);
-    return res.status(500).json({
-      success: false,
-      error: 'Payment verification failed',
-    });
+    return res.status(500).json({ success: false, error: 'Payment verification failed' });
   }
 });
 
