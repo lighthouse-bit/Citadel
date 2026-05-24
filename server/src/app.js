@@ -1,49 +1,64 @@
-// server/src/app.js
 const express = require('express');
-const cors    = require('cors');
-const path    = require('path');
+const cors = require('cors');
+const path = require('path');
+const fs = require('fs');
+
 require('dotenv').config();
 
 const app = express();
 
-// ✅ CORS
 app.use(cors());
 app.options('*', cors());
 
-// ✅ Webhook needs raw body BEFORE json middleware
-app.use(
-  '/api/payments/webhook',
-  express.raw({ type: 'application/json' })
-);
+// Paystack webhook raw body
+app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));
 
-// ✅ JSON parser with size limit
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// ✅ Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Citadel API is running' });
 });
 
-// ✅ Use absolute paths for routes — fixes Vercel path resolution
-const routesPath = path.join(__dirname, 'routes');
+// Debug
+console.log('__dirname:', __dirname);
 
-app.use('/api/artworks',      require(path.join(routesPath, 'artworkRoutes')));
-app.use('/api/orders',        require(path.join(routesPath, 'orderRoutes')));
-app.use('/api/commissions',   require(path.join(routesPath, 'commissionRoutes')));
-app.use('/api/payments',      require(path.join(routesPath, 'paymentRoutes')));
-app.use('/api/auth',          require(path.join(routesPath, 'authRoutes')));
-app.use('/api/dashboard',     require(path.join(routesPath, 'dashboardRoutes')));
-app.use('/api/notifications', require(path.join(routesPath, 'notificationRoutes')));
-app.use('/api/contact',       require(path.join(routesPath, 'contactRoutes')));
+const routesDir = path.join(__dirname, 'routes');
 
-// ✅ 404 handler
+if (fs.existsSync(routesDir)) {
+  console.log('Routes found:', fs.readdirSync(routesDir).join(', '));
+} else {
+  console.log('❌ Routes folder not found at:', routesDir);
+}
+
+// Routes
+const routes = [
+  { path: '/api/artworks', file: './routes/artworkRoutes' },
+  { path: '/api/orders', file: './routes/orderRoutes' },
+  { path: '/api/commissions', file: './routes/commissionRoutes' },
+  { path: '/api/payments', file: './routes/paymentRoutes' },
+  { path: '/api/auth', file: './routes/authRoutes' },
+  { path: '/api/dashboard', file: './routes/dashboardRoutes' },
+  { path: '/api/notifications', file: './routes/notificationRoutes' },
+  { path: '/api/contact', file: './routes/contactRoutes' },
+];
+
+routes.forEach(({ path: routePath, file }) => {
+  try {
+    const resolvedPath = path.join(__dirname, file);
+    app.use(routePath, require(resolvedPath));
+    console.log(`✅ Loaded: ${file}`);
+  } catch (err) {
+    console.error(`❌ Failed to load ${file}:`, err.message);
+  }
+});
+
+// 404 handler
 app.use((req, res) => {
-  console.log('404 Not Found:', req.method, req.originalUrl);
   res.status(404).json({ error: 'Route not found' });
 });
 
-// ✅ Error handler
+// Error handler
 app.use((err, req, res, next) => {
   console.error('Error:', err);
   res.status(err.status || 500).json({
