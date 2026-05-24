@@ -63,6 +63,43 @@ const initializePaystackTransaction = (data) => {
 };
 
 // ─────────────────────────────────────────────
+// VERIFY PAYSTACK TRANSACTION
+// ─────────────────────────────────────────────
+const verifyPaystackTransaction = (reference) => {
+  return new Promise((resolve, reject) => {
+    const options = {
+      hostname: 'api.paystack.co',
+      port: 443,
+      path: `/transaction/verify/${reference}`,
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${PAYSTACK_SECRET}`,
+      },
+    };
+
+    const req = https.request(options, (res) => {
+      let responseData = '';
+
+      res.on('data', (chunk) => {
+        responseData += chunk;
+      });
+
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(responseData);
+          resolve(parsed);
+        } catch (e) {
+          reject(e);
+        }
+      });
+    });
+
+    req.on('error', reject);
+    req.end();
+  });
+};
+
+// ─────────────────────────────────────────────
 // ARTWORK PAYMENT INIT
 // ─────────────────────────────────────────────
 router.post('/artwork-payment', authenticateUser, async (req, res) => {
@@ -237,6 +274,184 @@ router.post('/commission-deposit', authenticateUser, async (req, res) => {
 
     return res.status(500).json({
       error: 'Commission deposit init failed',
+    });
+  }
+});
+
+// ─────────────────────────────────────────────
+// VERIFY PAYMENT
+// ─────────────────────────────────────────────
+router.post('/verify', async (req, res) => {
+  try {
+    const { reference } = req.body;
+
+    if (!reference) {
+      return res.status(400).json({
+        success: false,
+        error: 'Reference is required',
+      });
+    }
+
+    // =============================
+    // VERIFY WITH PAYSTACK
+    // =============================
+    const verificationData = await verifyPaystackTransaction(reference);
+
+    if (
+      !verificationData.status ||
+      verificationData.data.status !== 'success'
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: 'Payment verification failed',
+      });
+    }
+
+    const paymentData = verificationData.data;
+    const metadata = paymentData.metadata;
+
+    // =============================
+    // COMMISSION DEPOSIT
+    // =============================
+    if (metadata.paymentType === 'commission_deposit') {
+
+      const commissionId = metadata.commissionId;
+
+      const commission = await prisma.commission.findUnique({
+        where: {
+          id: commissionId,
+        },
+        include: {
+          customer: true,
+        },
+      });
+
+      if (!commission) {
+        return res.status(404).json({
+          success: false,
+          error: 'Commission not found',
+        });
+      }
+
+      // Prevent duplicate verification
+      if (
+        commission.paymentStatus === 'DEPOSIT_PAID' ||
+        commission.paymentStatus === 'FULLY_PAID'
+      ) {
+        return res.json({
+          success: true,
+          type: 'deposit',
+          alreadyVerified: true,
+        });
+      }
+
+      // =============================
+      // UPDATE COMMISSION
+      // =============================
+      const updatedCommission = await prisma.commission.update({
+        where: {
+          id: commissionId,
+        },
+        data: {
+          paymentStatus: 'DEPOSIT_PAID',
+          depositPaidAt: new Date(),
+          status: 'IN_PROGRESS',
+        },
+      });
+
+      // =============================
+      // SEND EMAIL
+      // =============================
+      try {
+        await sendCommissionDepositInvoiceEmail({
+          customerEmail: commission.customer.email,
+          customerName: `${commission.customer.firstName} ${commission.customer.lastName}`,
+          commissionNumber: commission.commissionNumber,
+          amount: Number(paymentData.amount) / 100 / USD_TO_NGN,
+          reference,
+        });
+      } catch (emailErr) {
+        console.error('EMAIL ERROR:', emailErr);
+      }
+
+      return res.json({
+        success: true,
+        type: 'deposit',
+        commission: updatedCommission,
+      });
+    }
+
+    // =============================
+    // ARTWORK PAYMENT
+    // =============================
+    if (metadata.paymentType === 'artwork') {
+
+      const orderId = metadata.orderId;
+
+      const order = await prisma.order.findUnique({
+        where: {
+          id: orderId,
+        },
+        include: {
+          customer: true,
+        },
+      });
+
+      if (!order) {
+        return res.status(404).json({
+          success: false,
+          error: 'Order not found',
+        });
+      }
+
+      if (order.paymentStatus === 'FULLY_PAID') {
+        return res.json({
+          success: true,
+          type: 'artwork',
+          alreadyVerified: true,
+        });
+      }
+
+      const updatedOrder = await prisma.order.update({
+        where: {
+          id: orderId,
+        },
+        data: {
+          paymentStatus: 'FULLY_PAID',
+          status: 'CONFIRMED',
+        },
+      });
+
+      try {
+        await sendOrderInvoiceEmail({
+          customerEmail: order.customer.email,
+          customerName: `${order.customer.firstName} ${order.customer.lastName}`,
+          orderNumber: order.orderNumber,
+          amount: Number(paymentData.amount) / 100 / USD_TO_NGN,
+          reference,
+        });
+      } catch (emailErr) {
+        console.error('EMAIL ERROR:', emailErr);
+      }
+
+      return res.json({
+        success: true,
+        type: 'artwork',
+        order: updatedOrder,
+      });
+    }
+
+    return res.status(400).json({
+      success: false,
+      error: 'Unknown payment type',
+    });
+
+  } catch (err) {
+    console.error('VERIFY ERROR:', err);
+
+    return res.status(500).json({
+      success: false,
+      error: 'Payment verification failed',
     });
   }
 });
