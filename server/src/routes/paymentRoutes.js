@@ -146,22 +146,45 @@ router.post('/commission-deposit', authenticateUser, async (req, res) => {
       });
     }
 
-    // Use depositAmount first, fallback to estimatedPrice
-    const usdAmount = parseFloat(
-      commission.depositAmount || commission.estimatedPrice || 0
+    // =============================
+    // CALCULATIONS
+    // =============================
+    const finalPrice = Number(
+      commission.finalPrice ||
+      commission.estimatedPrice ||
+      0
     );
 
-    if (!usdAmount || usdAmount <= 0) {
+    const depositPercentage = Number(
+      commission.depositPercentage || 70
+    );
+
+    const depositAmount = Number(
+      commission.depositAmount ||
+      (finalPrice * depositPercentage) / 100
+    );
+
+    const balanceAmount = Number(
+      commission.balanceAmount ||
+      (finalPrice - depositAmount)
+    );
+
+    if (!finalPrice || finalPrice <= 0) {
       return res.status(400).json({
-        error: 'Invalid commission amount',
+        error: 'Invalid commission price',
       });
     }
 
-    const ngnAmount = usdAmount * USD_TO_NGN;
+    // =============================
+    // PAYSTACK
+    // =============================
+    const ngnAmount = depositAmount * USD_TO_NGN;
 
     const paystackData = await initializePaystackTransaction({
       email: commission.customer.email,
+
       amount: Math.round(ngnAmount * 100),
+
       currency: 'NGN',
 
       reference: `commission_deposit_${commission.id}_${Date.now()}`,
@@ -178,7 +201,9 @@ router.post('/commission-deposit', authenticateUser, async (req, res) => {
       return res.status(500).json(paystackData);
     }
 
-    // ✅ FIXED FOR YOUR PRISMA SCHEMA
+    // =============================
+    // SAVE PAYMENT REFERENCE
+    // =============================
     await prisma.commission.update({
       where: {
         id: commissionId,
@@ -188,10 +213,22 @@ router.post('/commission-deposit', authenticateUser, async (req, res) => {
       },
     });
 
+    // =============================
+    // RESPONSE
+    // =============================
     return res.json({
       authorizationUrl: paystackData.data.authorization_url,
+
       reference: paystackData.data.reference,
-      total: usdAmount,
+
+      finalPrice,
+
+      depositAmount,
+
+      balanceAmount,
+
+      depositPercentage,
+
       currency: 'USD',
     });
 
