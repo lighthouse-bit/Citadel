@@ -8,52 +8,43 @@ require('dotenv').config();
 
 const app = express();
 
-// ─────────────────────────────────────────────
-// CORS
-// ─────────────────────────────────────────────
+/**
+ * ─────────────────────────────────────────────
+ * CORS
+ * ─────────────────────────────────────────────
+ */
 app.use(cors());
 app.options('*', cors());
 
-// ─────────────────────────────────────────────
-// Body parsing (IMPORTANT ORDER FIX)
-// ─────────────────────────────────────────────
+/**
+ * ─────────────────────────────────────────────
+ * IMPORTANT: webhook raw parser MUST come first
+ * ─────────────────────────────────────────────
+ */
+app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));
+
+/**
+ * ─────────────────────────────────────────────
+ * Normal parsers
+ * ─────────────────────────────────────────────
+ */
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// ─────────────────────────────────────────────
-// Webhook MUST use raw body (Paystack signature)
-// ─────────────────────────────────────────────
-app.use(
-  '/api/payments/webhook',
-  express.raw({ type: 'application/json' })
-);
-
-// ─────────────────────────────────────────────
-// Health check
-// ─────────────────────────────────────────────
+/**
+ * ─────────────────────────────────────────────
+ * Health check
+ * ─────────────────────────────────────────────
+ */
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Citadel API is running' });
 });
 
-// ─────────────────────────────────────────────
-// Debug routes (safe for dev, optional for prod)
-// ─────────────────────────────────────────────
-console.log('__dirname:', __dirname);
-
-try {
-  console.log(
-    'Routes:',
-    fs
-      .readdirSync(path.join(__dirname, 'routes'))
-      .join(', ')
-  );
-} catch (err) {
-  console.log('Could not read routes folder');
-}
-
-// ─────────────────────────────────────────────
-// Route registration
-// ─────────────────────────────────────────────
+/**
+ * ─────────────────────────────────────────────
+ * ROUTE LOADER (SAFE FOR VERCEL)
+ * ─────────────────────────────────────────────
+ */
 const routes = [
   { path: '/api/artworks', file: './routes/artworkRoutes' },
   { path: '/api/orders', file: './routes/orderRoutes' },
@@ -67,25 +58,34 @@ const routes = [
 
 routes.forEach(({ path: routePath, file }) => {
   try {
-    app.use(routePath, require(file));
-    console.log(`✅ Loaded: ${file}`);
+    const route = require(file);
+    app.use(routePath, route);
+    console.log(`✅ Loaded route: ${routePath}`);
   } catch (err) {
-    console.error(`❌ Failed: ${file}`, err.message);
+    console.error(`❌ Failed loading ${file}:`, err.message);
   }
 });
 
-// ─────────────────────────────────────────────
-// 404 handler
-// ─────────────────────────────────────────────
+/**
+ * ─────────────────────────────────────────────
+ * 404 HANDLER (MUST BE LAST)
+ * ─────────────────────────────────────────────
+ */
 app.use((req, res) => {
-  res.status(404).json({ error: 'Route not found' });
+  res.status(404).json({
+    error: 'Route not found',
+    path: req.originalUrl,
+  });
 });
 
-// ─────────────────────────────────────────────
-// Error handler
-// ─────────────────────────────────────────────
+/**
+ * ─────────────────────────────────────────────
+ * ERROR HANDLER
+ * ─────────────────────────────────────────────
+ */
 app.use((err, req, res, next) => {
-  console.error('Error:', err);
+  console.error('Server Error:', err);
+
   res.status(err.status || 500).json({
     error: err.message || 'Something went wrong!',
   });
