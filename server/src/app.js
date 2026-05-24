@@ -1,50 +1,37 @@
-// server/src/app.js
 const express = require('express');
 const cors = require('cors');
-const fs = require('fs');
 const path = require('path');
+const fs = require('fs');
 
 require('dotenv').config();
 
 const app = express();
 
-/**
- * ─────────────────────────────────────────────
- * CORS
- * ─────────────────────────────────────────────
- */
 app.use(cors());
 app.options('*', cors());
 
-/**
- * ─────────────────────────────────────────────
- * IMPORTANT: webhook raw parser MUST come first
- * ─────────────────────────────────────────────
- */
+// Paystack webhook raw body
 app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));
 
-/**
- * ─────────────────────────────────────────────
- * Normal parsers
- * ─────────────────────────────────────────────
- */
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-/**
- * ─────────────────────────────────────────────
- * Health check
- * ─────────────────────────────────────────────
- */
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Citadel API is running' });
 });
 
-/**
- * ─────────────────────────────────────────────
- * ROUTE LOADER (SAFE FOR VERCEL)
- * ─────────────────────────────────────────────
- */
+// Debug (safe for Vercel)
+console.log('__dirname:', __dirname);
+
+const routesDir = path.join(__dirname, 'routes');
+
+if (fs.existsSync(routesDir)) {
+  console.log('Routes found:', fs.readdirSync(routesDir).join(', '));
+} else {
+  console.log('❌ Routes folder not found at:', routesDir);
+}
+
+// Routes
 const routes = [
   { path: '/api/artworks', file: './routes/artworkRoutes' },
   { path: '/api/orders', file: './routes/orderRoutes' },
@@ -56,38 +43,27 @@ const routes = [
   { path: '/api/contact', file: './routes/contactRoutes' },
 ];
 
+// safer loading
 routes.forEach(({ path: routePath, file }) => {
   try {
-    const route = require(file);
-    app.use(routePath, route);
-    console.log(`✅ Loaded route: ${routePath}`);
+    const resolvedPath = path.join(__dirname, file);
+    app.use(routePath, require(resolvedPath));
+    console.log(`✅ Loaded: ${file}`);
   } catch (err) {
-    console.error(`❌ Failed loading ${file}:`, err.message);
+    console.error(`❌ Failed to load ${file}:`, err.message);
   }
 });
 
-/**
- * ─────────────────────────────────────────────
- * 404 HANDLER (MUST BE LAST)
- * ─────────────────────────────────────────────
- */
+// 404 handler
 app.use((req, res) => {
-  res.status(404).json({
-    error: 'Route not found',
-    path: req.originalUrl,
-  });
+  res.status(404).json({ error: 'Route not found' });
 });
 
-/**
- * ─────────────────────────────────────────────
- * ERROR HANDLER
- * ─────────────────────────────────────────────
- */
+// error handler
 app.use((err, req, res, next) => {
-  console.error('Server Error:', err);
-
+  console.error('Error:', err);
   res.status(err.status || 500).json({
-    error: err.message || 'Something went wrong!',
+    error: err.message || 'Something went wrong!'
   });
 });
 
