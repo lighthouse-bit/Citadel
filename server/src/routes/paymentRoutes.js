@@ -181,7 +181,7 @@ router.post('/webhook', async (req, res) => {
     res.sendStatus(200);
   } catch (err) {
     console.error('Webhook processing error:', err);
-    res.sendStatus(200); // Always return 200
+    res.sendStatus(200);
   }
 });
 
@@ -213,7 +213,7 @@ router.post('/artwork-payment', authenticateUser, async (req, res) => {
         orderId: order.id,
         paymentType: 'artwork',
       },
-      callback_url: `${process.env.SERVER_URL}/api/payment/callback`,   // ← Updated
+      callback_url: `${process.env.SERVER_URL}/api/payments/callback`,
     });
 
     if (!paystackData.status) {
@@ -276,7 +276,7 @@ router.post('/commission-deposit', authenticateUser, async (req, res) => {
         commissionId: commission.id,
         paymentType: 'commission_deposit',
       },
-      callback_url: `${process.env.SERVER_URL}/api/payment/callback`,   // ← Updated
+      callback_url: `${process.env.SERVER_URL}/api/payments/callback`,
     });
 
     if (!paystackData.status) {
@@ -285,7 +285,9 @@ router.post('/commission-deposit', authenticateUser, async (req, res) => {
 
     await prisma.commission.update({
       where: { id: commissionId },
-      data: { depositPaymentIntentId: paystackData.data.reference },
+      data: {
+        depositPaymentIntentId: paystackData.data.reference,
+      },
     });
 
     return res.json({
@@ -305,20 +307,26 @@ router.post('/commission-deposit', authenticateUser, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────
-// VERIFY PAYMENT (Used by Frontend)
+// VERIFY PAYMENT (Called by Frontend)
 // ─────────────────────────────────────────────
 router.post('/verify', async (req, res) => {
   try {
     const { reference } = req.body;
 
     if (!reference) {
-      return res.status(400).json({ success: false, error: 'Reference is required' });
+      return res.status(400).json({
+        success: false,
+        error: 'Reference is required',
+      });
     }
 
     const verificationData = await verifyPaystackTransaction(reference);
 
     if (!verificationData.status || verificationData.data.status !== 'success') {
-      return res.status(400).json({ success: false, error: 'Payment verification failed' });
+      return res.status(400).json({
+        success: false,
+        error: 'Payment verification failed',
+      });
     }
 
     const paymentData = verificationData.data;
@@ -333,7 +341,9 @@ router.post('/verify', async (req, res) => {
         include: { customer: true },
       });
 
-      if (!commission) return res.status(404).json({ success: false, error: 'Commission not found' });
+      if (!commission) {
+        return res.status(404).json({ success: false, error: 'Commission not found' });
+      }
 
       if (commission.paymentStatus === 'DEPOSIT_PAID' || commission.paymentStatus === 'FULLY_PAID') {
         return res.json({ success: true, type: 'deposit', alreadyVerified: true });
@@ -360,7 +370,11 @@ router.post('/verify', async (req, res) => {
         console.error('EMAIL ERROR:', emailErr);
       }
 
-      return res.json({ success: true, type: 'deposit', commission: updatedCommission });
+      return res.json({
+        success: true,
+        type: 'deposit',
+        commission: updatedCommission,
+      });
     }
 
     // ARTWORK PAYMENT
@@ -372,7 +386,9 @@ router.post('/verify', async (req, res) => {
         include: { customer: true },
       });
 
-      if (!order) return res.status(404).json({ success: false, error: 'Order not found' });
+      if (!order) {
+        return res.status(404).json({ success: false, error: 'Order not found' });
+      }
 
       if (order.paymentStatus === 'FULLY_PAID') {
         return res.json({ success: true, type: 'artwork', alreadyVerified: true });
@@ -399,14 +415,24 @@ router.post('/verify', async (req, res) => {
         console.error('EMAIL ERROR:', emailErr);
       }
 
-      return res.json({ success: true, type: 'artwork', order: updatedOrder });
+      return res.json({
+        success: true,
+        type: 'artwork',
+        order: updatedOrder,
+      });
     }
 
-    return res.status(400).json({ success: false, error: 'Unknown payment type' });
+    return res.status(400).json({
+      success: false,
+      error: 'Unknown payment type',
+    });
 
   } catch (err) {
     console.error('VERIFY ERROR:', err);
-    return res.status(500).json({ success: false, error: 'Payment verification failed' });
+    return res.status(500).json({
+      success: false,
+      error: 'Payment verification failed',
+    });
   }
 });
 
@@ -431,12 +457,15 @@ router.get('/status/:orderId', async (req, res) => {
       return res.status(404).json({ error: 'Order not found' });
     }
 
+    const paid = order.paymentStatus === 'FULLY_PAID';
+
     return res.json({
       success: true,
-      paid: order.paymentStatus === 'FULLY_PAID',
+      paid,
       paymentStatus: order.paymentStatus,
       orderStatus: order.status,
     });
+
   } catch (err) {
     console.error('STATUS ERROR:', err);
     return res.status(500).json({ error: 'Failed to check status' });
