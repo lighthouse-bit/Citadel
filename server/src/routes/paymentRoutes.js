@@ -21,7 +21,7 @@ const PAYSTACK_SECRET = process.env.PAYSTACK_SECRET_KEY;
 const USD_TO_NGN = 1600;
 
 // ─────────────────────────────────────────────
-// PAYSTACK INIT HELPERS
+// PAYSTACK INIT HELPER
 // ─────────────────────────────────────────────
 const initializePaystackTransaction = (data) => {
   return new Promise((resolve, reject) => {
@@ -115,13 +115,65 @@ router.post('/artwork-payment', authenticateUser, async (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────────
-// COMMISSION ROUTES (UNCHANGED LOGIC)
-// ─────────────────────────────────────────────
-// (keep your existing commission endpoints exactly as-is)
 
 // ─────────────────────────────────────────────
-// ✅ NEW: PAYMENT STATUS CHECK (OPTION A)
+// ✅ NEW: COMMISSION DEPOSIT PAYMENT INIT (FIXED)
+// ─────────────────────────────────────────────
+router.post('/commission-deposit', authenticateUser, async (req, res) => {
+  try {
+    const { commissionId } = req.body;
+
+    const commission = await prisma.commission.findUnique({
+      where: { id: commissionId },
+      include: { client: true },
+    });
+
+    if (!commission) {
+      return res.status(404).json({ error: 'Commission not found' });
+    }
+
+    const usdAmount = parseFloat(commission.depositAmount || commission.totalAmount);
+    const ngnAmount = usdAmount * USD_TO_NGN;
+
+    const paystackData = await initializePaystackTransaction({
+      email: commission.client.email,
+      amount: Math.round(ngnAmount * 100),
+      currency: 'NGN',
+      reference: `commission_deposit_${commission.id}_${Date.now()}`,
+      metadata: {
+        commissionId: commission.id,
+        paymentType: 'commission_deposit',
+      },
+      callback_url: `${process.env.CLIENT_URL}/checkout/success`,
+    });
+
+    if (!paystackData.status) {
+      return res.status(500).json(paystackData);
+    }
+
+    await prisma.commission.update({
+      where: { id: commissionId },
+      data: {
+        depositReference: paystackData.data.reference,
+      },
+    });
+
+    res.json({
+      authorizationUrl: paystackData.data.authorization_url,
+      reference: paystackData.data.reference,
+      total: usdAmount,
+      currency: 'USD',
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Commission deposit init failed' });
+  }
+});
+
+
+// ─────────────────────────────────────────────
+// PAYMENT STATUS CHECK
 // ─────────────────────────────────────────────
 router.get('/status/:orderId', async (req, res) => {
   try {

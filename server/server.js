@@ -1,12 +1,7 @@
-// server/server.js
-const app = require('./src/app');
-const port = process.env.PORT || 5000; // ✅ Variable is lowercase 'port'
+const app = require("./src/app");
 
-if (process.env.NODE_ENV !== 'production') {
-  app.listen(port, () => { // ✅ Use lowercase 'port' here
-    console.log(`✅ Server running on port ${port}`);
-  });
-}
+const PORT = process.env.PORT || 5000;
 
-// ✅ Export for Vercel Serverless 
-module.exports = app;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
