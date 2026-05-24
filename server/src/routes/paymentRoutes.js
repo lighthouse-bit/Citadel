@@ -1,9 +1,9 @@
 // server/src/routes/paymentRoutes.js
 
 const express = require('express');
-const router  = express.Router();
-const prisma  = require('../config/database');
-const https   = require('https');
+const router = express.Router();
+const prisma = require('../config/database');
+const https = require('https');
 
 const {
   sendOrderInvoiceEmail,
@@ -42,7 +42,9 @@ const initializePaystackTransaction = (data) => {
     const req = https.request(options, (res) => {
       let responseData = '';
 
-      res.on('data', chunk => responseData += chunk);
+      res.on('data', (chunk) => {
+        responseData += chunk;
+      });
 
       res.on('end', () => {
         try {
@@ -69,11 +71,15 @@ router.post('/artwork-payment', authenticateUser, async (req, res) => {
 
     const order = await prisma.order.findUnique({
       where: { id: orderId },
-      include: { customer: true },
+      include: {
+        customer: true,
+      },
     });
 
     if (!order) {
-      return res.status(404).json({ error: 'Order not found' });
+      return res.status(404).json({
+        error: 'Order not found',
+      });
     }
 
     const usdAmount = parseFloat(order.total);
@@ -102,7 +108,7 @@ router.post('/artwork-payment', authenticateUser, async (req, res) => {
       },
     });
 
-    res.json({
+    return res.json({
       authorizationUrl: paystackData.data.authorization_url,
       reference: paystackData.data.reference,
       total: usdAmount,
@@ -110,40 +116,61 @@ router.post('/artwork-payment', authenticateUser, async (req, res) => {
     });
 
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Payment init failed' });
+    console.error('ARTWORK PAYMENT ERROR:', err);
+
+    return res.status(500).json({
+      error: 'Payment init failed',
+    });
   }
 });
 
-
 // ─────────────────────────────────────────────
-// ✅ NEW: COMMISSION DEPOSIT PAYMENT INIT (FIXED)
+// COMMISSION DEPOSIT PAYMENT INIT
 // ─────────────────────────────────────────────
 router.post('/commission-deposit', authenticateUser, async (req, res) => {
   try {
     const { commissionId } = req.body;
 
     const commission = await prisma.commission.findUnique({
-      where: { id: commissionId },
-      include: { client: true },
+      where: {
+        id: commissionId,
+      },
+      include: {
+        customer: true,
+      },
     });
 
     if (!commission) {
-      return res.status(404).json({ error: 'Commission not found' });
+      return res.status(404).json({
+        error: 'Commission not found',
+      });
     }
 
-    const usdAmount = parseFloat(commission.depositAmount || commission.totalAmount);
+    // Use depositAmount first, fallback to estimatedPrice
+    const usdAmount = parseFloat(
+      commission.depositAmount || commission.estimatedPrice || 0
+    );
+
+    if (!usdAmount || usdAmount <= 0) {
+      return res.status(400).json({
+        error: 'Invalid commission amount',
+      });
+    }
+
     const ngnAmount = usdAmount * USD_TO_NGN;
 
     const paystackData = await initializePaystackTransaction({
-      email: commission.client.email,
+      email: commission.customer.email,
       amount: Math.round(ngnAmount * 100),
       currency: 'NGN',
+
       reference: `commission_deposit_${commission.id}_${Date.now()}`,
+
       metadata: {
         commissionId: commission.id,
         paymentType: 'commission_deposit',
       },
+
       callback_url: `${process.env.CLIENT_URL}/checkout/success`,
     });
 
@@ -151,14 +178,17 @@ router.post('/commission-deposit', authenticateUser, async (req, res) => {
       return res.status(500).json(paystackData);
     }
 
+    // ✅ FIXED FOR YOUR PRISMA SCHEMA
     await prisma.commission.update({
-      where: { id: commissionId },
+      where: {
+        id: commissionId,
+      },
       data: {
-        depositReference: paystackData.data.reference,
+        depositPaymentIntentId: paystackData.data.reference,
       },
     });
 
-    res.json({
+    return res.json({
       authorizationUrl: paystackData.data.authorization_url,
       reference: paystackData.data.reference,
       total: usdAmount,
@@ -166,11 +196,13 @@ router.post('/commission-deposit', authenticateUser, async (req, res) => {
     });
 
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Commission deposit init failed' });
+    console.error('COMMISSION PAYMENT ERROR:', err);
+
+    return res.status(500).json({
+      error: 'Commission deposit init failed',
+    });
   }
 });
-
 
 // ─────────────────────────────────────────────
 // PAYMENT STATUS CHECK
@@ -180,7 +212,9 @@ router.get('/status/:orderId', async (req, res) => {
     const { orderId } = req.params;
 
     const order = await prisma.order.findUnique({
-      where: { id: orderId },
+      where: {
+        id: orderId,
+      },
       select: {
         id: true,
         orderNumber: true,
@@ -190,12 +224,14 @@ router.get('/status/:orderId', async (req, res) => {
     });
 
     if (!order) {
-      return res.status(404).json({ error: 'Order not found' });
+      return res.status(404).json({
+        error: 'Order not found',
+      });
     }
 
     const paid = order.paymentStatus === 'FULLY_PAID';
 
-    res.json({
+    return res.json({
       success: true,
       paid,
       paymentStatus: order.paymentStatus,
@@ -204,7 +240,10 @@ router.get('/status/:orderId', async (req, res) => {
 
   } catch (err) {
     console.error('STATUS ERROR:', err);
-    res.status(500).json({ error: 'Failed to check status' });
+
+    return res.status(500).json({
+      error: 'Failed to check status',
+    });
   }
 });
 
