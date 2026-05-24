@@ -2,14 +2,18 @@
   "version": 2,
   "builds": [
     {
-      "src": "server.js",
+      "src": "server/server.js",
       "use": "@vercel/node"
     }
   ],
   "routes": [
     {
+      "src": "/api/(.*)",
+      "dest": "server/server.js"
+    },
+    {
       "src": "/(.*)",
-      "dest": "server.js",
+      "dest": "server/server.js",
       "headers": {
         "Access-Control-Allow-Credentials": "true",
         "Access-Control-Allow-Origin": "*",
@@ -19,7 +23,7 @@
     }
   ],
   "functions": {
-    "server.js": {
+    "server/server.js": {
       "maxDuration": 30,
       "memory": 1024
     }
