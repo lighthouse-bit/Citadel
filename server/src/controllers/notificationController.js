@@ -1,19 +1,24 @@
+// server/src/controllers/notificationController.js
+
 const prisma = require('../config/database');
 
 exports.getNotifications = async (req, res) => {
   try {
     const notifications = await prisma.notification.findMany({
       orderBy: { createdAt: 'desc' },
-      take: 20, // Limit to last 20 notifications
+      take: 30,
     });
-    
-    // Count unread
+
     const unreadCount = await prisma.notification.count({
       where: { isRead: false }
     });
 
-    res.json({ notifications, unreadCount });
+    res.json({ 
+      notifications, 
+      unreadCount 
+    });
   } catch (error) {
+    console.error('Get notifications error:', error);
     res.status(500).json({ error: 'Failed to fetch notifications' });
   }
 };
@@ -27,7 +32,7 @@ exports.markAsRead = async (req, res) => {
     });
     res.json({ success: true });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to update notification' });
+    res.status(500).json({ error: 'Failed to mark as read' });
   }
 };
 
@@ -39,22 +44,17 @@ exports.markAllAsRead = async (req, res) => {
     });
     res.json({ success: true });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to update notifications' });
+    res.status(500).json({ error: 'Failed to mark all as read' });
   }
 };
 
-// DELETE /api/notifications/:id  ✅ New
 exports.deleteNotification = async (req, res) => {
   try {
     const { id } = req.params;
-
-    await prisma.notification.delete({
-      where: { id },
-    });
-
+    await prisma.notification.delete({ where: { id } });
     res.json({ success: true });
   } catch (error) {
-    console.error('Error deleting notification:', error);
+    console.error('Delete notification error:', error);
     res.status(500).json({ error: 'Failed to delete notification' });
   }
 };

@@ -1,19 +1,17 @@
+// server/src/controllers/dashboardController.js
+
 const prisma = require('../config/database');
 
 exports.getStats = async (req, res) => {
   try {
-    // 1. Calculate Total Revenue
-    // Only count FULLY_PAID and DEPOSIT_PAID items
+    // 1. Total Revenue (only paid orders)
     const revenueResult = await prisma.order.aggregate({
       _sum: { total: true },
       where: { 
-        status: { not: 'CANCELLED' },
-        paymentStatus: { in: ['FULLY_PAID', 'DEPOSIT_PAID'] } 
+        paymentStatus: { in: ['FULLY_PAID', 'DEPOSIT_PAID'] },
+        status: { not: 'CANCELLED' }
       }
     });
-    
-    // Handle null result if no orders exist
-    const totalRevenue = revenueResult._sum.total || 0;
 
     // 2. Counts
     const [artworksCount, ordersCount, commissionsCount] = await Promise.all([
@@ -22,7 +20,7 @@ exports.getStats = async (req, res) => {
       prisma.commission.count(),
     ]);
 
-    // 3. Recent Orders
+    // 3. Recent Orders (include payment status)
     const recentOrders = await prisma.order.findMany({
       take: 5,
       orderBy: { createdAt: 'desc' },
@@ -41,7 +39,7 @@ exports.getStats = async (req, res) => {
 
     res.json({
       stats: {
-        revenue: totalRevenue,
+        revenue: revenueResult._sum.total || 0,
         artworks: artworksCount,
         orders: ordersCount,
         commissions: commissionsCount,

@@ -42,7 +42,11 @@ const initializePaystackTransaction = (data) => {
 
     const req = https.request(options, (res) => {
       let responseData = '';
-      res.on('data', (chunk) => { responseData += chunk; });
+
+      res.on('data', (chunk) => {
+        responseData += chunk;
+      });
+
       res.on('end', () => {
         try {
           const parsed = JSON.parse(responseData);
@@ -76,7 +80,11 @@ const verifyPaystackTransaction = (reference) => {
 
     const req = https.request(options, (res) => {
       let responseData = '';
-      res.on('data', (chunk) => { responseData += chunk; });
+
+      res.on('data', (chunk) => {
+        responseData += chunk;
+      });
+
       res.on('end', () => {
         try {
           const parsed = JSON.parse(responseData);
@@ -93,7 +101,7 @@ const verifyPaystackTransaction = (reference) => {
 };
 
 // ─────────────────────────────────────────────
-// CALLBACK ROUTE - UPDATES DATABASE + REDIRECTS TO SUCCESS PAGE
+// CALLBACK ROUTE - FINAL VERSION (UPDATES DB + CREATES NOTIFICATION + REDIRECTS TO SUCCESS)
 // ─────────────────────────────────────────────
 router.get('/callback', async (req, res) => {
   const reference = req.query.reference || req.query.trxref;
@@ -112,9 +120,9 @@ router.get('/callback', async (req, res) => {
     const paymentData = verification.data;
     const metadata = paymentData.metadata || {};
 
-    // UPDATE DATABASE
+    // UPDATE DATABASE + CREATE NOTIFICATION
     if (metadata.paymentType === 'artwork' && metadata.orderId) {
-      const updatedOrder = await prisma.order.update({
+      await prisma.order.update({
         where: { id: metadata.orderId },
         data: {
           paymentStatus: 'FULLY_PAID',
@@ -123,26 +131,18 @@ router.get('/callback', async (req, res) => {
         },
       });
 
-      try {
-        const order = await prisma.order.findUnique({
-          where: { id: metadata.orderId },
-          include: { customer: true },
-        });
-        if (order?.customer) {
-          await sendOrderInvoiceEmail({
-            customerEmail: order.customer.email,
-            customerName: `${order.customer.firstName} ${order.customer.lastName}`,
-            orderNumber: order.orderNumber,
-            amount: Number(paymentData.amount) / 100 / USD_TO_NGN,
-            reference,
-          });
-        }
-      } catch (emailErr) {
-        console.error('Email error:', emailErr);
-      }
+      // Create Admin Notification
+      await prisma.notification.create({
+        data: {
+          type: 'PAYMENT',
+          message: `New payment received for Order #${metadata.orderId}`,
+          link: `/admin/orders/${metadata.orderId}`,
+        },
+      }).catch(() => {});
+
     } 
     else if (metadata.paymentType === 'commission_deposit' && metadata.commissionId) {
-      const updatedCommission = await prisma.commission.update({
+      await prisma.commission.update({
         where: { id: metadata.commissionId },
         data: {
           paymentStatus: 'DEPOSIT_PAID',
@@ -151,25 +151,17 @@ router.get('/callback', async (req, res) => {
         },
       });
 
-      try {
-        const commission = await prisma.commission.findUnique({
-          where: { id: metadata.commissionId },
-          include: { customer: true },
-        });
-        if (commission?.customer) {
-          await sendCommissionDepositInvoiceEmail({
-            customerEmail: commission.customer.email,
-            customerName: `${commission.customer.firstName} ${commission.customer.lastName}`,
-            commissionNumber: commission.commissionNumber,
-            amount: Number(paymentData.amount) / 100 / USD_TO_NGN,
-            reference,
-          });
-        }
-      } catch (emailErr) {
-        console.error('Email error:', emailErr);
-      }
+      // Create Admin Notification
+      await prisma.notification.create({
+        data: {
+          type: 'PAYMENT',
+          message: `Deposit paid for Commission #${metadata.commissionId}`,
+          link: `/admin/commissions/${metadata.commissionId}`,
+        },
+      }).catch(() => {});
     }
 
+    // Redirect to Success Page
     return res.redirect(`${process.env.CLIENT_URL}/checkout/success?reference=${reference}`);
 
   } catch (err) {
@@ -203,6 +195,7 @@ router.post('/webhook', async (req, res) => {
 
     if (event.event === 'charge.success') {
       const metadata = event.data.metadata || {};
+
       if (metadata.paymentType === 'artwork' && metadata.orderId) {
         await prisma.order.update({
           where: { id: metadata.orderId },
@@ -215,6 +208,7 @@ router.post('/webhook', async (req, res) => {
         });
       }
     }
+
     res.sendStatus(200);
   } catch (err) {
     console.error('Webhook error:', err);
