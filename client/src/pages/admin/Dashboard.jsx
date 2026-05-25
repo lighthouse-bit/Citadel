@@ -47,10 +47,34 @@ const Dashboard = () => {
   }
 
   const stats = data ? [
-    { label: 'Total Revenue', value: `$${Number(data.stats?.revenue || 0).toLocaleString()}`, icon: DollarSign, color: 'bg-green-500', trend: '+12%' },
-    { label: 'Artworks', value: data.stats?.artworks || 0, icon: ImageIcon, color: 'bg-blue-500', trend: '+3' },
-    { label: 'Orders', value: data.stats?.orders || 0, icon: ShoppingBag, color: 'bg-purple-500', trend: '+5' },
-    { label: 'Commissions', value: data.stats?.commissions || 0, icon: Palette, color: 'bg-amber-500', trend: '+2' },
+    { 
+      label: 'Total Revenue', 
+      value: `$${Number(data.stats?.revenue || 0).toLocaleString()}`, 
+      icon: DollarSign, 
+      color: 'bg-green-500', 
+      trend: '+12%' 
+    },
+    { 
+      label: 'Artworks', 
+      value: data.stats?.artworks || 0, 
+      icon: ImageIcon, 
+      color: 'bg-blue-500', 
+      trend: '+3' 
+    },
+    { 
+      label: 'Orders', 
+      value: data.stats?.orders || 0, 
+      icon: ShoppingBag, 
+      color: 'bg-purple-500', 
+      trend: '+5' 
+    },
+    { 
+      label: 'Commissions', 
+      value: data.stats?.commissions || 0, 
+      icon: Palette, 
+      color: 'bg-amber-500', 
+      trend: '+2' 
+    },
   ] : [];
 
   const getOrderStatusBadge = (status) => {
@@ -109,7 +133,7 @@ const Dashboard = () => {
             className="text-3xl text-stone-900"
             style={{ fontFamily: "'Playfair Display', serif" }}
           >
-            Dashboard
+            Dashboard Overview
           </h2>
           <p className="text-stone-500">Last updated: {lastUpdated.toLocaleTimeString()}</p>
         </div>
@@ -118,7 +142,7 @@ const Dashboard = () => {
           className="flex items-center gap-2 px-4 py-2 bg-white border border-stone-300 rounded-lg hover:bg-stone-50"
         >
           <RefreshCw size={16} />
-          Refresh
+          Refresh Now
         </button>
       </div>
 
@@ -154,7 +178,10 @@ const Dashboard = () => {
         <div className="bg-white rounded-xl border border-stone-200 shadow-sm overflow-hidden flex flex-col">
           <div className="p-6 border-b border-stone-200 flex items-center justify-between">
             <h3 className="text-lg text-stone-900 font-semibold">Recent Orders</h3>
-            <Link to="/admin/orders" className="text-sm text-amber-600 hover:text-amber-700 flex items-center gap-1 font-medium">
+            <Link 
+              to="/admin/orders" 
+              className="text-sm text-amber-600 hover:text-amber-700 flex items-center gap-1 font-medium"
+            >
               View All <ArrowRight size={14} />
             </Link>
           </div>
@@ -206,7 +233,10 @@ const Dashboard = () => {
         <div className="bg-white rounded-xl border border-stone-200 shadow-sm overflow-hidden flex flex-col">
           <div className="p-6 border-b border-stone-200 flex items-center justify-between">
             <h3 className="text-lg text-stone-900 font-semibold">Recent Commissions</h3>
-            <Link to="/admin/commissions" className="text-sm text-amber-600 hover:text-amber-700 flex items-center gap-1 font-medium">
+            <Link 
+              to="/admin/commissions" 
+              className="text-sm text-amber-600 hover:text-amber-700 flex items-center gap-1 font-medium"
+            >
               View All <ArrowRight size={14} />
             </Link>
           </div>

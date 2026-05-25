@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { CheckCircle, Loader, ShoppingBag, AlertCircle } from 'lucide-react';
+import { CheckCircle, Loader, ShoppingBag } from 'lucide-react';
 import { useCart } from '../hooks/useCart';
 import { useAuth } from '../hooks/useAuth';
 import { ordersAPI, paymentsAPI } from '../services/api';
@@ -30,7 +30,7 @@ const Checkout = () => {
     country: 'United States',
   });
 
-  // Handle Paystack redirect (works even if redirected to homepage)
+  // Handle Paystack redirect (this fixes the homepage redirect issue)
   useEffect(() => {
     const reference = searchParams.get('reference') || searchParams.get('trxref');
     if (reference) {
@@ -40,19 +40,19 @@ const Checkout = () => {
   }, [searchParams]);
 
   const handleChange = (e) => {
-    setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+    setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
   const verifyPayment = async (reference) => {
     setVerifying(true);
     try {
       const response = await paymentsAPI.verifyPayment(reference);
-      
+
       if (response.data.success) {
         clearCart();
         setCompletedOrder(response.data.order || response.data.commission);
         setStep('success');
-        toast.success('Payment confirmed successfully!');
+        toast.success('Payment Successful!');
       } else {
         toast.error('Payment verification failed');
         navigate('/');
@@ -86,9 +86,8 @@ const Checkout = () => {
       };
 
       const orderRes = await ordersAPI.create(orderPayload);
-      const order = orderRes.data;
+      const paymentRes = await paymentsAPI.createArtworkPayment(orderRes.data.id);
 
-      const paymentRes = await paymentsAPI.createArtworkPayment(order.id);
       window.location.href = paymentRes.data.authorizationUrl;
     } catch (error) {
       console.error(error);
@@ -98,7 +97,7 @@ const Checkout = () => {
     }
   };
 
-  // Verifying State
+  // Verifying Screen
   if (verifying || step === 'verify') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -111,7 +110,7 @@ const Checkout = () => {
     );
   }
 
-  // Success Page
+  // Success Screen
   if (step === 'success') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -147,7 +146,7 @@ const Checkout = () => {
     );
   }
 
-  // Main Checkout
+  // Main Checkout Form
   return (
     <div className="pt-20 max-w-6xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-12">
       <div>

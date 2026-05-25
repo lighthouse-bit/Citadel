@@ -32,12 +32,12 @@ const Orders = () => {
     }
   };
 
-  // Initial load + filter change
+  // Initial load and filter change
   useEffect(() => {
     fetchOrders();
   }, [filterStatus]);
 
-  // Auto-refresh every 8 seconds (good for seeing new payments)
+  // Auto-refresh every 8 seconds
   useEffect(() => {
     const interval = setInterval(fetchOrders, 8000);
     return () => clearInterval(interval);
