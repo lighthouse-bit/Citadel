@@ -4,7 +4,6 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ShoppingBag, 
-  ArrowLeft, 
   ChevronLeft, 
   ChevronRight,
   Share2,
@@ -12,70 +11,26 @@ import {
   Truck,
   Shield,
   Award,
-  X,
-  Eye
+  X
 } from 'lucide-react';
 import { useCart } from '../hooks/useCart';
 import { artworksAPI } from '../services/api';
 import toast from 'react-hot-toast';
 import SEO from '../components/common/SEO';
+import WallPlacement from '../components/WallPlacement';
 
-// Virtual Placement Component
-const VirtualPlacement = ({ artwork }) => {
-  const modelViewerRef = React.useRef(null);
-
-  const handleARClick = async () => {
-    if (modelViewerRef.current) {
-      try {
-        await modelViewerRef.current.activateAR();
-      } catch (error) {
-        toast.error("AR is not supported on this device. Please try on a mobile device.");
-      }
-    }
-  };
+// Reusable Image Component
+const ArtworkImage = ({ src, alt, className = "" }) => {
+  const FALLBACK_IMAGE = "https://images.unsplash.com/photo-1547891654-e66ed7ebb968?w=800&h=1000&fit=crop";
+  const [imgSrc, setImgSrc] = useState(src || FALLBACK_IMAGE);
 
   return (
-    <div className="mt-16 bg-black rounded-3xl overflow-hidden">
-      <div className="p-6 border-b border-gray-800 flex justify-between items-center">
-        <div>
-          <h3 className="text-xl font-semibold text-white">See it in your space</h3>
-          <p className="text-gray-400 text-sm">Augmented Reality Experience</p>
-        </div>
-        <button
-          onClick={handleARClick}
-          className="flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white px-6 py-3 rounded-full text-sm font-medium transition"
-        >
-          <Eye size={18} />
-          Try in AR
-        </button>
-      </div>
-
-      <div className="relative aspect-video bg-gray-950">
-        <model-viewer
-          ref={modelViewerRef}
-          src="/models/art-frame.glb" // You can replace this with a better frame model later
-          alt={`Virtual placement of ${artwork.title}`}
-          ar
-          ar-modes="webxr scene-viewer quick-look"
-          camera-controls
-          shadow-intensity="1.2"
-          exposure="0.7"
-          environment-intensity="0.8"
-          style={{ width: '100%', height: '100%' }}
-        >
-          {/* Use the actual artwork as poster/texture */}
-          <img 
-            slot="poster" 
-            src={artwork.images?.[0]?.url} 
-            alt={artwork.title}
-          />
-        </model-viewer>
-      </div>
-
-      <div className="p-6 text-center text-gray-400 text-sm">
-        Point your camera at a wall • Works best in well-lit spaces
-      </div>
-    </div>
+    <img
+      src={imgSrc}
+      alt={alt}
+      onError={() => setImgSrc(FALLBACK_IMAGE)}
+      className={className}
+    />
   );
 };
 
@@ -127,7 +82,7 @@ const ArtworkDetail = () => {
       });
     } else {
       navigator.clipboard.writeText(window.location.href);
-      toast.success('Link copied!');
+      toast.success('Link copied to clipboard!');
     }
   };
 
@@ -167,7 +122,7 @@ const ArtworkDetail = () => {
       <SEO
         title={artwork.title}
         description={artwork.description?.substring(0, 160)}
-        keywords={`${artwork.title}, ${artwork.category?.toLowerCase()}, fine art`}
+        keywords={`${artwork.title}, ${artwork.category?.toLowerCase()}, fine art, buy artwork`}
         image={artwork.images?.[0]?.url}
         url={`/artwork/${artwork.id}`}
         type="product"
@@ -178,20 +133,21 @@ const ArtworkDetail = () => {
         <div className="bg-white border-b border-stone-200 py-4">
           <div className="max-w-7xl mx-auto px-6">
             <nav className="flex items-center gap-2 text-sm">
-              <Link to="/" className="text-stone-500 hover:text-amber-600">Home</Link>
+              <Link to="/" className="text-stone-500 hover:text-amber-600 transition-colors">Home</Link>
               <span className="text-stone-300">/</span>
-              <Link to="/gallery" className="text-stone-500 hover:text-amber-600">Gallery</Link>
+              <Link to="/gallery" className="text-stone-500 hover:text-amber-600 transition-colors">Gallery</Link>
               <span className="text-stone-300">/</span>
-              <span className="text-stone-900 font-medium truncate">{artwork.title}</span>
+              <span className="text-stone-900 font-medium truncate max-w-[200px]">{artwork.title}</span>
             </nav>
           </div>
         </div>
 
         <section className="py-12">
           <div className="max-w-7xl mx-auto px-6">
+            
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20">
               
-              {/* Images Section */}
+              {/* Left: Images */}
               <div className="space-y-6">
                 <motion.div
                   initial={{ opacity: 0 }}
@@ -204,13 +160,19 @@ const ArtworkDetail = () => {
                     alt={artwork.title}
                     className="w-full h-full object-cover"
                   />
-
+                  
                   {artwork.images?.length > 1 && (
                     <>
-                      <button onClick={(e) => { e.stopPropagation(); prevImage(); }} className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/90 p-2 rounded-full opacity-0 group-hover:opacity-100">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); prevImage(); }}
+                        className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/90 p-2 rounded-full shadow-md hover:bg-white transition-all opacity-0 group-hover:opacity-100"
+                      >
                         <ChevronLeft size={24} />
                       </button>
-                      <button onClick={(e) => { e.stopPropagation(); nextImage(); }} className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/90 p-2 rounded-full opacity-0 group-hover:opacity-100">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); nextImage(); }}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/90 p-2 rounded-full shadow-md hover:bg-white transition-all opacity-0 group-hover:opacity-100"
+                      >
                         <ChevronRight size={24} />
                       </button>
                     </>
@@ -224,64 +186,187 @@ const ArtworkDetail = () => {
                       <button
                         key={index}
                         onClick={() => setSelectedImageIndex(index)}
-                        className={`relative aspect-square rounded-md overflow-hidden border-2 transition-all ${selectedImageIndex === index ? 'border-amber-600' : 'border-transparent hover:border-stone-300'}`}
+                        className={`relative aspect-square rounded-md overflow-hidden border-2 transition-all ${
+                          selectedImageIndex === index ? 'border-amber-600 ring-1 ring-amber-600' : 'border-transparent hover:border-stone-300'
+                        }`}
                       >
-                        <ArtworkImage src={img.url} alt="" className="w-full h-full object-cover" />
+                        <ArtworkImage
+                          src={img.url}
+                          alt={`View ${index + 1}`}
+                          className="w-full h-full object-cover"
+                        />
                       </button>
                     ))}
                   </div>
                 )}
               </div>
 
-              {/* Details Section */}
+              {/* Right: Details */}
               <div>
                 <div className="sticky top-24">
                   <h1 className="text-4xl md:text-5xl font-serif text-stone-900 mb-2">{artwork.title}</h1>
                   <p className="text-stone-500 text-lg mb-6">{artwork.year}</p>
-
+                  
                   <div className="flex items-center justify-between mb-8 pb-8 border-b border-stone-200">
-                    <p className="text-3xl text-stone-900 font-medium">
-                      ${artwork.price?.toLocaleString()}
-                    </p>
+                    <div>
+                      {artwork.status === 'AVAILABLE' ? (
+                        <p className="text-3xl text-stone-900 font-medium">
+                          ${artwork.price?.toLocaleString()}
+                        </p>
+                      ) : (
+                        <p className="text-3xl text-stone-400 font-medium">{artwork.status.replace('_', ' ')}</p>
+                      )}
+                    </div>
                     
                     <div className="flex gap-3">
-                      <button onClick={() => setIsFavorited(!isFavorited)} className={`p-3 rounded-full border ${isFavorited ? 'border-red-200 bg-red-50 text-red-500' : 'border-stone-200'}`}>
+                      <button
+                        onClick={() => setIsFavorited(!isFavorited)}
+                        className={`p-3 rounded-full border transition-all ${
+                          isFavorited ? 'border-red-200 bg-red-50 text-red-500' : 'border-stone-200 hover:border-stone-300 text-stone-400'
+                        }`}
+                      >
                         <Heart size={20} fill={isFavorited ? "currentColor" : "none"} />
                       </button>
-                      <button onClick={handleShare} className="p-3 rounded-full border border-stone-200 hover:border-stone-300">
+                      <button
+                        onClick={handleShare}
+                        className="p-3 rounded-full border border-stone-200 hover:border-stone-300 text-stone-400 transition-all"
+                      >
                         <Share2 size={20} />
                       </button>
                     </div>
                   </div>
 
                   <div className="prose prose-stone mb-8">
-                    <p className="text-stone-600 leading-relaxed text-lg">{artwork.description}</p>
+                    <p className="text-stone-600 leading-relaxed text-lg">
+                      {artwork.description}
+                    </p>
                   </div>
 
-                  {/* ... other details ... */}
+                  <div className="grid grid-cols-2 gap-y-4 gap-x-8 mb-8 text-sm">
+                    <div>
+                      <span className="block text-stone-400 mb-1">Medium</span>
+                      <span className="text-stone-900 font-medium">{artwork.medium}</span>
+                    </div>
+                    <div>
+                      <span className="block text-stone-400 mb-1">Dimensions</span>
+                      <span className="text-stone-900 font-medium">
+                        {artwork.width} x {artwork.height} {artwork.unit}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="block text-stone-400 mb-1">Category</span>
+                      <span className="text-stone-900 font-medium capitalize">
+                        {artwork.category?.toLowerCase().replace('_', ' ')}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="block text-stone-400 mb-1">Authenticity</span>
+                      <span className="text-stone-900 font-medium">Signed Original</span>
+                    </div>
+                  </div>
 
-                  {/* AR Virtual Placement */}
-                  <VirtualPlacement artwork={artwork} />
+                  {/* 2D Wall Placement */}
+                  <WallPlacement artwork={artwork} />
 
                   {/* Action Buttons */}
-                  {artwork.status === 'AVAILABLE' && (
+                  {artwork.status === 'AVAILABLE' ? (
                     <div className="flex flex-col gap-4 mt-10">
                       <button
                         onClick={handleAddToCart}
                         disabled={isInCart(artwork.id)}
-                        className="w-full bg-stone-900 text-white py-4 rounded-xl font-medium flex items-center justify-center gap-3"
+                        className="w-full bg-stone-900 text-white py-4 rounded-xl font-medium flex items-center justify-center gap-3 hover:bg-black transition"
                       >
                         <ShoppingBag size={18} />
                         {isInCart(artwork.id) ? 'In Cart' : 'Add to Collection'}
                       </button>
                     </div>
+                  ) : (
+                    <div className="bg-stone-100 p-4 rounded-lg text-center mt-10">
+                      <p className="text-stone-500">This artwork has been {artwork.status.toLowerCase().replace('_', ' ')}.</p>
+                    </div>
                   )}
+
+                  {/* Value Props */}
+                  <div className="space-y-4 pt-8 border-t border-stone-200">
+                    <div className="flex items-start gap-4">
+                      <Truck className="text-amber-600 mt-1" size={20} />
+                      <div>
+                        <h4 className="font-medium text-stone-900">Worldwide Shipping</h4>
+                        <p className="text-sm text-stone-500">Professional crate packaging and insurance included.</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-4">
+                      <Shield className="text-amber-600 mt-1" size={20} />
+                      <div>
+                        <h4 className="font-medium text-stone-900">Secure Payment</h4>
+                        <p className="text-sm text-stone-500">Transactions processed securely via Paystack.</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-4">
+                      <Award className="text-amber-600 mt-1" size={20} />
+                      <div>
+                        <h4 className="font-medium text-stone-900">Certificate of Authenticity</h4>
+                        <p className="text-sm text-stone-500">Signed document included with every original piece.</p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
+
+            {/* Related Works */}
+            {relatedWorks.length > 0 && (
+              <div className="mt-24 pt-16 border-t border-stone-200">
+                <h2 className="text-3xl font-serif text-stone-900 mb-12 text-center">You May Also Like</h2>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                  {relatedWorks.map((work) => (
+                    <Link key={work.id} to={`/artwork/${work.id}`} className="group">
+                      <div className="aspect-[3/4] overflow-hidden rounded-lg mb-4 bg-stone-200">
+                        <ArtworkImage
+                          src={work.images?.[0]?.url}
+                          alt={work.title}
+                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        />
+                      </div>
+                      <h3 className="text-lg font-medium text-stone-900 mb-1 group-hover:text-amber-700 transition-colors">
+                        {work.title}
+                      </h3>
+                      <p className="text-stone-500">${work.price.toLocaleString()}</p>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </section>
       </div>
+
+      {/* Full Screen Image Modal */}
+      <AnimatePresence>
+        {isImageModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4"
+            onClick={() => setIsImageModalOpen(false)}
+          >
+            <button
+              onClick={() => setIsImageModalOpen(false)}
+              className="absolute top-6 right-6 text-white/70 hover:text-white transition-colors"
+            >
+              <X size={32} />
+            </button>
+            
+            <img
+              src={currentImage}
+              alt={artwork.title}
+              className="max-w-full max-h-[90vh] object-contain select-none"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   );
 };
