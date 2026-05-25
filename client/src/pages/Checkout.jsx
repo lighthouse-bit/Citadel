@@ -1,6 +1,6 @@
 // src/pages/Checkout.jsx
 import { useState, useEffect } from 'react';
-import { useNavigate, Link, useSearchParams } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { CheckCircle, Loader, ShoppingBag } from 'lucide-react';
 import { useCart } from '../hooks/useCart';
@@ -13,6 +13,7 @@ const Checkout = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const location = useLocation();
 
   const [step, setStep] = useState('form');
   const [completedOrder, setCompletedOrder] = useState(null);
@@ -30,10 +31,12 @@ const Checkout = () => {
     country: 'United States',
   });
 
-  // Handle Paystack redirect (this fixes the homepage redirect issue)
+  // STRONG REDIRECT HANDLER - Runs on every page load
   useEffect(() => {
     const reference = searchParams.get('reference') || searchParams.get('trxref');
+    
     if (reference) {
+      console.log('✅ Reference found in URL:', reference);
       setStep('verify');
       verifyPayment(reference);
     }
@@ -54,12 +57,12 @@ const Checkout = () => {
         setStep('success');
         toast.success('Payment Successful!');
       } else {
-        toast.error('Payment verification failed');
+        toast.error('Verification failed');
         navigate('/');
       }
     } catch (err) {
       console.error('Verification error:', err);
-      toast.error('Failed to verify payment. Please check your orders.');
+      toast.error('Failed to verify payment');
       navigate('/');
     } finally {
       setVerifying(false);
