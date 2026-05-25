@@ -101,7 +101,7 @@ const verifyPaystackTransaction = (reference) => {
 };
 
 // ─────────────────────────────────────────────
-// BACKEND CALLBACK ROUTE
+// BACKEND CALLBACK ROUTE (NOW UPDATES DATABASE)
 // ─────────────────────────────────────────────
 router.get('/callback', async (req, res) => {
   const reference = req.query.reference || req.query.trxref;
@@ -113,11 +113,76 @@ router.get('/callback', async (req, res) => {
   try {
     const verification = await verifyPaystackTransaction(reference);
 
-    if (verification.data.status === 'success') {
-      return res.redirect(`${process.env.CLIENT_URL}/checkout/success?reference=${reference}`);
-    } else {
+    if (verification.data.status !== 'success') {
       return res.redirect(`${process.env.CLIENT_URL}/checkout?error=payment_failed`);
     }
+
+    const paymentData = verification.data;
+    const metadata = paymentData.metadata || {};
+
+    // ==================== UPDATE DATABASE ====================
+    if (metadata.paymentType === 'artwork' && metadata.orderId) {
+      const updatedOrder = await prisma.order.update({
+        where: { id: metadata.orderId },
+        data: {
+          paymentStatus: 'FULLY_PAID',
+          status: 'CONFIRMED',
+          paidAt: new Date(),
+        },
+      });
+
+      // Send email
+      try {
+        const order = await prisma.order.findUnique({
+          where: { id: metadata.orderId },
+          include: { customer: true },
+        });
+        if (order) {
+          await sendOrderInvoiceEmail({
+            customerEmail: order.customer.email,
+            customerName: `${order.customer.firstName} ${order.customer.lastName}`,
+            orderNumber: order.orderNumber,
+            amount: Number(paymentData.amount) / 100 / USD_TO_NGN,
+            reference,
+          });
+        }
+      } catch (emailErr) {
+        console.error('Email error:', emailErr);
+      }
+    } 
+    else if (metadata.paymentType === 'commission_deposit' && metadata.commissionId) {
+      const updatedCommission = await prisma.commission.update({
+        where: { id: metadata.commissionId },
+        data: {
+          paymentStatus: 'DEPOSIT_PAID',
+          depositPaidAt: new Date(),
+          status: 'IN_PROGRESS',
+        },
+      });
+
+      // Send email
+      try {
+        const commission = await prisma.commission.findUnique({
+          where: { id: metadata.commissionId },
+          include: { customer: true },
+        });
+        if (commission) {
+          await sendCommissionDepositInvoiceEmail({
+            customerEmail: commission.customer.email,
+            customerName: `${commission.customer.firstName} ${commission.customer.lastName}`,
+            commissionNumber: commission.commissionNumber,
+            amount: Number(paymentData.amount) / 100 / USD_TO_NGN,
+            reference,
+          });
+        }
+      } catch (emailErr) {
+        console.error('Email error:', emailErr);
+      }
+    }
+
+    // Redirect to success page
+    return res.redirect(`${process.env.CLIENT_URL}/checkout/success?reference=${reference}`);
+
   } catch (err) {
     console.error('Callback verification error:', err);
     return res.redirect(`${process.env.CLIENT_URL}/checkout?error=verification_error`);
@@ -125,7 +190,7 @@ router.get('/callback', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────
-// FIXED WEBHOOK FOR VERCEL
+// WEBHOOK (Backup)
 // ─────────────────────────────────────────────
 router.post('/webhook', async (req, res) => {
   const hash = req.headers['x-paystack-signature'];
@@ -135,7 +200,6 @@ router.post('/webhook', async (req, res) => {
     return res.sendStatus(400);
   }
 
-  // Handle raw body for Vercel
   let bodyString = '';
   if (Buffer.isBuffer(req.body)) {
     bodyString = req.body.toString();
@@ -170,7 +234,6 @@ router.post('/webhook', async (req, res) => {
             paidAt: new Date(),
           },
         });
-        console.log(`✅ Webhook: Order ${metadata.orderId} paid`);
       } 
       else if (metadata.paymentType === 'commission_deposit' && metadata.commissionId) {
         await prisma.commission.update({
@@ -181,7 +244,6 @@ router.post('/webhook', async (req, res) => {
             status: 'IN_PROGRESS',
           },
         });
-        console.log(`✅ Webhook: Commission ${metadata.commissionId} deposit paid`);
       }
     }
 
@@ -333,18 +395,14 @@ router.post('/verify', async (req, res) => {
     const paymentData = verificationData.data;
     const metadata = paymentData.metadata;
 
-    // COMMISSION DEPOSIT
     if (metadata.paymentType === 'commission_deposit') {
       const commissionId = metadata.commissionId;
-
       const commission = await prisma.commission.findUnique({
         where: { id: commissionId },
         include: { customer: true },
       });
 
-      if (!commission) {
-        return res.status(404).json({ success: false, error: 'Commission not found' });
-      }
+      if (!commission) return res.status(404).json({ success: false, error: 'Commission not found' });
 
       if (commission.paymentStatus === 'DEPOSIT_PAID' || commission.paymentStatus === 'FULLY_PAID') {
         return res.json({ success: true, type: 'deposit', alreadyVerified: true });
@@ -371,25 +429,17 @@ router.post('/verify', async (req, res) => {
         console.error('EMAIL ERROR:', emailErr);
       }
 
-      return res.json({
-        success: true,
-        type: 'deposit',
-        commission: updatedCommission,
-      });
+      return res.json({ success: true, type: 'deposit', commission: updatedCommission });
     }
 
-    // ARTWORK PAYMENT
     if (metadata.paymentType === 'artwork') {
       const orderId = metadata.orderId;
-
       const order = await prisma.order.findUnique({
         where: { id: orderId },
         include: { customer: true },
       });
 
-      if (!order) {
-        return res.status(404).json({ success: false, error: 'Order not found' });
-      }
+      if (!order) return res.status(404).json({ success: false, error: 'Order not found' });
 
       if (order.paymentStatus === 'FULLY_PAID') {
         return res.json({ success: true, type: 'artwork', alreadyVerified: true });
@@ -416,11 +466,7 @@ router.post('/verify', async (req, res) => {
         console.error('EMAIL ERROR:', emailErr);
       }
 
-      return res.json({
-        success: true,
-        type: 'artwork',
-        order: updatedOrder,
-      });
+      return res.json({ success: true, type: 'artwork', order: updatedOrder });
     }
 
     return res.status(400).json({ success: false, error: 'Unknown payment type' });
