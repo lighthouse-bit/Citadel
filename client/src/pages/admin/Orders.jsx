@@ -3,37 +3,47 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Search, Eye, Package, Truck, CheckCircle, 
-  XCircle, Clock, Loader, CreditCard, ShoppingBag
+  XCircle, Clock, Loader, CreditCard, ShoppingBag, RefreshCw
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { ordersAPI } from '../../services/api';
 import toast from 'react-hot-toast';
 
 const Orders = () => {
-  const [orders, setOrders]           = useState([]);
-  const [isLoading, setIsLoading]     = useState(true);
+  const [orders, setOrders] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+  const [lastUpdated, setLastUpdated] = useState(new Date());
 
+  const fetchOrders = async () => {
+    setIsLoading(true);
+    try {
+      const response = await ordersAPI.getAll({ 
+        status: filterStatus || undefined 
+      });
+      setOrders(response.data.orders || response.data);
+      setLastUpdated(new Date());
+    } catch (error) {
+      console.error('Orders load failed', error);
+      toast.error('Failed to load orders');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Initial load + filter change
   useEffect(() => {
-    const fetchOrders = async () => {
-      setIsLoading(true);
-      try {
-        const response = await ordersAPI.getAll({ 
-          status: filterStatus || undefined 
-        });
-        setOrders(response.data.orders);
-      } catch (error) {
-        console.error('Orders load failed', error);
-        toast.error('Failed to load orders');
-      } finally {
-        setIsLoading(false);
-      }
-    };
     fetchOrders();
   }, [filterStatus]);
 
-  // ── Client-side search ────────────────────────────────
+  // Auto-refresh every 8 seconds (good for seeing new payments)
+  useEffect(() => {
+    const interval = setInterval(fetchOrders, 8000);
+    return () => clearInterval(interval);
+  }, [filterStatus]);
+
+  // Client-side search
   const filteredOrders = orders.filter(order => {
     const query = searchQuery.toLowerCase();
     return (
@@ -44,7 +54,6 @@ const Orders = () => {
     );
   });
 
-  // ── Status icon ───────────────────────────────────────
   const getStatusIcon = (status) => {
     switch (status) {
       case 'COMPLETED':  return <CheckCircle size={14} />;
@@ -58,7 +67,6 @@ const Orders = () => {
     }
   };
 
-  // ── Order status style ────────────────────────────────
   const getStatusStyle = (status) => {
     const styles = {
       PENDING:    'bg-yellow-100 text-yellow-700',
@@ -72,7 +80,6 @@ const Orders = () => {
     return styles[status] || 'bg-stone-100 text-stone-700';
   };
 
-  // ── Payment status style ──────────────────────────────
   const getPaymentStyle = (paymentStatus) => {
     const styles = {
       UNPAID:     'bg-red-100   text-red-600',
@@ -94,7 +101,7 @@ const Orders = () => {
   const formatStatus = (status) =>
     status?.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) || '';
 
-  if (isLoading) {
+  if (isLoading && orders.length === 0) {
     return (
       <div className="flex justify-center py-20">
         <Loader size={32} className="animate-spin text-amber-600" />
@@ -106,14 +113,23 @@ const Orders = () => {
     <div className="space-y-6">
 
       {/* Header */}
-      <div>
-        <h1
-          className="text-2xl text-stone-900"
-          style={{ fontFamily: "'Playfair Display', serif" }}
+      <div className="flex justify-between items-center">
+        <div>
+          <h1
+            className="text-2xl text-stone-900"
+            style={{ fontFamily: "'Playfair Display', serif" }}
+          >
+            Orders
+          </h1>
+          <p className="text-stone-500">Last updated: {lastUpdated.toLocaleTimeString()}</p>
+        </div>
+        <button
+          onClick={fetchOrders}
+          className="flex items-center gap-2 px-4 py-2 bg-white border border-stone-300 rounded-lg hover:bg-stone-50 transition-colors"
         >
-          Orders
-        </h1>
-        <p className="text-stone-500">Manage and track all orders</p>
+          <RefreshCw size={16} />
+          Refresh Now
+        </button>
       </div>
 
       {/* Stats */}
@@ -121,9 +137,9 @@ const Orders = () => {
         {[
           { label: 'Total',      value: orders.length,                                          color: 'bg-stone-900'  },
           { label: 'Pending',    value: orders.filter(o => o.status === 'PENDING').length,      color: 'bg-yellow-500' },
+          { label: 'Confirmed',  value: orders.filter(o => o.status === 'CONFIRMED').length,    color: 'bg-blue-500'   },
           { label: 'Processing', value: orders.filter(o => o.status === 'PROCESSING').length,   color: 'bg-purple-500' },
-          { label: 'Shipped',    value: orders.filter(o => o.status === 'SHIPPED').length,      color: 'bg-indigo-500' },
-          { label: 'Completed',  value: orders.filter(o => o.status === 'COMPLETED').length,    color: 'bg-green-500'  },
+          { label: 'Paid',       value: orders.filter(o => o.paymentStatus === 'FULLY_PAID').length, color: 'bg-green-500' },
         ].map((stat, i) => (
           <div key={i} className="bg-white rounded-xl border border-stone-200 p-4">
             <div className="flex items-center justify-between">
@@ -192,7 +208,6 @@ const Orders = () => {
                     transition={{ delay: index * 0.03 }}
                     className="hover:bg-stone-50 transition-colors"
                   >
-                    {/* Order number */}
                     <td className="px-6 py-4">
                       <p className="font-medium text-stone-900 text-sm">
                         {order.orderNumber}
@@ -202,7 +217,6 @@ const Orders = () => {
                       </p>
                     </td>
 
-                    {/* Customer */}
                     <td className="px-6 py-4">
                       <p className="text-stone-900 text-sm font-medium">
                         {order.customer?.firstName} {order.customer?.lastName}
@@ -210,12 +224,10 @@ const Orders = () => {
                       <p className="text-xs text-stone-400">{order.customer?.email}</p>
                     </td>
 
-                    {/* Total */}
                     <td className="px-6 py-4 font-semibold text-stone-900">
                       ${Number(order.total).toLocaleString()}
                     </td>
 
-                    {/* ✅ Payment status */}
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full 
                                        text-xs font-medium ${getPaymentStyle(order.paymentStatus)}`}>
@@ -224,7 +236,6 @@ const Orders = () => {
                       </span>
                     </td>
 
-                    {/* Order status */}
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 
                                        rounded-full text-xs font-medium 
@@ -234,12 +245,10 @@ const Orders = () => {
                       </span>
                     </td>
 
-                    {/* Date */}
                     <td className="px-6 py-4 text-stone-500 text-sm">
                       {new Date(order.createdAt).toLocaleDateString()}
                     </td>
 
-                    {/* Actions */}
                     <td className="px-6 py-4">
                       <Link
                         to={`/admin/orders/${order.id}`}

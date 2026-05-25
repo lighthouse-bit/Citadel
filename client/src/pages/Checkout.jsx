@@ -30,7 +30,7 @@ const Checkout = () => {
     country: 'United States',
   });
 
-  // Handle Paystack redirect (even if it lands on homepage)
+  // Handle Paystack redirect (works even if redirected to homepage)
   useEffect(() => {
     const reference = searchParams.get('reference') || searchParams.get('trxref');
     if (reference) {
@@ -47,18 +47,19 @@ const Checkout = () => {
     setVerifying(true);
     try {
       const response = await paymentsAPI.verifyPayment(reference);
+      
       if (response.data.success) {
         clearCart();
         setCompletedOrder(response.data.order || response.data.commission);
         setStep('success');
-        toast.success('Payment successful!');
+        toast.success('Payment confirmed successfully!');
       } else {
-        toast.error('Verification failed');
+        toast.error('Payment verification failed');
         navigate('/');
       }
     } catch (err) {
-      console.error(err);
-      toast.error('Failed to verify payment');
+      console.error('Verification error:', err);
+      toast.error('Failed to verify payment. Please check your orders.');
       navigate('/');
     } finally {
       setVerifying(false);
@@ -74,7 +75,7 @@ const Checkout = () => {
         firstName: formData.firstName,
         lastName: formData.lastName,
         email: formData.email,
-        items: cartItems.map(item => ({ id: item.id })),
+        items: cartItems.map((item) => ({ id: item.id })),
         shippingAddress: {
           line1: formData.address,
           city: formData.city,
@@ -90,23 +91,27 @@ const Checkout = () => {
       const paymentRes = await paymentsAPI.createArtworkPayment(order.id);
       window.location.href = paymentRes.data.authorizationUrl;
     } catch (error) {
-      toast.error(error.response?.data?.error || 'Payment failed');
+      console.error(error);
+      toast.error(error.response?.data?.error || 'Failed to process payment');
     } finally {
       setIsProcessing(false);
     }
   };
 
+  // Verifying State
   if (verifying || step === 'verify') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
-          <Loader className="animate-spin mx-auto mb-4" size={48} />
-          <p>Verifying your payment...</p>
+          <Loader className="animate-spin mx-auto mb-4 text-amber-600" size={48} />
+          <p className="text-lg font-medium">Verifying your payment...</p>
+          <p className="text-sm text-gray-500 mt-2">Please do not refresh this page</p>
         </div>
       </div>
     );
   }
 
+  // Success Page
   if (step === 'success') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -120,7 +125,7 @@ const Checkout = () => {
           <p className="text-gray-600 mb-8">Your order has been confirmed.</p>
           <button
             onClick={() => navigate('/account')}
-            className="w-full bg-black text-white py-4 rounded-xl"
+            className="w-full bg-black text-white py-4 rounded-xl font-medium hover:bg-gray-900"
           >
             View My Orders
           </button>
@@ -129,33 +134,104 @@ const Checkout = () => {
     );
   }
 
+  // Empty Cart
   if (cartItems.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <ShoppingBag size={60} className="mx-auto text-gray-300 mb-4" />
-          <p>Your cart is empty</p>
-          <Link to="/shop" className="text-amber-600 underline mt-4">Browse Art</Link>
+          <p className="text-xl mb-4">Your cart is empty</p>
+          <Link to="/shop" className="text-amber-600 underline">Browse Artworks</Link>
         </div>
       </div>
     );
   }
 
+  // Main Checkout
   return (
     <div className="pt-20 max-w-6xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-12">
       <div>
         <h1 className="text-3xl font-semibold mb-8">Checkout</h1>
         <form onSubmit={handlePaymentSubmit}>
-          {/* Your form fields here - keep as is */}
           <div className="bg-white p-8 rounded-xl border mb-6">
             <h2 className="text-xl mb-6">Contact & Shipping</h2>
-            {/* ... all your input fields ... */}
+
+            <input
+              name="firstName"
+              placeholder="First Name"
+              value={formData.firstName}
+              onChange={handleChange}
+              className="w-full mb-3 p-3 border rounded-lg"
+              required
+            />
+
+            <input
+              name="lastName"
+              placeholder="Last Name"
+              value={formData.lastName}
+              onChange={handleChange}
+              className="w-full mb-3 p-3 border rounded-lg"
+              required
+            />
+
+            <input
+              name="email"
+              placeholder="Email"
+              value={formData.email}
+              onChange={handleChange}
+              className="w-full mb-3 p-3 border rounded-lg"
+              required
+            />
+
+            <input
+              name="address"
+              placeholder="Address"
+              value={formData.address}
+              onChange={handleChange}
+              className="w-full mb-3 p-3 border rounded-lg"
+              required
+            />
+
+            <div className="grid grid-cols-2 gap-3">
+              <input
+                name="city"
+                placeholder="City"
+                value={formData.city}
+                onChange={handleChange}
+                className="p-3 border rounded-lg"
+                required
+              />
+              <input
+                name="zip"
+                placeholder="ZIP"
+                value={formData.zip}
+                onChange={handleChange}
+                className="p-3 border rounded-lg"
+                required
+              />
+            </div>
+
+            <input
+              name="country"
+              value={formData.country}
+              onChange={handleChange}
+              className="w-full mt-3 p-3 border rounded-lg"
+              required
+            />
           </div>
+
           <button
             disabled={isProcessing}
-            className="w-full bg-amber-600 text-white py-4 rounded-xl font-medium"
+            className="w-full bg-amber-600 hover:bg-amber-700 text-white py-4 rounded-xl font-medium transition disabled:opacity-70"
           >
-            {isProcessing ? 'Processing...' : `Pay $${cartTotal.toLocaleString()} via Paystack`}
+            {isProcessing ? (
+              <span className="flex items-center gap-2 justify-center">
+                <Loader className="animate-spin" size={18} />
+                Redirecting to Paystack...
+              </span>
+            ) : (
+              <>Pay ${cartTotal.toLocaleString()} via Paystack</>
+            )}
           </button>
         </form>
       </div>
@@ -163,12 +239,13 @@ const Checkout = () => {
       <div className="lg:pt-12">
         <h2 className="text-xl font-semibold mb-6">Order Summary</h2>
         <div className="bg-white border rounded-2xl p-6">
-          {cartItems.map(item => (
+          {cartItems.map((item) => (
             <div key={item.id} className="flex justify-between py-3 border-b last:border-0">
-              <span>{item.title}</span>
+              <span className="font-medium">{item.title}</span>
               <span>${parseFloat(item.price).toLocaleString()}</span>
             </div>
           ))}
+
           <div className="flex justify-between text-lg font-bold mt-6 pt-6 border-t">
             <span>Total</span>
             <span>${cartTotal.toLocaleString()}</span>
