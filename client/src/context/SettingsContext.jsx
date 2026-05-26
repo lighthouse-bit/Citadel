@@ -9,35 +9,30 @@ const defaultSettings = {
   siteName: 'Citadel',
   siteTagline: 'Fine Art Atelier',
   artistName: 'Artist Name',
-  artistBio: 'Fine artist specializing in portraits and landscapes. Each piece in my collection represents a convergence of technical mastery and emotional depth.',
+  artistBio: 'Fine artist specializing in portraits and landscapes.',
   contactEmail: 'contact@citadel-art.com',
   phone: '+2348087535982',
   address: 'Johnson Tower Ikeja GRA, Lagos',
 
-  // Payment
   paystackPublicKey: '',
   paystackSecretKey: '',
   currency: 'USD',
   enableTax: false,
   taxRate: 7.5,
 
-  // Shipping
   freeShippingThreshold: 500,
   shippingFee: 0,
   internationalShipping: true,
 
-  // Commissions
   commissionOpen: true,
   commissionDepositPercentage: 70,
   commissionWaitTime: '2-4 weeks',
   minimumCommissionPrice: 500,
 
-  // Social
   socialInstagram: 'https://instagram.com/citadelart',
   socialTwitter: 'https://twitter.com/citadelart',
   socialFacebook: '',
 
-  // SEO & Appearance
   metaDescription: 'Luxury art gallery showcasing original paintings and commissions.',
   heroTitle: 'Citadel',
   heroSubtitle: 'Where Artistry Meets Timeless Elegance',
@@ -50,16 +45,12 @@ export const SettingsProvider = ({ children }) => {
   const [settings, setSettings] = useState(defaultSettings);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // Fetch settings from backend
   const fetchSettings = async () => {
     try {
       const response = await settingsAPI.getSettings();
-      const serverSettings = response.data;
-
-      // Merge server data with defaults to ensure all keys exist
-      setSettings({ ...defaultSettings, ...serverSettings });
+      setSettings({ ...defaultSettings, ...response.data });
     } catch (error) {
-      console.error('Failed to fetch settings from server:', error);
+      console.error('Failed to fetch settings:', error);
       toast.error('Using default settings');
       setSettings(defaultSettings);
     } finally {
@@ -71,58 +62,43 @@ export const SettingsProvider = ({ children }) => {
     fetchSettings();
   }, []);
 
-  // Update settings on backend + local state
   const updateSettings = async (newSettings) => {
     try {
       const response = await settingsAPI.updateSettings(newSettings);
-      
-      const updatedSettings = { ...defaultSettings, ...response.data.settings || newSettings };
-      setSettings(updatedSettings);
-      
+      setSettings({ ...defaultSettings, ...response.data.settings || newSettings });
       toast.success('Settings saved successfully!');
       return true;
     } catch (error) {
-      console.error('Update settings failed:', error);
-      toast.error('Failed to save settings on server');
-      
-      // Fallback: update locally
-      const updatedSettings = { ...defaultSettings, ...newSettings };
-      setSettings(updatedSettings);
+      console.error('Update failed:', error);
+      toast.error('Failed to save settings');
       return false;
     }
   };
 
-  // Reset to defaults
   const resetSettings = async () => {
     try {
       const response = await settingsAPI.resetSettings();
-      const resetData = response.data.settings || defaultSettings;
-      
-      setSettings({ ...defaultSettings, ...resetData });
+      setSettings({ ...defaultSettings, ...response.data.settings });
       toast.success('Settings reset to defaults');
     } catch (error) {
-      console.error('Reset settings failed:', error);
-      toast.error('Failed to reset on server. Using local defaults.');
+      console.error('Reset failed:', error);
+      toast.error('Failed to reset settings');
       setSettings(defaultSettings);
     }
   };
 
-  const getSetting = (key) => {
-    return settings[key] ?? defaultSettings[key];
-  };
-
-  const value = {
-    settings,
-    isLoaded,
-    updateSettings,
-    resetSettings,
-    fetchSettings,
-    getSetting,
-    defaultSettings,
-  };
+  const getSetting = (key) => settings[key] ?? defaultSettings[key];
 
   return (
-    <SettingsContext.Provider value={value}>
+    <SettingsContext.Provider value={{
+      settings,
+      isLoaded,
+      updateSettings,
+      resetSettings,
+      fetchSettings,
+      getSetting,
+      defaultSettings,
+    }}>
       {children}
     </SettingsContext.Provider>
   );
@@ -135,5 +111,3 @@ export const useSettings = () => {
   }
   return context;
 };
-
-export default SettingsContext;
