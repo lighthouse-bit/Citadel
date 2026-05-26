@@ -336,3 +336,43 @@ model Notification {
   @@index([adminId])
   @@index([isRead])
 }
+
+model Settings {
+  id                        String   @id @default(cuid())
+  siteName                  String   @default("Citadel")
+  siteTagline               String?
+  artistName                String?
+  artistBio                 String?
+  contactEmail              String?
+  phone                     String?
+  address                   String?
+
+  paystackPublicKey         String?
+  paystackSecretKey         String?
+  currency                  String   @default("USD")
+  enableTax                 Boolean  @default(false)
+  taxRate                   Float    @default(7.5)
+
+  freeShippingThreshold     Float    @default(500)
+  shippingFee               Float    @default(0)
+  internationalShipping     Boolean  @default(true)
+
+  commissionOpen            Boolean  @default(true)
+  commissionDepositPercentage Int   @default(70)
+  commissionWaitTime        String?
+  minimumCommissionPrice    Float    @default(500)
+
+  socialInstagram           String?
+  socialTwitter             String?
+  socialFacebook            String?
+
+  metaDescription           String?
+  heroTitle                 String?
+  heroSubtitle              String?
+
+  shippingInfo              String?
+  returnPolicy              String?
+
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+}
