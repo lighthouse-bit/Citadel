@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { CheckCircle, Loader, ShoppingBag, AlertCircle } from 'lucide-react';
+import { CheckCircle, Loader, ShoppingBag } from 'lucide-react';
 import { useCart } from '../hooks/useCart';
 import { useAuth } from '../hooks/useAuth';
 import { ordersAPI, paymentsAPI } from '../services/api';
@@ -30,10 +30,10 @@ const Checkout = () => {
     country: 'United States',
   });
 
-  // Handle Paystack redirect
+  // Handle Paystack redirect (stronger detection)
   useEffect(() => {
     const reference = searchParams.get('reference') || searchParams.get('trxref');
-    if (reference) {
+    if (reference && step !== 'success') {
       setStep('verify');
       verifyPayment(reference);
     }
@@ -49,17 +49,18 @@ const Checkout = () => {
       const response = await paymentsAPI.verifyPayment(reference);
 
       if (response.data.success) {
+        // FORCE CLEAR CART
         clearCart();
         setCompletedOrder(response.data.order || response.data.commission);
         setStep('success');
-        toast.success('Payment Successful!');
+        toast.success('Payment Successful! Cart cleared.');
       } else {
         toast.error('Payment verification failed');
         navigate('/');
       }
     } catch (err) {
       console.error('Verification error:', err);
-      toast.error('Failed to verify payment. Please contact support if money was deducted.');
+      toast.error('Failed to verify payment');
       navigate('/');
     } finally {
       setVerifying(false);
@@ -69,7 +70,6 @@ const Checkout = () => {
   const handlePaymentSubmit = async (e) => {
     e.preventDefault();
 
-    // Enforce Login
     if (!user) {
       toast.error("Please sign in to complete your purchase");
       navigate('/login?redirect=/checkout');
@@ -129,7 +129,7 @@ const Checkout = () => {
         >
           <CheckCircle className="text-green-500 mx-auto mb-6" size={70} />
           <h2 className="text-3xl font-semibold mb-2">Payment Successful!</h2>
-          <p className="text-gray-600 mb-8">Your order has been confirmed.</p>
+          <p className="text-gray-600 mb-8">Your order has been confirmed and cart cleared.</p>
           <button
             onClick={() => navigate('/account')}
             className="w-full bg-black text-white py-4 rounded-xl font-medium hover:bg-gray-900"
@@ -154,7 +154,7 @@ const Checkout = () => {
     );
   }
 
-  // Main Checkout Form
+  // Main Checkout
   return (
     <div className="pt-20 max-w-6xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-12">
       <div>
