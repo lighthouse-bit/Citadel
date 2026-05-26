@@ -30,7 +30,7 @@ const Checkout = () => {
     country: 'United States',
   });
 
-  // Handle Paystack redirect (stronger detection)
+  // Handle Paystack redirect
   useEffect(() => {
     const reference = searchParams.get('reference') || searchParams.get('trxref');
     if (reference && step !== 'success') {
@@ -49,11 +49,15 @@ const Checkout = () => {
       const response = await paymentsAPI.verifyPayment(reference);
 
       if (response.data.success) {
-        // FORCE CLEAR CART
+        // FORCE CLEAR CART MULTIPLE WAYS
         clearCart();
+        
+        // Extra safety: also clear localStorage directly
+        localStorage.removeItem('citadel_cart');
+        
         setCompletedOrder(response.data.order || response.data.commission);
         setStep('success');
-        toast.success('Payment Successful! Cart cleared.');
+        toast.success('Payment Successful! Cart has been cleared.');
       } else {
         toast.error('Payment verification failed');
         navigate('/');
@@ -105,20 +109,17 @@ const Checkout = () => {
     }
   };
 
-  // Verifying Screen
   if (verifying || step === 'verify') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <Loader className="animate-spin mx-auto mb-4 text-amber-600" size={48} />
           <p className="text-lg font-medium">Verifying your payment...</p>
-          <p className="text-sm text-gray-500 mt-2">Please do not refresh this page</p>
         </div>
       </div>
     );
   }
 
-  // Success Screen
   if (step === 'success') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -141,7 +142,6 @@ const Checkout = () => {
     );
   }
 
-  // Empty Cart
   if (cartItems.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -154,7 +154,6 @@ const Checkout = () => {
     );
   }
 
-  // Main Checkout
   return (
     <div className="pt-20 max-w-6xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-12">
       <div>
