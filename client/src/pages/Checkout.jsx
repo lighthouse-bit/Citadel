@@ -1,8 +1,8 @@
 // src/pages/Checkout.jsx
 import { useState, useEffect } from 'react';
-import { useNavigate, Link, useSearchParams, useLocation } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { CheckCircle, Loader, ShoppingBag } from 'lucide-react';
+import { CheckCircle, Loader, ShoppingBag, AlertCircle } from 'lucide-react';
 import { useCart } from '../hooks/useCart';
 import { useAuth } from '../hooks/useAuth';
 import { ordersAPI, paymentsAPI } from '../services/api';
@@ -13,7 +13,6 @@ const Checkout = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const location = useLocation();
 
   const [step, setStep] = useState('form');
   const [completedOrder, setCompletedOrder] = useState(null);
@@ -31,12 +30,10 @@ const Checkout = () => {
     country: 'United States',
   });
 
-  // STRONG REDIRECT HANDLER - Runs on every page load
+  // Handle Paystack redirect
   useEffect(() => {
     const reference = searchParams.get('reference') || searchParams.get('trxref');
-    
     if (reference) {
-      console.log('✅ Reference found in URL:', reference);
       setStep('verify');
       verifyPayment(reference);
     }
@@ -57,12 +54,12 @@ const Checkout = () => {
         setStep('success');
         toast.success('Payment Successful!');
       } else {
-        toast.error('Verification failed');
+        toast.error('Payment verification failed');
         navigate('/');
       }
     } catch (err) {
       console.error('Verification error:', err);
-      toast.error('Failed to verify payment');
+      toast.error('Failed to verify payment. Please contact support if money was deducted.');
       navigate('/');
     } finally {
       setVerifying(false);
@@ -71,6 +68,14 @@ const Checkout = () => {
 
   const handlePaymentSubmit = async (e) => {
     e.preventDefault();
+
+    // Enforce Login
+    if (!user) {
+      toast.error("Please sign in to complete your purchase");
+      navigate('/login?redirect=/checkout');
+      return;
+    }
+
     setIsProcessing(true);
 
     try {
@@ -143,7 +148,7 @@ const Checkout = () => {
         <div className="text-center">
           <ShoppingBag size={60} className="mx-auto text-gray-300 mb-4" />
           <p className="text-xl mb-4">Your cart is empty</p>
-          <Link to="/shop" className="text-amber-600 underline">Browse Artworks</Link>
+          <Link to="/gallery" className="text-amber-600 underline">Browse Artworks</Link>
         </div>
       </div>
     );
@@ -229,7 +234,7 @@ const Checkout = () => {
             {isProcessing ? (
               <span className="flex items-center gap-2 justify-center">
                 <Loader className="animate-spin" size={18} />
-                Redirecting to Paystack...
+                Processing...
               </span>
             ) : (
               <>Pay ${cartTotal.toLocaleString()} via Paystack</>
