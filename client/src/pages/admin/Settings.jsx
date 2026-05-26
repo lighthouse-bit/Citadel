@@ -1,6 +1,6 @@
 // src/pages/admin/Settings.jsx
 import { useState, useEffect } from 'react';
-import { Save, Loader, RotateCcw, Eye, CreditCard, Truck, Mail, Globe, Award, Lock } from 'lucide-react';
+import { Save, Loader, RotateCcw, Eye, CreditCard, Truck, Mail, Globe, Award } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useSettings } from '../../context/SettingsContext';
@@ -9,7 +9,7 @@ const defaultSettings = {
   siteName: 'Citadel',
   siteTagline: 'Fine Art Atelier',
   artistName: 'Artist Name',
-  artistBio: '',
+  artistBio: 'Fine artist specializing in portraits and landscapes. Each piece in my collection represents a convergence of technical mastery and emotional depth.',
   contactEmail: 'contact@citadel-art.com',
   phone: '+234 803 000 0000',
   address: 'Johnson Tower Ikeja GRA, Lagos',
@@ -33,8 +33,8 @@ const defaultSettings = {
   minimumCommissionPrice: 500,
 
   // Social
-  socialInstagram: '',
-  socialTwitter: '',
+  socialInstagram: 'https://instagram.com/citadelart',
+  socialTwitter: 'https://twitter.com/citadelart',
   socialFacebook: '',
 
   // SEO
@@ -90,6 +90,14 @@ const Settings = () => {
     }
   };
 
+  const handleReset = () => {
+    if (window.confirm('Reset all settings to defaults?')) {
+      resetSettings();
+      setFormData(defaultSettings);
+      toast.success('Settings reset to defaults');
+    }
+  };
+
   const tabs = [
     { id: 'general', label: 'General', icon: Globe },
     { id: 'payment', label: 'Payment', icon: CreditCard },
@@ -111,13 +119,15 @@ const Settings = () => {
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-stone-200 mb-8">
+      <div className="flex border-b border-stone-200">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={`px-8 py-4 font-medium flex items-center gap-2 border-b-2 transition-all ${
-              activeTab === tab.id ? 'border-amber-600 text-amber-600' : 'border-transparent text-stone-500 hover:text-stone-700'
+              activeTab === tab.id
+                ? 'border-amber-600 text-amber-600'
+                : 'border-transparent text-stone-500 hover:text-stone-700'
             }`}
           >
             <tab.icon size={18} />
@@ -127,7 +137,7 @@ const Settings = () => {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-10">
-        {/* General */}
+        {/* General Tab */}
         {activeTab === 'general' && (
           <div className="bg-white rounded-2xl border border-stone-200 p-8 space-y-8">
             <h2 className="text-xl font-semibold">Branding</h2>
@@ -149,13 +159,22 @@ const Settings = () => {
                 <input type="text" name="heroSubtitle" value={formData.heroSubtitle} onChange={handleChange} className="w-full px-4 py-3 border rounded-lg" />
               </div>
             </div>
+
+            <div>
+              <label className="block text-sm text-stone-600 mb-2">Artist Name</label>
+              <input type="text" name="artistName" value={formData.artistName} onChange={handleChange} className="w-full px-4 py-3 border rounded-lg" />
+            </div>
+            <div>
+              <label className="block text-sm text-stone-600 mb-2">Artist Bio</label>
+              <textarea name="artistBio" rows={4} value={formData.artistBio} onChange={handleChange} className="w-full px-4 py-3 border rounded-lg" />
+            </div>
           </div>
         )}
 
-        {/* Payment */}
+        {/* Payment Tab */}
         {activeTab === 'payment' && (
           <div className="bg-white rounded-2xl border border-stone-200 p-8 space-y-8">
-            <h2 className="text-xl font-semibold">Payment Configuration</h2>
+            <h2 className="text-xl font-semibold">Payment Settings</h2>
             <div>
               <label className="block text-sm text-stone-600 mb-2">Paystack Public Key</label>
               <input type="text" name="paystackPublicKey" value={formData.paystackPublicKey} onChange={handleChange} className="w-full px-4 py-3 border rounded-lg" />
@@ -174,7 +193,7 @@ const Settings = () => {
           </div>
         )}
 
-        {/* Shipping */}
+        {/* Shipping Tab */}
         {activeTab === 'shipping' && (
           <div className="bg-white rounded-2xl border border-stone-200 p-8 space-y-8">
             <h2 className="text-xl font-semibold">Shipping Settings</h2>
@@ -189,11 +208,11 @@ const Settings = () => {
           </div>
         )}
 
-        {/* Commissions */}
+        {/* Commission Tab */}
         {activeTab === 'commission' && (
           <div className="bg-white rounded-2xl border border-stone-200 p-8 space-y-8">
             <h2 className="text-xl font-semibold">Commission Settings</h2>
-            <div className="flex items-center justify-between p-4 bg-stone-50 rounded-lg">
+            <div className="flex items-center justify-between">
               <div>
                 <p className="font-medium">Accept New Commissions</p>
                 <p className="text-sm text-stone-500">Allow clients to request custom work</p>
@@ -211,7 +230,7 @@ const Settings = () => {
           </div>
         )}
 
-        {/* Contact */}
+        {/* Contact Tab */}
         {activeTab === 'contact' && (
           <div className="bg-white rounded-2xl border border-stone-200 p-8 space-y-8">
             <h2 className="text-xl font-semibold">Contact Information</h2>
@@ -233,7 +252,7 @@ const Settings = () => {
         )}
 
         {/* Save Button */}
-        <div className="flex justify-end gap-4 pt-6 border-t">
+        <div className="flex justify-end gap-4">
           <button
             type="button"
             onClick={handleReset}
