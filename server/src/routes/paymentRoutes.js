@@ -9,16 +9,11 @@ const crypto = require('crypto');
 const {
   sendOrderInvoiceEmail,
   sendCommissionDepositInvoiceEmail,
-  sendCommissionBalanceInvoiceEmail,
 } = require('../utils/emailService');
 
 const { authenticateUser } = require('../middleware/auth');
 
 const PAYSTACK_SECRET = process.env.PAYSTACK_SECRET_KEY;
-
-// =============================
-// USD → NGN conversion rate
-// =============================
 const USD_TO_NGN = 1600;
 
 // ─────────────────────────────────────────────
@@ -42,11 +37,7 @@ const initializePaystackTransaction = (data) => {
 
     const req = https.request(options, (res) => {
       let responseData = '';
-
-      res.on('data', (chunk) => {
-        responseData += chunk;
-      });
-
+      res.on('data', (chunk) => { responseData += chunk; });
       res.on('end', () => {
         try {
           const parsed = JSON.parse(responseData);
@@ -80,11 +71,7 @@ const verifyPaystackTransaction = (reference) => {
 
     const req = https.request(options, (res) => {
       let responseData = '';
-
-      res.on('data', (chunk) => {
-        responseData += chunk;
-      });
-
+      res.on('data', (chunk) => { responseData += chunk; });
       res.on('end', () => {
         try {
           const parsed = JSON.parse(responseData);
@@ -101,7 +88,7 @@ const verifyPaystackTransaction = (reference) => {
 };
 
 // ─────────────────────────────────────────────
-// CALLBACK ROUTE - FINAL VERSION (UPDATES DB + CREATES NOTIFICATION + REDIRECTS TO SUCCESS)
+// CALLBACK ROUTE - FIXED
 // ─────────────────────────────────────────────
 router.get('/callback', async (req, res) => {
   const reference = req.query.reference || req.query.trxref;
@@ -120,26 +107,24 @@ router.get('/callback', async (req, res) => {
     const paymentData = verification.data;
     const metadata = paymentData.metadata || {};
 
-    // UPDATE DATABASE + CREATE NOTIFICATION
+    // UPDATE DATABASE
     if (metadata.paymentType === 'artwork' && metadata.orderId) {
       await prisma.order.update({
         where: { id: metadata.orderId },
         data: {
           paymentStatus: 'FULLY_PAID',
           status: 'CONFIRMED',
-          paidAt: new Date(),
         },
       });
 
-      // Create Admin Notification
+      // Create notification
       await prisma.notification.create({
         data: {
           type: 'PAYMENT',
-          message: `New payment received for Order #${metadata.orderId}`,
+          message: `Payment received for Order #${metadata.orderId}`,
           link: `/admin/orders/${metadata.orderId}`,
         },
       }).catch(() => {});
-
     } 
     else if (metadata.paymentType === 'commission_deposit' && metadata.commissionId) {
       await prisma.commission.update({
@@ -151,7 +136,6 @@ router.get('/callback', async (req, res) => {
         },
       });
 
-      // Create Admin Notification
       await prisma.notification.create({
         data: {
           type: 'PAYMENT',
@@ -161,7 +145,6 @@ router.get('/callback', async (req, res) => {
       }).catch(() => {});
     }
 
-    // Redirect to Success Page
     return res.redirect(`${process.env.CLIENT_URL}/checkout/success?reference=${reference}`);
 
   } catch (err) {
@@ -199,12 +182,19 @@ router.post('/webhook', async (req, res) => {
       if (metadata.paymentType === 'artwork' && metadata.orderId) {
         await prisma.order.update({
           where: { id: metadata.orderId },
-          data: { paymentStatus: 'FULLY_PAID', status: 'CONFIRMED', paidAt: new Date() },
+          data: {
+            paymentStatus: 'FULLY_PAID',
+            status: 'CONFIRMED',
+          },
         });
       } else if (metadata.paymentType === 'commission_deposit' && metadata.commissionId) {
         await prisma.commission.update({
           where: { id: metadata.commissionId },
-          data: { paymentStatus: 'DEPOSIT_PAID', depositPaidAt: new Date(), status: 'IN_PROGRESS' },
+          data: {
+            paymentStatus: 'DEPOSIT_PAID',
+            depositPaidAt: new Date(),
+            status: 'IN_PROGRESS',
+          },
         });
       }
     }
@@ -387,7 +377,6 @@ router.post('/verify', async (req, res) => {
         data: {
           paymentStatus: 'FULLY_PAID',
           status: 'CONFIRMED',
-          paidAt: new Date(),
         },
       });
 
