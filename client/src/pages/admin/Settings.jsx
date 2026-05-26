@@ -1,6 +1,6 @@
 // src/pages/admin/Settings.jsx
 import { useState, useEffect } from 'react';
-import { Save, Loader, RotateCcw, Eye, CreditCard, Truck, Mail, Globe, Award, Lock, Image } from 'lucide-react';
+import { Save, Loader, RotateCcw, Eye } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useSettings } from '../../context/SettingsContext';
@@ -9,58 +9,23 @@ const defaultSettings = {
   siteName: 'Citadel',
   siteTagline: 'Fine Art Atelier',
   artistName: 'Artist Name',
-  artistBio: 'Fine artist specializing in portraits and landscapes. Each piece in my collection represents a convergence of technical mastery and emotional depth.',
+  artistBio: 'Fine artist specializing in portraits and landscapes.',
   contactEmail: 'contact@citadel-art.com',
   phone: '+234 803 000 0000',
   address: 'Johnson Tower Ikeja GRA, Lagos',
-
-  // Payment
-  paystackPublicKey: '',
-  paystackSecretKey: '',
-  currency: 'USD',
-  enableTax: false,
-  taxRate: 7.5,
-
-  // Shipping
-  freeShippingThreshold: 500,
-  shippingFee: 0,
-  internationalShipping: true,
-  shippingInfo: 'Free worldwide shipping on all original artworks. Each piece is carefully packaged and insured.',
-
-  // Commissions
   commissionOpen: true,
-  commissionDepositPercentage: 70,
   commissionWaitTime: '2-4 weeks',
-  minimumCommissionPrice: 500,
-
-  // Social
-  socialInstagram: 'https://instagram.com/citadelart',
-  socialTwitter: 'https://twitter.com/citadelart',
-  socialFacebook: '',
-
-  // SEO & Appearance
-  metaDescription: 'Luxury art gallery showcasing original paintings and commissions by renowned artists.',
+  shippingInfo: 'Free worldwide shipping on all original artworks.',
+  returnPolicy: '14-day return policy for undamaged items.',
   heroTitle: 'CITADEL',
   heroSubtitle: 'Where Artistry Meets Timeless Elegance',
-  returnPolicy: '14-day return policy for undamaged items in original packaging.',
 };
-
-const ToggleSwitch = ({ checked, onChange, name }) => (
-  <button
-    type="button"
-    onClick={() => onChange({ target: { name, type: 'checkbox', checked: !checked } })}
-    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500 ${checked ? 'bg-green-500' : 'bg-stone-300'}`}
-  >
-    <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-transform ${checked ? 'translate-x-6' : 'translate-x-1'}`} />
-  </button>
-);
 
 const Settings = () => {
   const { settings, updateSettings, resetSettings, isLoaded } = useSettings();
 
   const [formData, setFormData] = useState(defaultSettings);
   const [isSaving, setIsSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState('general');
 
   useEffect(() => {
     if (isLoaded && settings) {
@@ -89,177 +54,93 @@ const Settings = () => {
     }
   };
 
-  const tabs = [
-    { id: 'general', label: 'General', icon: Globe },
-    { id: 'payment', label: 'Payment', icon: CreditCard },
-    { id: 'shipping', label: 'Shipping', icon: Truck },
-    { id: 'commission', label: 'Commissions', icon: Award },
-    { id: 'contact', label: 'Contact', icon: Mail },
-  ];
+  const handleReset = () => {
+    if (window.confirm('Reset all settings to defaults?')) {
+      resetSettings();
+      setFormData(defaultSettings);
+      toast.success('Settings reset to defaults');
+    }
+  };
+
+  if (!isLoaded) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader className="animate-spin text-amber-600" size={32} />
+      </div>
+    );
+  }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8">
+    <div className="max-w-4xl mx-auto space-y-8 p-6">
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-serif text-stone-900">Site Settings</h1>
-          <p className="text-stone-500">Manage your entire website configuration</p>
+          <p className="text-stone-500">Manage your website configuration</p>
         </div>
         <Link to="/" target="_blank" className="flex items-center gap-2 text-amber-600 hover:text-amber-700">
           <Eye size={18} /> Preview Site
         </Link>
       </div>
 
-      {/* Tabs */}
-      <div className="flex border-b border-stone-200 mb-8 overflow-x-auto">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`px-8 py-4 font-medium flex items-center gap-2 border-b-2 whitespace-nowrap transition-all ${
-              activeTab === tab.id ? 'border-amber-600 text-amber-600' : 'border-transparent text-stone-500 hover:text-stone-700'
-            }`}
-          >
-            <tab.icon size={18} />
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      <form onSubmit={handleSubmit} className="space-y-10">
-        {/* ==================== GENERAL ==================== */}
-        {activeTab === 'general' && (
-          <div className="bg-white rounded-2xl border border-stone-200 p-8 space-y-8">
-            <h2 className="text-xl font-semibold">Branding & Hero</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm text-stone-600 mb-2">Site Name</label>
-                <input type="text" name="siteName" value={formData.siteName} onChange={handleChange} className="w-full px-4 py-3 border rounded-lg" />
-              </div>
-              <div>
-                <label className="block text-sm text-stone-600 mb-2">Site Tagline</label>
-                <input type="text" name="siteTagline" value={formData.siteTagline} onChange={handleChange} className="w-full px-4 py-3 border rounded-lg" />
-              </div>
-              <div>
-                <label className="block text-sm text-stone-600 mb-2">Hero Title</label>
-                <input type="text" name="heroTitle" value={formData.heroTitle} onChange={handleChange} className="w-full px-4 py-3 border rounded-lg" />
-              </div>
-              <div>
-                <label className="block text-sm text-stone-600 mb-2">Hero Subtitle</label>
-                <input type="text" name="heroSubtitle" value={formData.heroSubtitle} onChange={handleChange} className="w-full px-4 py-3 border rounded-lg" />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm text-stone-600 mb-2">Artist Name</label>
-              <input type="text" name="artistName" value={formData.artistName} onChange={handleChange} className="w-full px-4 py-3 border rounded-lg" />
-            </div>
-            <div>
-              <label className="block text-sm text-stone-600 mb-2">Artist Bio</label>
-              <textarea name="artistBio" rows={5} value={formData.artistBio} onChange={handleChange} className="w-full px-4 py-3 border rounded-lg" />
-            </div>
+      <form onSubmit={handleSubmit} className="space-y-8">
+        {/* General */}
+        <div className="bg-white rounded-2xl border border-stone-200 p-8 space-y-6">
+          <h2 className="text-xl font-semibold">General Information</h2>
+          
+          <div>
+            <label className="block text-sm text-stone-600 mb-2">Site Name</label>
+            <input
+              type="text"
+              name="siteName"
+              value={formData.siteName}
+              onChange={handleChange}
+              className="w-full px-4 py-3 border border-stone-300 rounded-lg focus:outline-none focus:border-amber-500"
+            />
           </div>
-        )}
 
-        {/* ==================== PAYMENT ==================== */}
-        {activeTab === 'payment' && (
-          <div className="bg-white rounded-2xl border border-stone-200 p-8 space-y-8">
-            <h2 className="text-xl font-semibold">Payment Configuration</h2>
-            <div>
-              <label className="block text-sm text-stone-600 mb-2">Paystack Public Key</label>
-              <input type="text" name="paystackPublicKey" value={formData.paystackPublicKey} onChange={handleChange} className="w-full px-4 py-3 border rounded-lg" />
-            </div>
-            <div>
-              <label className="block text-sm text-stone-600 mb-2">Paystack Secret Key</label>
-              <input type="password" name="paystackSecretKey" value={formData.paystackSecretKey} onChange={handleChange} className="w-full px-4 py-3 border rounded-lg" />
-            </div>
-            <div>
-              <label className="block text-sm text-stone-600 mb-2">Currency</label>
-              <select name="currency" value={formData.currency} onChange={handleChange} className="w-full px-4 py-3 border rounded-lg">
-                <option value="USD">USD</option>
-                <option value="NGN">NGN</option>
-              </select>
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium">Enable Tax</p>
-                <p className="text-sm text-stone-500">Add VAT/GST to orders</p>
-              </div>
-              <ToggleSwitch checked={formData.enableTax} onChange={handleChange} name="enableTax" />
-            </div>
+          <div>
+            <label className="block text-sm text-stone-600 mb-2">Site Tagline</label>
+            <input
+              type="text"
+              name="siteTagline"
+              value={formData.siteTagline}
+              onChange={handleChange}
+              className="w-full px-4 py-3 border border-stone-300 rounded-lg focus:outline-none focus:border-amber-500"
+            />
           </div>
-        )}
 
-        {/* ==================== SHIPPING ==================== */}
-        {activeTab === 'shipping' && (
-          <div className="bg-white rounded-2xl border border-stone-200 p-8 space-y-8">
-            <h2 className="text-xl font-semibold">Shipping & Delivery</h2>
-            <div>
-              <label className="block text-sm text-stone-600 mb-2">Free Shipping Threshold (USD)</label>
-              <input type="number" name="freeShippingThreshold" value={formData.freeShippingThreshold} onChange={handleChange} className="w-full px-4 py-3 border rounded-lg" />
-            </div>
-            <div>
-              <label className="block text-sm text-stone-600 mb-2">Default Shipping Fee (USD)</label>
-              <input type="number" name="shippingFee" value={formData.shippingFee} onChange={handleChange} className="w-full px-4 py-3 border rounded-lg" />
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium">International Shipping</p>
-                <p className="text-sm text-stone-500">Enable shipping outside Nigeria</p>
-              </div>
-              <ToggleSwitch checked={formData.internationalShipping} onChange={handleChange} name="internationalShipping" />
-            </div>
+          <div>
+            <label className="block text-sm text-stone-600 mb-2">Artist Name</label>
+            <input
+              type="text"
+              name="artistName"
+              value={formData.artistName}
+              onChange={handleChange}
+              className="w-full px-4 py-3 border border-stone-300 rounded-lg focus:outline-none focus:border-amber-500"
+            />
           </div>
-        )}
+        </div>
 
-        {/* ==================== COMMISSIONS ==================== */}
-        {activeTab === 'commission' && (
-          <div className="bg-white rounded-2xl border border-stone-200 p-8 space-y-8">
-            <h2 className="text-xl font-semibold">Commission Settings</h2>
-            <div className="flex items-center justify-between p-4 bg-stone-50 rounded-lg">
-              <div>
-                <p className="font-medium">Accept New Commissions</p>
-                <p className="text-sm text-stone-500">Allow clients to request custom work</p>
-              </div>
-              <ToggleSwitch checked={formData.commissionOpen} onChange={handleChange} name="commissionOpen" />
-            </div>
+        {/* Commission */}
+        <div className="bg-white rounded-2xl border border-stone-200 p-8 space-y-6">
+          <h2 className="text-xl font-semibold">Commission Settings</h2>
+          <div className="flex items-center justify-between">
             <div>
-              <label className="block text-sm text-stone-600 mb-2">Default Deposit Percentage (%)</label>
-              <input type="number" name="commissionDepositPercentage" value={formData.commissionDepositPercentage} onChange={handleChange} className="w-full px-4 py-3 border rounded-lg" />
+              <p className="font-medium">Accept Commissions</p>
+              <p className="text-sm text-stone-500">Allow new commission requests</p>
             </div>
-            <div>
-              <label className="block text-sm text-stone-600 mb-2">Estimated Wait Time</label>
-              <input type="text" name="commissionWaitTime" value={formData.commissionWaitTime} onChange={handleChange} className="w-full px-4 py-3 border rounded-lg" />
-            </div>
-            <div>
-              <label className="block text-sm text-stone-600 mb-2">Minimum Commission Price (USD)</label>
-              <input type="number" name="minimumCommissionPrice" value={formData.minimumCommissionPrice} onChange={handleChange} className="w-full px-4 py-3 border rounded-lg" />
-            </div>
+            <input
+              type="checkbox"
+              name="commissionOpen"
+              checked={formData.commissionOpen}
+              onChange={handleChange}
+              className="w-5 h-5 accent-amber-600"
+            />
           </div>
-        )}
+        </div>
 
-        {/* ==================== CONTACT ==================== */}
-        {activeTab === 'contact' && (
-          <div className="bg-white rounded-2xl border border-stone-200 p-8 space-y-8">
-            <h2 className="text-xl font-semibold">Contact Information</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm text-stone-600 mb-2">Contact Email</label>
-                <input type="email" name="contactEmail" value={formData.contactEmail} onChange={handleChange} className="w-full px-4 py-3 border rounded-lg" />
-              </div>
-              <div>
-                <label className="block text-sm text-stone-600 mb-2">Phone Number</label>
-                <input type="text" name="phone" value={formData.phone} onChange={handleChange} className="w-full px-4 py-3 border rounded-lg" />
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-sm text-stone-600 mb-2">Physical Address</label>
-                <input type="text" name="address" value={formData.address} onChange={handleChange} className="w-full px-4 py-3 border rounded-lg" />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Save Button */}
-        <div className="flex justify-end gap-4 pt-6 border-t border-stone-200">
+        {/* Save Buttons */}
+        <div className="flex justify-end gap-4">
           <button
             type="button"
             onClick={handleReset}
@@ -273,7 +154,7 @@ const Settings = () => {
             className="px-8 py-3 bg-stone-900 text-white rounded-xl hover:bg-black flex items-center gap-2 disabled:opacity-70"
           >
             {isSaving ? <Loader className="animate-spin" size={20} /> : <Save size={20} />}
-            Save All Settings
+            Save Settings
           </button>
         </div>
       </form>
