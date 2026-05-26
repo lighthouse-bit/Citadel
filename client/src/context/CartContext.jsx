@@ -33,7 +33,7 @@ const cartReducer = (state, action) => {
 export const CartProvider = ({ children }) => {
   const [state, dispatch] = useReducer(cartReducer, { items: [] });
   const [isCartOpen, setIsCartOpen] = useState(false);
-  const { user } = useAuth();   // Get logged-in user
+  const { user } = useAuth();   
 
   // Load cart from localStorage
   useEffect(() => {
@@ -53,7 +53,6 @@ export const CartProvider = ({ children }) => {
   }, [state.items]);
 
   const addToCart = (item) => {
-    // ENFORCE LOGIN
     if (!user) {
       toast.error("Please sign in to add items to your cart", {
         duration: 5000,
@@ -69,8 +68,18 @@ export const CartProvider = ({ children }) => {
     setIsCartOpen(true);
   };
 
-  const removeFromCart = (id) => dispatch({ type: 'REMOVE_ITEM', payload: id });
-  const clearCart = () => dispatch({ type: 'CLEAR_CART' });
+  const removeFromCart = (id) => {
+    dispatch({ type: 'REMOVE_ITEM', payload: id });
+  };
+
+  // STRONGER CLEAR CART
+  const clearCart = () => {
+    dispatch({ type: 'CLEAR_CART' });
+    localStorage.removeItem('citadel_cart');     // Direct clear
+    sessionStorage.removeItem('citadel_cart');   // Extra safety
+    toast.success('Cart cleared');
+  };
+
   const openCart = () => setIsCartOpen(true);
   const closeCart = () => setIsCartOpen(false);
 
