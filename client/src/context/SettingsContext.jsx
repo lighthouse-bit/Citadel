@@ -1,85 +1,123 @@
 // client/src/context/SettingsContext.jsx
 import { createContext, useContext, useState, useEffect } from 'react';
+import { settingsAPI } from '../services/api';
+import toast from 'react-hot-toast';
 
 const SettingsContext = createContext();
 
-// Default settings sjkfkfd
 const defaultSettings = {
-  siteName: 'Highmarc',
+  siteName: 'Citadel',
   siteTagline: 'Fine Art Atelier',
-  artistName: 'Highmarc',
-  artistBio: 'Fine artist specializing in portraits and landscapes. Each piece in my collection represents a convergence of technical mastery and emotional depth, carefully crafted to resonate with the discerning collector.',
+  artistName: 'Artist Name',
+  artistBio: 'Fine artist specializing in portraits and landscapes. Each piece in my collection represents a convergence of technical mastery and emotional depth.',
   contactEmail: 'contact@citadel-art.com',
   phone: '+2348087535982',
   address: 'Johnson Tower Ikeja GRA, Lagos',
+
+  // Payment
+  paystackPublicKey: '',
+  paystackSecretKey: '',
+  currency: 'USD',
+  enableTax: false,
+  taxRate: 7.5,
+
+  // Shipping
+  freeShippingThreshold: 500,
+  shippingFee: 0,
+  internationalShipping: true,
+
+  // Commissions
+  commissionOpen: true,
+  commissionDepositPercentage: 70,
+  commissionWaitTime: '2-4 weeks',
+  minimumCommissionPrice: 500,
+
+  // Social
   socialInstagram: 'https://instagram.com/citadelart',
   socialTwitter: 'https://twitter.com/citadelart',
   socialFacebook: '',
-  commissionOpen: true,
-  commissionWaitTime: '2-4 weeks',
-  shippingInfo: 'Free worldwide shipping on all original artworks. Each piece is carefully packaged and insured.',
-  returnPolicy: '14-day return policy for undamaged items in original packaging.',
-  aboutPageContent: '',
-  heroTitle: 'Highmarc',
+
+  // SEO & Appearance
+  metaDescription: 'Luxury art gallery showcasing original paintings and commissions.',
+  heroTitle: 'Citadel',
   heroSubtitle: 'Where Artistry Meets Timeless Elegance',
+
+  shippingInfo: 'Free worldwide shipping on all original artworks.',
+  returnPolicy: '14-day return policy for undamaged items in original packaging.',
 };
 
 export const SettingsProvider = ({ children }) => {
   const [settings, setSettings] = useState(defaultSettings);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // Load settings from localStorage on mount
-  useEffect(() => {
+  // Fetch settings from backend
+  const fetchSettings = async () => {
     try {
-      const savedSettings = localStorage.getItem('citadel_settings');
-      if (savedSettings) {
-        const parsed = JSON.parse(savedSettings);
-        // ✅ Merge with defaults so any new keys are always present
-        setSettings({ ...defaultSettings, ...parsed });
-      }
+      const response = await settingsAPI.getSettings();
+      const serverSettings = response.data;
+
+      // Merge server data with defaults to ensure all keys exist
+      setSettings({ ...defaultSettings, ...serverSettings });
     } catch (error) {
-      console.error('Failed to load settings:', error);
-      // ✅ Fall back to defaults silently
+      console.error('Failed to fetch settings from server:', error);
+      toast.error('Using default settings');
       setSettings(defaultSettings);
     } finally {
-      // ✅ Always mark as loaded so the app doesn't hang
       setIsLoaded(true);
     }
+  };
+
+  useEffect(() => {
+    fetchSettings();
   }, []);
 
-  // ✅ Save to context + localStorage atomically
-  const updateSettings = (newSettings) => {
-    const updated = { ...defaultSettings, ...newSettings };
-    setSettings(updated);
+  // Update settings on backend + local state
+  const updateSettings = async (newSettings) => {
     try {
-      localStorage.setItem('citadel_settings', JSON.stringify(updated));
+      const response = await settingsAPI.updateSettings(newSettings);
+      
+      const updatedSettings = { ...defaultSettings, ...response.data.settings || newSettings };
+      setSettings(updatedSettings);
+      
+      toast.success('Settings saved successfully!');
+      return true;
     } catch (error) {
-      console.error('Failed to save settings:', error);
+      console.error('Update settings failed:', error);
+      toast.error('Failed to save settings on server');
+      
+      // Fallback: update locally
+      const updatedSettings = { ...defaultSettings, ...newSettings };
+      setSettings(updatedSettings);
+      return false;
     }
-    return updated;
   };
 
-  // ✅ Reset saves defaults to localStorage instead of removing the key
-  const resetSettings = () => {
-    setSettings(defaultSettings);
+  // Reset to defaults
+  const resetSettings = async () => {
     try {
-      localStorage.setItem('citadel_settings', JSON.stringify(defaultSettings));
+      const response = await settingsAPI.resetSettings();
+      const resetData = response.data.settings || defaultSettings;
+      
+      setSettings({ ...defaultSettings, ...resetData });
+      toast.success('Settings reset to defaults');
     } catch (error) {
-      console.error('Failed to reset settings:', error);
+      console.error('Reset settings failed:', error);
+      toast.error('Failed to reset on server. Using local defaults.');
+      setSettings(defaultSettings);
     }
   };
 
-  // Get a single setting with fallback
   const getSetting = (key) => {
     return settings[key] ?? defaultSettings[key];
   };
 
   const value = {
     settings,
+    isLoaded,
     updateSettings,
     resetSettings,
+    fetchSettings,
     getSetting,
-    isLoaded,
     defaultSettings,
   };
 

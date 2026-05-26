@@ -123,4 +123,13 @@ export const contactAPI = {
   send: (data) => api.post('/contact', data),
 };
 
+// ==========================================
+// SETTINGS API
+// ==========================================
+export const settingsAPI = {
+  getSettings: () => api.get('/settings'),
+  updateSettings: (data) => api.put('/settings', data),
+  resetSettings: () => api.post('/settings/reset'),
+};
+
 export default api;
