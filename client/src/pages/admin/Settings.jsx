@@ -1,6 +1,6 @@
 // src/pages/admin/Settings.jsx
 import { useState, useEffect } from 'react';
-import { Save, Loader, RotateCcw, Eye, CreditCard, Truck, Mail, Globe, Award, Lock } from 'lucide-react';
+import { Save, Loader, RotateCcw, Eye, CreditCard, Truck, Mail, Globe, Award, Lock, Image } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useSettings } from '../../context/SettingsContext';
@@ -9,7 +9,7 @@ const defaultSettings = {
   siteName: 'Citadel',
   siteTagline: 'Fine Art Atelier',
   artistName: 'Artist Name',
-  artistBio: '',
+  artistBio: 'Fine artist specializing in portraits and landscapes. Each piece in my collection represents a convergence of technical mastery and emotional depth.',
   contactEmail: 'contact@citadel-art.com',
   phone: '+234 803 000 0000',
   address: 'Johnson Tower Ikeja GRA, Lagos',
@@ -25,6 +25,7 @@ const defaultSettings = {
   freeShippingThreshold: 500,
   shippingFee: 0,
   internationalShipping: true,
+  shippingInfo: 'Free worldwide shipping on all original artworks. Each piece is carefully packaged and insured.',
 
   // Commissions
   commissionOpen: true,
@@ -33,16 +34,14 @@ const defaultSettings = {
   minimumCommissionPrice: 500,
 
   // Social
-  socialInstagram: '',
-  socialTwitter: '',
+  socialInstagram: 'https://instagram.com/citadelart',
+  socialTwitter: 'https://twitter.com/citadelart',
   socialFacebook: '',
 
-  // SEO
-  metaDescription: 'Luxury art gallery showcasing original paintings and commissions.',
+  // SEO & Appearance
+  metaDescription: 'Luxury art gallery showcasing original paintings and commissions by renowned artists.',
   heroTitle: 'CITADEL',
   heroSubtitle: 'Where Artistry Meets Timeless Elegance',
-
-  shippingInfo: 'Free worldwide shipping on all original artworks.',
   returnPolicy: '14-day return policy for undamaged items in original packaging.',
 };
 
@@ -111,12 +110,12 @@ const Settings = () => {
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-stone-200 mb-8">
+      <div className="flex border-b border-stone-200 mb-8 overflow-x-auto">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`px-8 py-4 font-medium flex items-center gap-2 border-b-2 transition-all ${
+            className={`px-8 py-4 font-medium flex items-center gap-2 border-b-2 whitespace-nowrap transition-all ${
               activeTab === tab.id ? 'border-amber-600 text-amber-600' : 'border-transparent text-stone-500 hover:text-stone-700'
             }`}
           >
@@ -127,10 +126,10 @@ const Settings = () => {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-10">
-        {/* General */}
+        {/* ==================== GENERAL ==================== */}
         {activeTab === 'general' && (
           <div className="bg-white rounded-2xl border border-stone-200 p-8 space-y-8">
-            <h2 className="text-xl font-semibold">Branding</h2>
+            <h2 className="text-xl font-semibold">Branding & Hero</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm text-stone-600 mb-2">Site Name</label>
@@ -149,10 +148,19 @@ const Settings = () => {
                 <input type="text" name="heroSubtitle" value={formData.heroSubtitle} onChange={handleChange} className="w-full px-4 py-3 border rounded-lg" />
               </div>
             </div>
+
+            <div>
+              <label className="block text-sm text-stone-600 mb-2">Artist Name</label>
+              <input type="text" name="artistName" value={formData.artistName} onChange={handleChange} className="w-full px-4 py-3 border rounded-lg" />
+            </div>
+            <div>
+              <label className="block text-sm text-stone-600 mb-2">Artist Bio</label>
+              <textarea name="artistBio" rows={5} value={formData.artistBio} onChange={handleChange} className="w-full px-4 py-3 border rounded-lg" />
+            </div>
           </div>
         )}
 
-        {/* Payment */}
+        {/* ==================== PAYMENT ==================== */}
         {activeTab === 'payment' && (
           <div className="bg-white rounded-2xl border border-stone-200 p-8 space-y-8">
             <h2 className="text-xl font-semibold">Payment Configuration</h2>
@@ -171,25 +179,39 @@ const Settings = () => {
                 <option value="NGN">NGN</option>
               </select>
             </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium">Enable Tax</p>
+                <p className="text-sm text-stone-500">Add VAT/GST to orders</p>
+              </div>
+              <ToggleSwitch checked={formData.enableTax} onChange={handleChange} name="enableTax" />
+            </div>
           </div>
         )}
 
-        {/* Shipping */}
+        {/* ==================== SHIPPING ==================== */}
         {activeTab === 'shipping' && (
           <div className="bg-white rounded-2xl border border-stone-200 p-8 space-y-8">
-            <h2 className="text-xl font-semibold">Shipping Settings</h2>
+            <h2 className="text-xl font-semibold">Shipping & Delivery</h2>
             <div>
               <label className="block text-sm text-stone-600 mb-2">Free Shipping Threshold (USD)</label>
               <input type="number" name="freeShippingThreshold" value={formData.freeShippingThreshold} onChange={handleChange} className="w-full px-4 py-3 border rounded-lg" />
             </div>
             <div>
-              <label className="block text-sm text-stone-600 mb-2">Default Shipping Fee</label>
+              <label className="block text-sm text-stone-600 mb-2">Default Shipping Fee (USD)</label>
               <input type="number" name="shippingFee" value={formData.shippingFee} onChange={handleChange} className="w-full px-4 py-3 border rounded-lg" />
+            </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium">International Shipping</p>
+                <p className="text-sm text-stone-500">Enable shipping outside Nigeria</p>
+              </div>
+              <ToggleSwitch checked={formData.internationalShipping} onChange={handleChange} name="internationalShipping" />
             </div>
           </div>
         )}
 
-        {/* Commissions */}
+        {/* ==================== COMMISSIONS ==================== */}
         {activeTab === 'commission' && (
           <div className="bg-white rounded-2xl border border-stone-200 p-8 space-y-8">
             <h2 className="text-xl font-semibold">Commission Settings</h2>
@@ -208,10 +230,14 @@ const Settings = () => {
               <label className="block text-sm text-stone-600 mb-2">Estimated Wait Time</label>
               <input type="text" name="commissionWaitTime" value={formData.commissionWaitTime} onChange={handleChange} className="w-full px-4 py-3 border rounded-lg" />
             </div>
+            <div>
+              <label className="block text-sm text-stone-600 mb-2">Minimum Commission Price (USD)</label>
+              <input type="number" name="minimumCommissionPrice" value={formData.minimumCommissionPrice} onChange={handleChange} className="w-full px-4 py-3 border rounded-lg" />
+            </div>
           </div>
         )}
 
-        {/* Contact */}
+        {/* ==================== CONTACT ==================== */}
         {activeTab === 'contact' && (
           <div className="bg-white rounded-2xl border border-stone-200 p-8 space-y-8">
             <h2 className="text-xl font-semibold">Contact Information</h2>
@@ -233,7 +259,7 @@ const Settings = () => {
         )}
 
         {/* Save Button */}
-        <div className="flex justify-end gap-4 pt-6 border-t">
+        <div className="flex justify-end gap-4 pt-6 border-t border-stone-200">
           <button
             type="button"
             onClick={handleReset}
