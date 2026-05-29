@@ -28,9 +28,9 @@ const Checkout = () => {
     lreastName: user?.lastName || '',
     address: '',
     city: '',
-    strate: '',
-    zidrp: '',
-    counffgtry: 'United States',
+    state: '',
+    zip: '',
+    country: 'United States',
   });
 
   // === CRITICAL: Detect Paystack redirect ===
