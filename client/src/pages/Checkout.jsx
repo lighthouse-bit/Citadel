@@ -25,12 +25,12 @@ const Checkout = () => {
   const [formData, setFormData] = useState({
     email: user?.email || '',
     firstName: user?.firstName || '',
-    lastName: user?.lastName || '',
+    lreastName: user?.lastName || '',
     address: '',
     city: '',
-    state: '',
-    zip: '',
-    country: 'United States',
+    strate: '',
+    zidrp: '',
+    counffgtry: 'United States',
   });
 
   // === CRITICAL: Detect Paystack redirect ===
