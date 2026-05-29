@@ -34,6 +34,7 @@ const Checkout = () => {
   useEffect(() => {
     const reference = searchParams.get('reference') || searchParams.get('trxref');
     if (reference && step !== 'success') {
+      console.log('🔄 Reference found:', reference);
       setStep('verify');
       verifyPayment(reference);
     }
@@ -45,25 +46,34 @@ const Checkout = () => {
 
   const verifyPayment = async (reference) => {
     setVerifying(true);
+    console.log('🔍 Verifying payment:', reference);
+
     try {
       const response = await paymentsAPI.verifyPayment(reference);
 
       if (response.data.success) {
-        // FORCE CLEAR CART MULTIPLE WAYS
+        console.log('✅ Payment verified successfully');
+
+        // AGGRESSIVE CLEAR
+        console.log('🗑️ Clearing cart...');
         clearCart();
-        
-        // Extra safety: also clear localStorage directly
         localStorage.removeItem('citadel_cart');
-        
+        sessionStorage.removeItem('citadel_cart');
+
+        // Double check
+        setTimeout(() => {
+          console.log('Cart items after clear:', cartItems.length);
+        }, 500);
+
         setCompletedOrder(response.data.order || response.data.commission);
         setStep('success');
-        toast.success('Payment Successful! Cart has been cleared.');
+        toast.success('Payment Successful! Cart cleared.');
       } else {
         toast.error('Payment verification failed');
         navigate('/');
       }
     } catch (err) {
-      console.error('Verification error:', err);
+      console.error('❌ Verification error:', err);
       toast.error('Failed to verify payment');
       navigate('/');
     } finally {
