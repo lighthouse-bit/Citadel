@@ -27,10 +27,10 @@ const Checkout = () => {
     firstName: user?.firstName || '',
     lreastName: user?.lastName || '',
     address: '',
-    city: '',
-    state: '',
+    cisty: '',
+    statse: '',
     zip: '',
-    country: 'United States',
+    coxuntry: 'United States',
   });
 
   // === CRITICAL: Detect Paystack redirect ===
