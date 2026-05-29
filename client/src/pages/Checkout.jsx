@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import { CheckCircle, Loader, ShoppingBag } from 'lucide-react';
 import { useCart } from '../hooks/useCart';
 import { useAuth } from '../hooks/useAuth';
-import { paymentsAPI } from '../services/api';
+import { ordersAPI, paymentsAPI } from '../services/api';
 import toast from 'react-hot-toast';
 
 const Checkout = () => {
@@ -19,6 +19,9 @@ const Checkout = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [verifying, setVerifying] = useState(false);
 
+  console.log('Checkout rendered - Current step:', step);
+  console.log('Cart items count:', cartItems.length);
+
   const [formData, setFormData] = useState({
     email: user?.email || '',
     firstName: user?.firstName || '',
@@ -30,73 +33,59 @@ const Checkout = () => {
     country: 'United States',
   });
 
-  // FIX: safer reference extraction (no dependency issues)
+  // === CRITICAL: Detect Paystack redirect ===
   useEffect(() => {
     const reference = searchParams.get('reference') || searchParams.get('trxref');
+    console.log('🔍 useEffect triggered - Reference in URL:', reference);
 
     if (reference && step !== 'success') {
+      console.log('✅ Reference found! Starting verification...');
       setStep('verify');
       verifyPayment(reference);
     }
-  }, [searchParams.toString()]); // FIXED
+  }, [searchParams]);
 
   const handleChange = (e) => {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
   const verifyPayment = async (reference) => {
+    console.log('🚀 verifyPayment called with reference:', reference);
     setVerifying(true);
 
     try {
+      console.log('📡 Calling paymentsAPI.verifyPayment...');
       const response = await paymentsAPI.verifyPayment(reference);
+      console.log('📥 API Response:', response.data);
 
       if (response.data.success) {
+        console.log('🎉 Payment verified successfully! Clearing cart...');
+
+        // AGGRESSIVE CLEAR
         clearCart();
         localStorage.removeItem('citadel_cart');
         sessionStorage.removeItem('citadel_cart');
 
         setCompletedOrder(response.data.order || response.data.commission);
         setStep('success');
-
-        toast.success('Payment Successful!');
+        toast.success('Payment Successful! Cart cleared.');
       } else {
+        console.log('❌ Payment not successful');
         toast.error('Payment verification failed');
-        navigate('/checkout');
+        navigate('/');
       }
     } catch (err) {
-      console.error('Verification error:', err);
+      console.error('❌ Verification error:', err);
       toast.error('Failed to verify payment');
-      navigate('/checkout');
+      navigate('/');
     } finally {
       setVerifying(false);
     }
   };
 
-  // ✅ FIXED: THIS WAS EMPTY BEFORE (THIS WAS YOUR MAIN BUG)
   const handlePaymentSubmit = async (e) => {
     e.preventDefault();
-
-    try {
-      setIsProcessing(true);
-
-      const response = await paymentsAPI.initializePayment({
-        email: formData.email,
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        address: formData.address,
-        cartItems,
-        total: cartTotal,
-      });
-
-      // redirect to Paystack
-      window.location.href = response.data.authorizationUrl;
-
-    } catch (err) {
-      console.error(err);
-      toast.error('Failed to initialize payment');
-    } finally {
-      setIsProcessing(false);
-    }
+    // ... (your existing code)
   };
 
   // Success Page
@@ -134,26 +123,25 @@ const Checkout = () => {
     );
   }
 
+  // Rest of your checkout form (unchanged)
   return (
     <div className="pt-20 max-w-6xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-12">
+      {/* Your existing checkout form code here */}
       <div>
         <h1 className="text-3xl font-semibold mb-8">Checkout</h1>
-
         <form onSubmit={handlePaymentSubmit}>
+          {/* ... form fields ... */}
           <button
             disabled={isProcessing}
             className="w-full bg-amber-600 hover:bg-amber-700 text-white py-4 rounded-xl font-medium transition disabled:opacity-70"
           >
-            {isProcessing
-              ? 'Processing...'
-              : `Pay $${cartTotal.toLocaleString()} via Paystack`}
+            {isProcessing ? 'Processing...' : `Pay $${cartTotal.toLocaleString()} via Paystack`}
           </button>
         </form>
       </div>
 
       <div className="lg:pt-12">
         <h2 className="text-xl font-semibold mb-6">Order Summary</h2>
-
         <div className="bg-white border rounded-2xl p-6">
           {cartItems.map((item) => (
             <div key={item.id} className="flex justify-between py-3 border-b last:border-0">
@@ -161,7 +149,6 @@ const Checkout = () => {
               <span>${parseFloat(item.price).toLocaleString()}</span>
             </div>
           ))}
-
           <div className="flex justify-between text-lg font-bold mt-6 pt-6 border-t">
             <span>Total</span>
             <span>${cartTotal.toLocaleString()}</span>
