@@ -37,11 +37,7 @@ const initializePaystackTransaction = (data) => {
 
     const req = https.request(options, (res) => {
       let responseData = '';
-
-      res.on('data', (chunk) => {
-        responseData += chunk;
-      });
-
+      res.on('data', (chunk) => { responseData += chunk; });
       res.on('end', () => {
         try {
           const parsed = JSON.parse(responseData);
@@ -75,14 +71,11 @@ const verifyPaystackTransaction = (reference) => {
 
     const req = https.request(options, (res) => {
       let responseData = '';
-
-      res.on('data', (chunk) => {
-        responseData += chunk;
-      });
-
+      res.on('data', (chunk) => { responseData += chunk; });
       res.on('end', () => {
         try {
-          resolve(JSON.parse(responseData));
+          const parsed = JSON.parse(responseData);
+          resolve(parsed);
         } catch (e) {
           reject(e);
         }
@@ -95,39 +88,26 @@ const verifyPaystackTransaction = (reference) => {
 };
 
 // ─────────────────────────────────────────────
-// CALLBACK ROUTE (FIXED ONLY)
+// CALLBACK ROUTE - FIXED
 // ─────────────────────────────────────────────
 router.get('/callback', async (req, res) => {
   const reference = req.query.reference || req.query.trxref;
 
-  console.log('🔥 CALLBACK HIT:', reference);
-
   if (!reference) {
-    return res.redirect(`${process.env.CLIENT_URL}/checkout`);
+    return res.redirect(`${process.env.CLIENT_URL}/`);
   }
 
   try {
     const verification = await verifyPaystackTransaction(reference);
 
-    // FIXED: safe validation (prevents undefined crash)
-    if (
-      !verification ||
-      !verification.data ||
-      verification.data.status !== 'success'
-    ) {
-      return res.redirect(
-        `${process.env.CLIENT_URL}/checkout?error=payment_failed`
-      );
+    if (verification.data.status !== 'success') {
+      return res.redirect(`${process.env.CLIENT_URL}/checkout?error=payment_failed`);
     }
 
     const paymentData = verification.data;
-
-    // FIXED: safe metadata access
     const metadata = paymentData.metadata || {};
 
-    // ─────────────────────────────
-    // UPDATE ORDER
-    // ─────────────────────────────
+    // UPDATE DATABASE
     if (metadata.paymentType === 'artwork' && metadata.orderId) {
       await prisma.order.update({
         where: { id: metadata.orderId },
@@ -137,6 +117,7 @@ router.get('/callback', async (req, res) => {
         },
       });
 
+      // Create notification
       await prisma.notification.create({
         data: {
           type: 'PAYMENT',
@@ -144,15 +125,8 @@ router.get('/callback', async (req, res) => {
           link: `/admin/orders/${metadata.orderId}`,
         },
       }).catch(() => {});
-    }
-
-    // ─────────────────────────────
-    // UPDATE COMMISSION
-    // ─────────────────────────────
-    else if (
-      metadata.paymentType === 'commission_deposit' &&
-      metadata.commissionId
-    ) {
+    } 
+    else if (metadata.paymentType === 'commission_deposit' && metadata.commissionId) {
       await prisma.commission.update({
         where: { id: metadata.commissionId },
         data: {
@@ -171,22 +145,16 @@ router.get('/callback', async (req, res) => {
       }).catch(() => {});
     }
 
-    // IMPORTANT: keep success route
-    return res.redirect(
-      `${process.env.CLIENT_URL}/checkout/success?reference=${reference}`
-    );
+    return res.redirect(`${process.env.CLIENT_URL}/checkout/success?reference=${reference}`);
 
   } catch (err) {
     console.error('Callback error:', err);
-
-    return res.redirect(
-      `${process.env.CLIENT_URL}/checkout?error=verification_error`
-    );
+    return res.redirect(`${process.env.CLIENT_URL}/checkout?error=verification_error`);
   }
 });
 
 // ─────────────────────────────────────────────
-// WEBHOOK (UNCHANGED)
+// WEBHOOK (Backup)
 // ─────────────────────────────────────────────
 router.post('/webhook', async (req, res) => {
   const hash = req.headers['x-paystack-signature'];
@@ -194,14 +162,9 @@ router.post('/webhook', async (req, res) => {
   if (!hash || !PAYSTACK_SECRET) return res.sendStatus(400);
 
   let bodyString = '';
-
-  if (Buffer.isBuffer(req.body)) {
-    bodyString = req.body.toString();
-  } else if (typeof req.body === 'string') {
-    bodyString = req.body;
-  } else {
-    bodyString = JSON.stringify(req.body);
-  }
+  if (Buffer.isBuffer(req.body)) bodyString = req.body.toString();
+  else if (typeof req.body === 'string') bodyString = req.body;
+  else bodyString = JSON.stringify(req.body);
 
   const expectedHash = crypto
     .createHmac('sha512', PAYSTACK_SECRET)
@@ -211,10 +174,7 @@ router.post('/webhook', async (req, res) => {
   if (hash !== expectedHash) return res.sendStatus(400);
 
   try {
-    const event =
-      typeof req.body === 'string'
-        ? JSON.parse(req.body)
-        : req.body;
+    const event = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
 
     if (event.event === 'charge.success') {
       const metadata = event.data.metadata || {};
@@ -227,12 +187,7 @@ router.post('/webhook', async (req, res) => {
             status: 'CONFIRMED',
           },
         });
-      }
-
-      else if (
-        metadata.paymentType === 'commission_deposit' &&
-        metadata.commissionId
-      ) {
+      } else if (metadata.paymentType === 'commission_deposit' && metadata.commissionId) {
         await prisma.commission.update({
           where: { id: metadata.commissionId },
           data: {
@@ -248,6 +203,239 @@ router.post('/webhook', async (req, res) => {
   } catch (err) {
     console.error('Webhook error:', err);
     res.sendStatus(200);
+  }
+});
+
+// ─────────────────────────────────────────────
+// ARTWORK PAYMENT INIT
+// ─────────────────────────────────────────────
+router.post('/artwork-payment', authenticateUser, async (req, res) => {
+  try {
+    const { orderId } = req.body;
+
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { customer: true },
+    });
+
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+
+    const usdAmount = parseFloat(order.total);
+    const ngnAmount = usdAmount * USD_TO_NGN;
+
+    const paystackData = await initializePaystackTransaction({
+      email: order.customer.email,
+      amount: Math.round(ngnAmount * 100),
+      currency: 'NGN',
+      reference: `artwork_${order.id}_${Date.now()}`,
+      metadata: { orderId: order.id, paymentType: 'artwork' },
+      callback_url: `${process.env.SERVER_URL}/api/payments/callback`,
+    });
+
+    if (!paystackData.status) return res.status(500).json(paystackData);
+
+    await prisma.order.update({
+      where: { id: orderId },
+      data: { stripePaymentIntentId: paystackData.data.reference },
+    });
+
+    return res.json({
+      authorizationUrl: paystackData.data.authorization_url,
+      reference: paystackData.data.reference,
+      total: usdAmount,
+      currency: 'USD',
+    });
+  } catch (err) {
+    console.error('ARTWORK PAYMENT ERROR:', err);
+    return res.status(500).json({ error: 'Payment init failed' });
+  }
+});
+
+// ─────────────────────────────────────────────
+// COMMISSION DEPOSIT PAYMENT INIT
+// ─────────────────────────────────────────────
+router.post('/commission-deposit', authenticateUser, async (req, res) => {
+  try {
+    const { commissionId } = req.body;
+
+    const commission = await prisma.commission.findUnique({
+      where: { id: commissionId },
+      include: { customer: true },
+    });
+
+    if (!commission) return res.status(404).json({ error: 'Commission not found' });
+
+    const finalPrice = Number(commission.finalPrice || commission.estimatedPrice || 0);
+    const depositPercentage = Number(commission.depositPercentage || 70);
+    const depositAmount = Number(commission.depositAmount || (finalPrice * depositPercentage) / 100);
+
+    if (finalPrice <= 0) return res.status(400).json({ error: 'Invalid commission price' });
+
+    const ngnAmount = depositAmount * USD_TO_NGN;
+
+    const paystackData = await initializePaystackTransaction({
+      email: commission.customer.email,
+      amount: Math.round(ngnAmount * 100),
+      currency: 'NGN',
+      reference: `commission_deposit_${commission.id}_${Date.now()}`,
+      metadata: { commissionId: commission.id, paymentType: 'commission_deposit' },
+      callback_url: `${process.env.SERVER_URL}/api/payments/callback`,
+    });
+
+    if (!paystackData.status) return res.status(500).json(paystackData);
+
+    await prisma.commission.update({
+      where: { id: commissionId },
+      data: { depositPaymentIntentId: paystackData.data.reference },
+    });
+
+    return res.json({
+      authorizationUrl: paystackData.data.authorization_url,
+      reference: paystackData.data.reference,
+      finalPrice,
+      depositAmount,
+      currency: 'USD',
+    });
+  } catch (err) {
+    console.error('COMMISSION PAYMENT ERROR:', err);
+    return res.status(500).json({ error: 'Commission deposit init failed' });
+  }
+});
+
+// ─────────────────────────────────────────────
+// VERIFY PAYMENT
+// ─────────────────────────────────────────────
+router.post('/verify', async (req, res) => {
+  try {
+    const { reference } = req.body;
+
+    if (!reference) {
+      return res.status(400).json({ success: false, error: 'Reference is required' });
+    }
+
+    const verificationData = await verifyPaystackTransaction(reference);
+
+    if (!verificationData.status || verificationData.data.status !== 'success') {
+      return res.status(400).json({ success: false, error: 'Payment verification failed' });
+    }
+
+    const paymentData = verificationData.data;
+    const metadata = paymentData.metadata;
+
+    if (metadata.paymentType === 'commission_deposit') {
+      const commissionId = metadata.commissionId;
+      const commission = await prisma.commission.findUnique({
+        where: { id: commissionId },
+        include: { customer: true },
+      });
+
+      if (!commission) return res.status(404).json({ success: false, error: 'Commission not found' });
+
+      if (commission.paymentStatus === 'DEPOSIT_PAID' || commission.paymentStatus === 'FULLY_PAID') {
+        return res.json({ success: true, type: 'deposit', alreadyVerified: true });
+      }
+
+      const updatedCommission = await prisma.commission.update({
+        where: { id: commissionId },
+        data: {
+          paymentStatus: 'DEPOSIT_PAID',
+          depositPaidAt: new Date(),
+          status: 'IN_PROGRESS',
+        },
+      });
+
+      try {
+        await sendCommissionDepositInvoiceEmail({
+          customerEmail: commission.customer.email,
+          customerName: `${commission.customer.firstName} ${commission.customer.lastName}`,
+          commissionNumber: commission.commissionNumber,
+          amount: Number(paymentData.amount) / 100 / USD_TO_NGN,
+          reference,
+        });
+      } catch (emailErr) {
+        console.error('EMAIL ERROR:', emailErr);
+      }
+
+      return res.json({ success: true, type: 'deposit', commission: updatedCommission });
+    }
+
+    if (metadata.paymentType === 'artwork') {
+      const orderId = metadata.orderId;
+      const order = await prisma.order.findUnique({
+        where: { id: orderId },
+        include: { customer: true },
+      });
+
+      if (!order) return res.status(404).json({ success: false, error: 'Order not found' });
+
+      if (order.paymentStatus === 'FULLY_PAID') {
+        return res.json({ success: true, type: 'artwork', alreadyVerified: true });
+      }
+
+      const updatedOrder = await prisma.order.update({
+        where: { id: orderId },
+        data: {
+          paymentStatus: 'FULLY_PAID',
+          status: 'CONFIRMED',
+        },
+      });
+
+      try {
+        await sendOrderInvoiceEmail({
+          customerEmail: order.customer.email,
+          customerName: `${order.customer.firstName} ${order.customer.lastName}`,
+          orderNumber: order.orderNumber,
+          amount: Number(paymentData.amount) / 100 / USD_TO_NGN,
+          reference,
+        });
+      } catch (emailErr) {
+        console.error('EMAIL ERROR:', emailErr);
+      }
+
+      return res.json({ success: true, type: 'artwork', order: updatedOrder });
+    }
+
+    return res.status(400).json({ success: false, error: 'Unknown payment type' });
+
+  } catch (err) {
+    console.error('VERIFY ERROR:', err);
+    return res.status(500).json({ success: false, error: 'Payment verification failed' });
+  }
+});
+
+// ─────────────────────────────────────────────
+// PAYMENT STATUS CHECK
+// ─────────────────────────────────────────────
+router.get('/status/:orderId', async (req, res) => {
+  try {
+    const { orderId } = req.params;
+
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: {
+        id: true,
+        orderNumber: true,
+        paymentStatus: true,
+        status: true,
+      },
+    });
+
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    const paid = order.paymentStatus === 'FULLY_PAID';
+
+    return res.json({
+      success: true,
+      paid,
+      paymentStatus: order.paymentStatus,
+      orderStatus: order.status,
+    });
+
+  } catch (err) {
+    console.error('STATUS ERROR:', err);
+    return res.status(500).json({ error: 'Failed to check status' });
   }
 });
 
