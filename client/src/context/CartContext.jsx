@@ -1,3 +1,4 @@
+
 // src/context/CartContext.jsx
 import { createContext, useContext, useReducer, useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
@@ -74,15 +75,11 @@ export const CartProvider = ({ children }) => {
 
   // STRONGER CLEAR CART
   const clearCart = () => {
-  // Remove storage FIRST
-  localStorage.removeItem('citadel_cart');
-  sessionStorage.removeItem('citadel_cart');
-
-  // Then clear state
-  dispatch({ type: 'CLEAR_CART' });
-
-  toast.success('Cart cleared');
-};
+    dispatch({ type: 'CLEAR_CART' });
+    localStorage.removeItem('citadel_cart');     // Direct clear
+    sessionStorage.removeItem('citadel_cart');   // Extra safety
+    toast.success('Cart cleared');
+  };
 
   const openCart = () => setIsCartOpen(true);
   const closeCart = () => setIsCartOpen(false);
