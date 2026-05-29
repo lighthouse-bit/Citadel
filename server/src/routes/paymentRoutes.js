@@ -17,7 +17,7 @@ const PAYSTACK_SECRET = process.env.PAYSTACK_SECRET_KEY;
 const USD_TO_NGN = 1600;
 
 // =========================
-// VERIFY HELPER
+// VERIFY HELPER helper
 // =========================
 const verifyPaystackTransaction = (reference) => {
   return new Promise((resolve, reject) => {
@@ -147,5 +147,5 @@ router.post('/verify', async (req, res) => {
     });
   }
 });
-
+// sjjek
 module.exports = router;
