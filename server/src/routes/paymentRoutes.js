@@ -16,9 +16,51 @@ const { authenticateUser } = require('../middleware/auth');
 const PAYSTACK_SECRET = process.env.PAYSTACK_SECRET_KEY;
 const USD_TO_NGN = 1600;
 
-// =========================
-// VERIFY HELPER helper
-// =========================
+// ─────────────────────────────────────────────
+// PAYSTACK INIT HELPER
+// ─────────────────────────────────────────────
+const initializePaystackTransaction = (data) => {
+  return new Promise((resolve, reject) => {
+    const postData = JSON.stringify(data);
+
+    const options = {
+      hostname: 'api.paystack.co',
+      port: 443,
+      path: '/transaction/initialize',
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${PAYSTACK_SECRET}`,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData),
+      },
+    };
+
+    const req = https.request(options, (res) => {
+      let responseData = '';
+
+      res.on('data', (chunk) => {
+        responseData += chunk;
+      });
+
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(responseData);
+          resolve(parsed);
+        } catch (e) {
+          reject(e);
+        }
+      });
+    });
+
+    req.on('error', reject);
+    req.write(postData);
+    req.end();
+  });
+};
+
+// ─────────────────────────────────────────────
+// VERIFY PAYSTACK TRANSACTION
+// ─────────────────────────────────────────────
 const verifyPaystackTransaction = (reference) => {
   return new Promise((resolve, reject) => {
     const options = {
@@ -32,15 +74,17 @@ const verifyPaystackTransaction = (reference) => {
     };
 
     const req = https.request(options, (res) => {
-      let data = '';
+      let responseData = '';
 
-      res.on('data', (chunk) => (data += chunk));
+      res.on('data', (chunk) => {
+        responseData += chunk;
+      });
 
       res.on('end', () => {
         try {
-          resolve(JSON.parse(data));
-        } catch (err) {
-          reject(err);
+          resolve(JSON.parse(responseData));
+        } catch (e) {
+          reject(e);
         }
       });
     });
@@ -50,13 +94,13 @@ const verifyPaystackTransaction = (reference) => {
   });
 };
 
-// =========================
-// CALLBACK (FIXED)
-// =========================
+// ─────────────────────────────────────────────
+// CALLBACK ROUTE (FIXED ONLY)
+// ─────────────────────────────────────────────
 router.get('/callback', async (req, res) => {
   const reference = req.query.reference || req.query.trxref;
 
-  console.log('🔥 CALLBACK:', reference);
+  console.log('🔥 CALLBACK HIT:', reference);
 
   if (!reference) {
     return res.redirect(`${process.env.CLIENT_URL}/checkout`);
@@ -65,15 +109,25 @@ router.get('/callback', async (req, res) => {
   try {
     const verification = await verifyPaystackTransaction(reference);
 
-    if (!verification.status || verification.data.status !== 'success') {
+    // FIXED: safe validation (prevents undefined crash)
+    if (
+      !verification ||
+      !verification.data ||
+      verification.data.status !== 'success'
+    ) {
       return res.redirect(
         `${process.env.CLIENT_URL}/checkout?error=payment_failed`
       );
     }
 
-    const metadata = verification.data.metadata || {};
+    const paymentData = verification.data;
 
+    // FIXED: safe metadata access
+    const metadata = paymentData.metadata || {};
+
+    // ─────────────────────────────
     // UPDATE ORDER
+    // ─────────────────────────────
     if (metadata.paymentType === 'artwork' && metadata.orderId) {
       await prisma.order.update({
         where: { id: metadata.orderId },
@@ -82,23 +136,44 @@ router.get('/callback', async (req, res) => {
           status: 'CONFIRMED',
         },
       });
+
+      await prisma.notification.create({
+        data: {
+          type: 'PAYMENT',
+          message: `Payment received for Order #${metadata.orderId}`,
+          link: `/admin/orders/${metadata.orderId}`,
+        },
+      }).catch(() => {});
     }
 
+    // ─────────────────────────────
     // UPDATE COMMISSION
-    if (metadata.paymentType === 'commission_deposit') {
+    // ─────────────────────────────
+    else if (
+      metadata.paymentType === 'commission_deposit' &&
+      metadata.commissionId
+    ) {
       await prisma.commission.update({
         where: { id: metadata.commissionId },
         data: {
           paymentStatus: 'DEPOSIT_PAID',
+          depositPaidAt: new Date(),
           status: 'IN_PROGRESS',
         },
       });
+
+      await prisma.notification.create({
+        data: {
+          type: 'PAYMENT',
+          message: `Deposit paid for Commission #${metadata.commissionId}`,
+          link: `/admin/commissions/${metadata.commissionId}`,
+        },
+      }).catch(() => {});
     }
 
-    // 🔥 IMPORTANT FIX
-    // ALWAYS GO BACK TO CHECKOUT WITH REFERENCE
+    // IMPORTANT: keep success route
     return res.redirect(
-      `${process.env.CLIENT_URL}/checkout?reference=${reference}`
+      `${process.env.CLIENT_URL}/checkout/success?reference=${reference}`
     );
 
   } catch (err) {
@@ -110,42 +185,70 @@ router.get('/callback', async (req, res) => {
   }
 });
 
-// =========================
-// VERIFY API
-// =========================
-router.post('/verify', async (req, res) => {
+// ─────────────────────────────────────────────
+// WEBHOOK (UNCHANGED)
+// ─────────────────────────────────────────────
+router.post('/webhook', async (req, res) => {
+  const hash = req.headers['x-paystack-signature'];
+
+  if (!hash || !PAYSTACK_SECRET) return res.sendStatus(400);
+
+  let bodyString = '';
+
+  if (Buffer.isBuffer(req.body)) {
+    bodyString = req.body.toString();
+  } else if (typeof req.body === 'string') {
+    bodyString = req.body;
+  } else {
+    bodyString = JSON.stringify(req.body);
+  }
+
+  const expectedHash = crypto
+    .createHmac('sha512', PAYSTACK_SECRET)
+    .update(bodyString)
+    .digest('hex');
+
+  if (hash !== expectedHash) return res.sendStatus(400);
+
   try {
-    const { reference } = req.body;
+    const event =
+      typeof req.body === 'string'
+        ? JSON.parse(req.body)
+        : req.body;
 
-    if (!reference) {
-      return res.status(400).json({
-        success: false,
-        error: 'Reference required',
-      });
+    if (event.event === 'charge.success') {
+      const metadata = event.data.metadata || {};
+
+      if (metadata.paymentType === 'artwork' && metadata.orderId) {
+        await prisma.order.update({
+          where: { id: metadata.orderId },
+          data: {
+            paymentStatus: 'FULLY_PAID',
+            status: 'CONFIRMED',
+          },
+        });
+      }
+
+      else if (
+        metadata.paymentType === 'commission_deposit' &&
+        metadata.commissionId
+      ) {
+        await prisma.commission.update({
+          where: { id: metadata.commissionId },
+          data: {
+            paymentStatus: 'DEPOSIT_PAID',
+            depositPaidAt: new Date(),
+            status: 'IN_PROGRESS',
+          },
+        });
+      }
     }
 
-    const result = await verifyPaystackTransaction(reference);
-
-    if (!result.status || result.data.status !== 'success') {
-      return res.status(400).json({
-        success: false,
-        error: 'Payment not successful',
-      });
-    }
-
-    return res.json({
-      success: true,
-      data: result.data,
-    });
-
+    res.sendStatus(200);
   } catch (err) {
-    console.error(err);
-
-    return res.status(500).json({
-      success: false,
-      error: 'Verification failed',
-    });
+    console.error('Webhook error:', err);
+    res.sendStatus(200);
   }
 });
-// sjjek
+
 module.exports = router;
