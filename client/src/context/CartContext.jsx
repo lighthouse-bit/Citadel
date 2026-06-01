@@ -1,8 +1,8 @@
-
 // src/context/CartContext.jsx
 import { createContext, useContext, useReducer, useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { useAuth } from '../hooks/useAuth';   
+import { useAuth } from '../hooks/useAuth';
+import { trackAddToCart } from '../utils/analytics';
 
 const CartContext = createContext();
 
@@ -16,16 +16,16 @@ const cartReducer = (state, action) => {
       }
       toast.success('Added to your collection');
       return { ...state, items: [...state.items, action.payload] };
-    
+
     case 'REMOVE_ITEM':
       return { ...state, items: state.items.filter(item => item.id !== action.payload) };
-    
+
     case 'CLEAR_CART':
       return { ...state, items: [] };
-    
+
     case 'LOAD_CART':
       return { ...state, items: action.payload };
-    
+
     default:
       return state;
   }
@@ -34,7 +34,7 @@ const cartReducer = (state, action) => {
 export const CartProvider = ({ children }) => {
   const [state, dispatch] = useReducer(cartReducer, { items: [] });
   const [isCartOpen, setIsCartOpen] = useState(false);
-  const { user } = useAuth();   
+  const { user } = useAuth();
 
   // Load cart from localStorage
   useEffect(() => {
@@ -43,7 +43,7 @@ export const CartProvider = ({ children }) => {
       try {
         dispatch({ type: 'LOAD_CART', payload: JSON.parse(savedCart) });
       } catch (e) {
-        console.error("Cart parse error", e);
+        console.error('Cart parse error', e);
       }
     }
   }, []);
@@ -55,15 +55,14 @@ export const CartProvider = ({ children }) => {
 
   const addToCart = (item) => {
     if (!user) {
-      toast.error("Please sign in to add items to your cart", {
+      toast.error('Please sign in to add items to your cart', {
         duration: 5000,
-        action: {
-          label: "Sign In",
-          onClick: () => window.location.href = `/login?redirect=${window.location.pathname}`,
-        },
       });
       return;
     }
+
+    // ✅ Fixed — uses 'item' not 'artwork'
+    trackAddToCart(item);
 
     dispatch({ type: 'ADD_ITEM', payload: item });
     setIsCartOpen(true);
@@ -73,31 +72,34 @@ export const CartProvider = ({ children }) => {
     dispatch({ type: 'REMOVE_ITEM', payload: id });
   };
 
-  // STRONGER CLEAR CART
   const clearCart = () => {
     dispatch({ type: 'CLEAR_CART' });
-    localStorage.removeItem('citadel_cart');     // Direct clear
-    sessionStorage.removeItem('citadel_cart');   // Extra safety
-    toast.success('Cart cleared');
+    localStorage.removeItem('citadel_cart');
+    sessionStorage.removeItem('citadel_cart');
   };
 
-  const openCart = () => setIsCartOpen(true);
+  const openCart  = () => setIsCartOpen(true);
   const closeCart = () => setIsCartOpen(false);
 
-  const cartTotal = state.items.reduce((total, item) => total + parseFloat(item.price || 0), 0);
+  const cartTotal = state.items.reduce(
+    (total, item) => total + parseFloat(item.price || 0),
+    0
+  );
 
   return (
-    <CartContext.Provider value={{
-      cartItems: state.items,
-      cartTotal,
-      isCartOpen,
-      openCart,
-      closeCart,
-      addToCart,
-      removeFromCart,
-      clearCart,
-      isInCart: (id) => state.items.some(item => item.id === id)
-    }}>
+    <CartContext.Provider
+      value={{
+        cartItems: state.items,
+        cartTotal,
+        isCartOpen,
+        openCart,
+        closeCart,
+        addToCart,
+        removeFromCart,
+        clearCart,
+        isInCart: (id) => state.items.some(item => item.id === id),
+      }}
+    >
       {children}
     </CartContext.Provider>
   );

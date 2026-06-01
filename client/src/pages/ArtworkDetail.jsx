@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { trackEvent } from '../utils/analytics';
 import { 
   ShoppingBag, 
   ChevronLeft, 
@@ -64,6 +65,7 @@ const ArtworkDetail = () => {
         setIsLoading(false);
       }
     };
+    
 
     if (id) fetchArtworkData();
     window.scrollTo(0, 0);

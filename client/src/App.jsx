@@ -9,6 +9,7 @@ import { ArtworksProvider } from './context/ArtworksContext';
 import VerifyEmail from './pages/VerifyEmail';
 import VerificationBanner from './components/auth/VerificationBanner';
 import CommissionPayment from './pages/CommissionPayment';
+import { trackPageView } from './utils/analytics';
 
 // Layout Components
 import Navbar from './components/common/Navbar';
@@ -43,6 +44,17 @@ import AdminLogin from './pages/admin/AdminLogin';
 // Auth Components
 import ProtectedRoute from './components/auth/ProtectedRoute';
 
+
+const RouteTracker = () => {
+  const location = useLocation();
+
+  useEffect(() => {
+    trackPageView(location.pathname, document.title);
+  }, [location]);
+
+  return null;
+};
+
 const queryClient = new QueryClient();
 
 // Public Layout Wrapper to handle global UI elements
@@ -71,6 +83,7 @@ function App() {
           <AuthProvider>
             <CartProvider>
               <Router>
+                <RouteTracker />   
                 <Routes>
                   {/* ==================== Public Routes ==================== */}
                   <Route path="/" element={<PublicLayout><Home /></PublicLayout>} />

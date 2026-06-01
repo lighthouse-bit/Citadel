@@ -132,4 +132,13 @@ export const settingsAPI = {
   resetSettings: () => api.post('/settings/reset'),
 };
 
+
+// ==========================================
+// ANALYTICS API
+// ==========================================
+export const analyticsAPI = {
+  trackPageView: (data) => api.post('/analytics/pageview', data).catch(() => {}),
+  trackEvent:    (data) => api.post('/analytics/event', data).catch(() => {}),
+  getSummary:    (period) => api.get('/analytics/summary', { params: { period } }),
+};
 export default api;
