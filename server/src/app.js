@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
 
+const analyticsRoutes = require('./routes/analyticsRoutes');
 const app = express();
 
 // =========================
@@ -66,6 +67,7 @@ app.use('/api/dashboard', require('./routes/dashboardRoutes'));
 app.use('/api/notifications', require('./routes/notificationRoutes'));
 app.use('/api/contact', require('./routes/contactRoutes'));
 app.use('/api/settings', require('./routes/settingsRoutes'));
+app.use('/api/analytics', analyticsRoutes);
 
 // =========================
 // 404 HANDLER
