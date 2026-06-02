@@ -100,6 +100,8 @@ function App() {
                   <Route path="/about"        element={<PublicLayout><About /></PublicLayout>} />
                   <Route path="/contact"      element={<PublicLayout><Contact /></PublicLayout>} />
                   <Route path="/checkout"     element={<PublicLayout><Checkout /></PublicLayout>} />
+                  
+                  <Route path="/checkout/success" element={<PublicLayout><Checkout /></PublicLayout>} />
                   <Route path="/verify-email" element={<PublicLayout><VerifyEmail /></PublicLayout>} />
 
                   <Route path="/account" element={<PublicLayout><Account /></PublicLayout>} />
