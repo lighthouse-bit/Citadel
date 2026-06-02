@@ -2,9 +2,10 @@
 const prisma = require('../config/database');
 const {
   sendOrderInvoiceEmail,
-  sendOrderShippedEmail,       
-  sendOrderDeliveredEmail,   
+  sendOrderShippedEmail,
+  sendOrderDeliveredEmail,
 } = require('../utils/emailService');
+const { registerTracking } = require('../utils/trackingService');
 
 // ─────────────────────────────────────────────────────────
 // Create order (Public/User)
@@ -20,9 +21,9 @@ exports.createOrder = async (req, res) => {
       email,
       items,
       shippingAddress,
-      shippingCost = 0,           // ✅ From frontend
-      shippingZone  = 'Unknown',  // ✅ From frontend
-      shippingSize  = 'unknown',  // ✅ From frontend
+      shippingCost = 0,
+      shippingZone  = 'Unknown',
+      shippingSize  = 'unknown',
     } = req.body;
 
     let customerId;
@@ -65,7 +66,7 @@ exports.createOrder = async (req, res) => {
       });
     }
 
-    // ✅ Calculate totals WITH shipping included
+    // Calculate totals with shipping
     const subtotal       = dbArtworks.reduce(
       (sum, art) => sum + Number(art.price),
       0
@@ -206,6 +207,45 @@ exports.getOrderById = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────────────────
+// Track order by number (Public — no auth required)
+// GET /api/orders/track/:orderNumber
+// ─────────────────────────────────────────────────────────
+exports.trackOrder = async (req, res) => {
+  try {
+    const { orderNumber } = req.params;
+
+    const order = await prisma.order.findUnique({
+      where: { orderNumber },
+      include: {
+        customer: {
+          select: {
+            firstName: true,
+            lastName:  true,
+          },
+        },
+        items: {
+          include: { artwork: { include: { images: { take: 1 } } } },
+        },
+        shippingAddress: true,
+      },
+    });
+
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    // Don't expose sensitive info
+    delete order.internalNotes;
+    delete order.stripePaymentIntentId;
+
+    res.json(order);
+  } catch (error) {
+    console.error('Track order error:', error);
+    res.status(500).json({ error: 'Failed to track order' });
+  }
+};
+
+// ─────────────────────────────────────────────────────────
 // Update order status + tracking + notes (Admin)
 // PATCH /api/orders/:id/status
 // ─────────────────────────────────────────────────────────
@@ -252,6 +292,13 @@ exports.updateOrderStatus = async (req, res) => {
         shippingAddress: true,
       },
     });
+
+    // ✅ Register tracking with 17track for live updates
+    if (shouldSendShippedEmail && order.trackingNumber && order.carrier) {
+      registerTracking(order.trackingNumber, order.carrier)
+        .then(() => console.log(`✅ Registered ${order.trackingNumber} with 17track`))
+        .catch(err => console.error('❌ 17track registration failed:', err.message));
+    }
 
     // ✅ Send shipped email
     if (shouldSendShippedEmail && order.customer?.email) {
@@ -366,7 +413,7 @@ exports.confirmOrderPayment = async (req, res) => {
       },
     }).catch(() => {});
 
-    // ✅ Send invoice email to customer (with shipping included)
+    // Send invoice email
     if (order.customer?.email) {
       await sendOrderInvoiceEmail({
         email:       order.customer.email,
@@ -389,44 +436,5 @@ exports.confirmOrderPayment = async (req, res) => {
   } catch (error) {
     console.error('Error confirming order payment:', error);
     res.status(500).json({ error: 'Failed to confirm payment' });
-  }
-};
-
-// ─────────────────────────────────────────────────────────
-// Track order by number (Public — no auth required)
-// GET /api/orders/track/:orderNumber
-// ─────────────────────────────────────────────────────────
-exports.trackOrder = async (req, res) => {
-  try {
-    const { orderNumber } = req.params;
-
-    const order = await prisma.order.findUnique({
-      where: { orderNumber },
-      include: {
-        customer: {
-          select: {
-            firstName: true,
-            lastName:  true,
-          },
-        },
-        items: {
-          include: { artwork: { include: { images: { take: 1 } } } },
-        },
-        shippingAddress: true,
-      },
-    });
-
-    if (!order) {
-      return res.status(404).json({ error: 'Order not found' });
-    }
-
-    // ✅ Don't expose sensitive info
-    delete order.internalNotes;
-    delete order.stripePaymentIntentId;
-
-    res.json(order);
-  } catch (error) {
-    console.error('Track order error:', error);
-    res.status(500).json({ error: 'Failed to track order' });
   }
 };

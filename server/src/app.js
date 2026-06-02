@@ -7,6 +7,7 @@ const analyticsRoutes = require('./routes/analyticsRoutes');
 const app = express();
 const settingsRoutes = require('./routes/settingsRoutes');
 const shippingRoutes = require('./routes/shippingRoutes');
+const trackingRoutes = require('./routes/trackingRoutes');
 
 // =========================
 // CORS CONFIG (FIXED)
@@ -71,6 +72,7 @@ app.use('/api/contact', require('./routes/contactRoutes'));
 app.use('/api/settings', require('./routes/settingsRoutes'));
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/shipping', shippingRoutes);
+app.use('/api/tracking', trackingRoutes);
 
 
 // =========================
