@@ -18,6 +18,7 @@ import VerificationBanner   from './components/auth/VerificationBanner';
 import CommissionPayment    from './pages/CommissionPayment';
 import { trackPageView }    from './utils/analytics';
 
+
 // Layout Components
 import Navbar     from './components/common/Navbar';
 import Footer     from './components/common/Footer';
@@ -46,6 +47,8 @@ import Commissions       from './pages/admin/Commissions';
 import CommissionDetail  from './pages/admin/CommissionDetail';
 import Settings          from './pages/admin/Settings';
 import AdminLogin        from './pages/admin/AdminLogin';
+import Shipping from './pages/admin/Shipping';
+
 
 // Auth Components
 import ProtectedRoute from './components/auth/ProtectedRoute';
@@ -134,6 +137,7 @@ function App() {
                     <Route path="commissions"        element={<Commissions />} />
                     <Route path="commissions/:id"    element={<CommissionDetail />} />
                     <Route path="settings"           element={<Settings />} />
+                    <Route path="shipping" element={<Shipping />} />
                   </Route>
 
                   {/* ==================== Fallback ==================== */}

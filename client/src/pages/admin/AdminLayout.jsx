@@ -1,11 +1,13 @@
+// src/pages/admin/AdminLayout.jsx
 import { useState, useEffect, useRef } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  Image, 
-  ShoppingBag, 
-  Palette, 
+import {
+  LayoutDashboard,
+  Image,
+  ShoppingBag,
+  Palette,
   Settings,
+  Truck,                       // ✅ Added
   Menu,
   X,
   LogOut,
@@ -20,12 +22,12 @@ import { notificationsAPI } from '../../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const AdminLayout = () => {
-  const [sidebarOpen, setSidebarOpen]       = useState(true);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen]             = useState(true);
+  const [mobileMenuOpen, setMobileMenuOpen]       = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [notifications, setNotifications]   = useState([]);
-  const [unreadCount, setUnreadCount]       = useState(0);
-  
+  const [notifications, setNotifications]         = useState([]);
+  const [unreadCount, setUnreadCount]             = useState(0);
+
   const location   = useLocation();
   const navigate   = useNavigate();
   const { user, logout } = useAuth();
@@ -88,7 +90,7 @@ const AdminLayout = () => {
 
   // ── Delete notification ───────────────────────────────
   const handleDelete = async (id, e) => {
-    e.stopPropagation(); // prevent triggering parent onClick
+    e.stopPropagation();
     try {
       await notificationsAPI.delete(id);
       const deleted = notifications.find(n => n.id === id);
@@ -125,11 +127,13 @@ const AdminLayout = () => {
     navigate('/');
   };
 
+  // ✅ Menu items with Shipping added
   const menuItems = [
     { path: '/admin',             icon: LayoutDashboard, label: 'Dashboard',   exact: true },
     { path: '/admin/artworks',    icon: Image,           label: 'Artworks'                },
     { path: '/admin/orders',      icon: ShoppingBag,     label: 'Orders'                  },
     { path: '/admin/commissions', icon: Palette,         label: 'Commissions'             },
+    { path: '/admin/shipping',    icon: Truck,           label: 'Shipping'                }, // ✅ Added
     { path: '/admin/settings',    icon: Settings,        label: 'Settings'                },
   ];
 
@@ -143,15 +147,15 @@ const AdminLayout = () => {
 
       {/* Mobile Menu Overlay */}
       {mobileMenuOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/50 z-40 lg:hidden"
           onClick={() => setMobileMenuOpen(false)}
         />
       )}
 
       {/* ── Sidebar ──────────────────────────────────────── */}
-      <aside 
-        className={`fixed top-0 left-0 h-full bg-stone-900 text-white z-50 
+      <aside
+        className={`fixed top-0 left-0 h-full bg-stone-900 text-white z-50
                    transition-all duration-300 ease-in-out
                    ${sidebarOpen ? 'w-64' : 'w-20'}
                    ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
@@ -161,15 +165,17 @@ const AdminLayout = () => {
           {sidebarOpen && (
             <Link to="/admin" className="flex items-center gap-2">
               <span className="text-xl font-serif">CITADEL</span>
-              <span className="text-[10px] text-amber-500 uppercase tracking-wider">Admin</span>
+              <span className="text-[10px] text-amber-500 uppercase tracking-wider">
+                Admin
+              </span>
             </Link>
           )}
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
             className="p-2 hover:bg-stone-800 rounded-lg transition-colors hidden lg:block"
           >
-            <ChevronRight 
-              size={20} 
+            <ChevronRight
+              size={20}
               className={`transition-transform duration-300 ${sidebarOpen ? 'rotate-180' : ''}`}
             />
           </button>
@@ -188,11 +194,12 @@ const AdminLayout = () => {
               key={item.path}
               to={item.path}
               onClick={() => setMobileMenuOpen(false)}
-              className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200
-                        ${isActive(item.path, item.exact)
-                          ? 'bg-amber-600 text-white'
-                          : 'text-stone-400 hover:bg-stone-800 hover:text-white'
-                        }`}
+              className={`flex items-center gap-3 px-4 py-3 rounded-lg
+                          transition-all duration-200 ${
+                isActive(item.path, item.exact)
+                  ? 'bg-amber-600 text-white'
+                  : 'text-stone-400 hover:bg-stone-800 hover:text-white'
+              }`}
             >
               <item.icon size={20} />
               {sidebarOpen && <span className="font-medium">{item.label}</span>}
@@ -211,7 +218,7 @@ const AdminLayout = () => {
           <button
             onClick={handleLogout}
             className="flex items-center gap-3 px-4 py-3 w-full rounded-lg
-                     text-stone-400 hover:bg-stone-800 hover:text-white transition-colors"
+                       text-stone-400 hover:bg-stone-800 hover:text-white transition-colors"
           >
             <LogOut size={20} />
             {sidebarOpen && <span>Logout</span>}
@@ -220,10 +227,12 @@ const AdminLayout = () => {
       </aside>
 
       {/* ── Main Content ──────────────────────────────────── */}
-      <div className={`transition-all duration-300 ${sidebarOpen ? 'lg:ml-64' : 'lg:ml-20'}`}>
+      <div className={`transition-all duration-300 ${
+        sidebarOpen ? 'lg:ml-64' : 'lg:ml-20'
+      }`}>
 
         {/* Top Header */}
-        <header className="h-16 bg-white border-b border-stone-200 flex items-center 
+        <header className="h-16 bg-white border-b border-stone-200 flex items-center
                            justify-between px-6 sticky top-0 z-30">
           <div className="flex items-center gap-4">
             <button
@@ -241,20 +250,19 @@ const AdminLayout = () => {
 
             {/* ── Notification Bell ───────────────────────── */}
             <div className="relative" ref={notifRef}>
-              <button 
+              <button
                 onClick={() => {
                   setShowNotifications(!showNotifications);
-                  if (!showNotifications) fetchNotifications(); // refresh on open
+                  if (!showNotifications) fetchNotifications();
                 }}
-                className="relative p-2 hover:bg-stone-100 rounded-lg transition-colors 
+                className="relative p-2 hover:bg-stone-100 rounded-lg transition-colors
                            text-stone-600 hover:text-amber-600"
               >
                 <Bell size={20} />
 
-                {/* Unread badge - shows count now */}
                 {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] 
-                                   bg-red-500 text-white text-[10px] font-bold rounded-full 
+                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px]
+                                   bg-red-500 text-white text-[10px] font-bold rounded-full
                                    flex items-center justify-center px-1 border-2 border-white">
                     {unreadCount > 9 ? '9+' : unreadCount}
                   </span>
@@ -269,25 +277,25 @@ const AdminLayout = () => {
                     animate={{ opacity: 1, y: 0,  scale: 1    }}
                     exit={{    opacity: 0, y: 8,  scale: 0.96 }}
                     transition={{ duration: 0.15 }}
-                    className="absolute right-0 mt-2 w-96 bg-white rounded-xl shadow-2xl 
+                    className="absolute right-0 mt-2 w-96 bg-white rounded-xl shadow-2xl
                                border border-stone-200 overflow-hidden z-50"
                   >
                     {/* Dropdown Header */}
-                    <div className="p-4 border-b border-stone-100 flex justify-between 
+                    <div className="p-4 border-b border-stone-100 flex justify-between
                                     items-center bg-stone-50">
                       <div className="flex items-center gap-2">
                         <h3 className="font-semibold text-stone-900">Notifications</h3>
                         {unreadCount > 0 && (
-                          <span className="px-2 py-0.5 bg-red-100 text-red-600 
+                          <span className="px-2 py-0.5 bg-red-100 text-red-600
                                            text-xs rounded-full font-medium">
                             {unreadCount} new
                           </span>
                         )}
                       </div>
                       {unreadCount > 0 && (
-                        <button 
+                        <button
                           onClick={handleMarkAllRead}
-                          className="text-xs text-amber-600 hover:text-amber-700 
+                          className="text-xs text-amber-600 hover:text-amber-700
                                      flex items-center gap-1 font-medium transition-colors"
                         >
                           <CheckCheck size={13} />
@@ -300,15 +308,15 @@ const AdminLayout = () => {
                     <div className="max-h-[420px] overflow-y-auto divide-y divide-stone-50">
                       {notifications.length > 0 ? (
                         notifications.map((notif) => (
-                          <div 
+                          <div
                             key={notif.id}
                             onClick={() => handleMarkAsRead(notif.id, notif.link)}
-                            className={`flex items-start gap-3 p-4 cursor-pointer 
-                                        transition-colors group
-                                        ${!notif.isRead 
-                                          ? 'bg-amber-50 hover:bg-amber-100' 
-                                          : 'bg-white hover:bg-stone-50'
-                                        }`}
+                            className={`flex items-start gap-3 p-4 cursor-pointer
+                                        transition-colors group ${
+                              !notif.isRead
+                                ? 'bg-amber-50 hover:bg-amber-100'
+                                : 'bg-white hover:bg-stone-50'
+                            }`}
                           >
                             {/* Unread dot */}
                             <div className="mt-1.5 flex-shrink-0">
@@ -320,8 +328,8 @@ const AdminLayout = () => {
                             {/* Content */}
                             <div className="flex-1 min-w-0">
                               <p className={`text-sm leading-snug ${
-                                !notif.isRead 
-                                  ? 'font-medium text-stone-900' 
+                                !notif.isRead
+                                  ? 'font-medium text-stone-900'
                                   : 'text-stone-500'
                               }`}>
                                 {notif.message}
@@ -337,9 +345,9 @@ const AdminLayout = () => {
                               </div>
                             </div>
 
-                            {/* Action buttons - visible on hover */}
-                            <div className="flex items-center gap-1 opacity-0 
-                                            group-hover:opacity-100 transition-opacity 
+                            {/* Action buttons */}
+                            <div className="flex items-center gap-1 opacity-0
+                                            group-hover:opacity-100 transition-opacity
                                             flex-shrink-0">
                               {!notif.isRead && (
                                 <button
@@ -390,7 +398,7 @@ const AdminLayout = () => {
             <Link
               to="/"
               target="_blank"
-              className="text-sm text-stone-600 hover:text-amber-600 
+              className="text-sm text-stone-600 hover:text-amber-600
                          transition-colors hidden sm:block"
             >
               View Site →

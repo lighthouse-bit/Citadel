@@ -2,10 +2,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Lock, CheckCircle, Loader, ShoppingBag } from 'lucide-react';
+import { Lock, CheckCircle, Loader, ShoppingBag, Truck, Info } from 'lucide-react';
 import { useCart } from '../hooks/useCart';
 import { useAuth } from '../hooks/useAuth';
-import { ordersAPI, paymentsAPI } from '../services/api';
+import { ordersAPI, paymentsAPI, shippingAPI } from '../services/api';
 import { trackPurchase } from '../utils/analytics';
 import toast from 'react-hot-toast';
 
@@ -38,6 +38,9 @@ const Checkout = () => {
   const [isProcessing, setIsProcessing]     = useState(false);
   const [verifying, setVerifying]           = useState(false);
 
+  const [shippingInfo, setShippingInfo]                   = useState(null);
+  const [isCalculatingShipping, setIsCalculatingShipping] = useState(false);
+
   const [formData, setFormData] = useState({
     email:     user?.email     || '',
     firstName: user?.firstName || user?.name?.split(' ')[0] || '',
@@ -46,8 +49,12 @@ const Checkout = () => {
     city:      '',
     state:     '',
     zip:       '',
-    country:   'United States',
+    country:   'Nigeria',
   });
+
+  // ✅ Calculate final total including shipping
+  const shippingCost = shippingInfo?.shippingCost || 0;
+  const finalTotal   = cartTotal + shippingCost;
 
   // ── Detect Paystack redirect ──────────────────────────────
   useEffect(() => {
@@ -59,52 +66,87 @@ const Checkout = () => {
     }
   }, [searchParams]);
 
+  // ── Calculate shipping when country or cart changes ───────
+  useEffect(() => {
+    const calculate = async () => {
+      if (!formData.country || cartItems.length === 0) {
+        setShippingInfo(null);
+        return;
+      }
+
+      setIsCalculatingShipping(true);
+      try {
+        const response = await shippingAPI.calculate({
+          country: formData.country,
+          items:   cartItems.map(item => ({
+            width:  item.width,
+            height: item.height,
+            price:  item.price,
+          })),
+        });
+        setShippingInfo(response.data);
+      } catch (error) {
+        console.error('Shipping calc error:', error);
+        setShippingInfo(null);
+      } finally {
+        setIsCalculatingShipping(false);
+      }
+    };
+
+    const timeout = setTimeout(calculate, 500); // debounce
+    return () => clearTimeout(timeout);
+  }, [formData.country, cartItems]);
+
   const handleChange = (e) => {
     setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
   // ── Verify Payment After Paystack Redirect ────────────────
- const verifyPayment = async (reference) => {
-  setVerifying(true);
+  const verifyPayment = async (reference) => {
+    setVerifying(true);
 
-  try {
-    const response = await paymentsAPI.verifyPayment(reference);
+    try {
+      const response = await paymentsAPI.verifyPayment(reference);
 
-    if (response.data.success) {
-      const pendingOrder = JSON.parse(
-        localStorage.getItem('pending_order') || '{}'
-      );
+      if (response.data.success) {
+        const pendingOrder = JSON.parse(
+          localStorage.getItem('pending_order') || '{}'
+        );
 
-      // ✅ Track purchase
-      trackPurchase(pendingOrder, cartItems, cartTotal);
+        // ✅ Track purchase
+        trackPurchase(pendingOrder, cartItems, finalTotal);
 
-      // ✅ AGGRESSIVE CLEAR — clear ALL traces of the cart
-      localStorage.removeItem('citadel_cart');
-      localStorage.removeItem('pending_order');
-      sessionStorage.removeItem('citadel_cart');
+        // ✅ Clear all cart traces
+        localStorage.removeItem('citadel_cart');
+        localStorage.removeItem('pending_order');
+        sessionStorage.removeItem('citadel_cart');
+        clearCart();
 
-      // ✅ Then clear context state
-      clearCart();
-
-      setCompletedOrder(response.data.order || pendingOrder);
-      setStep('success');
-      toast.success('Payment Successful!');
-    } else {
-      toast.error('Payment verification failed');
+        setCompletedOrder(response.data.order || pendingOrder);
+        setStep('success');
+        toast.success('Payment Successful!');
+      } else {
+        toast.error('Payment verification failed');
+        navigate('/');
+      }
+    } catch (err) {
+      console.error('Verification error:', err);
+      toast.error('Failed to verify payment');
       navigate('/');
+    } finally {
+      setVerifying(false);
     }
-  } catch (err) {
-    console.error('Verification error:', err);
-    toast.error('Failed to verify payment');
-    navigate('/');
-  } finally {
-    setVerifying(false);
-  }
-};
+  };
 
   // ── Handle Checkout Submit ────────────────────────────────
   const handlePaymentSubmit = async (e) => {
     e.preventDefault();
+
+    if (isCalculatingShipping) {
+      toast.error('Please wait for shipping to calculate');
+      return;
+    }
+
     setIsProcessing(true);
 
     try {
@@ -121,6 +163,10 @@ const Checkout = () => {
           postalCode: formData.zip,
           country:    formData.country,
         },
+        // ✅ Include shipping info
+        shippingCost: shippingCost,
+        shippingZone: shippingInfo?.zone || 'Unknown',
+        shippingSize: shippingInfo?.size || 'unknown',
       };
 
       const orderRes = await ordersAPI.create(orderPayload);
@@ -152,7 +198,8 @@ const Checkout = () => {
   // ── Verifying Screen ──────────────────────────────────────
   if (verifying || step === 'verify') {
     return (
-      <div className="min-h-screen pt-20 bg-stone-50 flex items-center justify-center">
+      <div className="min-h-screen pt-20 bg-stone-50 flex items-center
+                      justify-center">
         <div className="text-center">
           <Loader size={48} className="animate-spin text-amber-600 mx-auto mb-4" />
           <p className="text-lg font-medium text-stone-700">
@@ -347,7 +394,7 @@ const Checkout = () => {
                   <div>
                     <label className="block text-xs font-medium text-stone-500
                                       uppercase tracking-wider mb-2">
-                      ZIP Code
+                      ZIP / Postal Code
                     </label>
                     <input
                       type="text"
@@ -375,15 +422,43 @@ const Checkout = () => {
                                rounded-lg focus:outline-none focus:border-amber-500
                                text-stone-900"
                   >
-                    <option>United States</option>
-                    <option>United Kingdom</option>
-                    <option>Canada</option>
-                    <option>Australia</option>
-                    <option>Germany</option>
-                    <option>France</option>
-                    <option>Nigeria</option>
-                    <option>South Africa</option>
-                    <option>Other</option>
+                    <optgroup label="Nigeria">
+                      <option>Nigeria</option>
+                    </optgroup>
+                    <optgroup label="Africa">
+                      <option>Ghana</option>
+                      <option>Kenya</option>
+                      <option>South Africa</option>
+                      <option>Egypt</option>
+                      <option>Ethiopia</option>
+                      <option>Tanzania</option>
+                      <option>Uganda</option>
+                      <option>Rwanda</option>
+                      <option>Senegal</option>
+                      <option>Ivory Coast</option>
+                      <option>Morocco</option>
+                      <option>Algeria</option>
+                      <option>Angola</option>
+                      <option>Cameroon</option>
+                      <option>Botswana</option>
+                    </optgroup>
+                    <optgroup label="International">
+                      <option>United States</option>
+                      <option>United Kingdom</option>
+                      <option>Canada</option>
+                      <option>Australia</option>
+                      <option>Germany</option>
+                      <option>France</option>
+                      <option>Italy</option>
+                      <option>Spain</option>
+                      <option>Netherlands</option>
+                      <option>UAE</option>
+                      <option>Saudi Arabia</option>
+                      <option>India</option>
+                      <option>China</option>
+                      <option>Japan</option>
+                      <option>Other</option>
+                    </optgroup>
                   </select>
                 </div>
               </div>
@@ -417,7 +492,7 @@ const Checkout = () => {
 
               <button
                 type="submit"
-                disabled={isProcessing}
+                disabled={isProcessing || isCalculatingShipping}
                 className="w-full bg-amber-600 text-white py-4 rounded-lg font-medium
                            tracking-wide uppercase hover:bg-amber-700 transition-colors
                            flex items-center justify-center gap-2
@@ -428,10 +503,15 @@ const Checkout = () => {
                     <Loader size={18} className="animate-spin" />
                     Redirecting to Paystack...
                   </>
+                ) : isCalculatingShipping ? (
+                  <>
+                    <Loader size={18} className="animate-spin" />
+                    Calculating shipping...
+                  </>
                 ) : (
                   <>
                     <Lock size={16} />
-                    Pay ${cartTotal.toLocaleString()} via Paystack
+                    Pay ${finalTotal.toLocaleString()} via Paystack
                   </>
                 )}
               </button>
@@ -446,6 +526,7 @@ const Checkout = () => {
                 Order Summary
               </h2>
 
+              {/* Cart Items */}
               <div className="space-y-4 mb-6 max-h-80 overflow-y-auto pr-2">
                 {cartItems.map((item) => (
                   <div key={item.id} className="flex gap-4">
@@ -471,27 +552,90 @@ const Checkout = () => {
                 ))}
               </div>
 
+              {/* ── Shipping Info Banner ─────────────────── */}
+              {shippingInfo?.isFreeShipping && (
+                <div className="bg-green-50 border border-green-200 rounded-lg
+                                p-3 mb-4 flex items-start gap-2">
+                  <Truck size={18} className="text-green-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-green-800 text-sm font-medium">
+                      Free Shipping Applied!
+                    </p>
+                    <p className="text-green-700 text-xs">
+                      Orders over $1,000 ship free worldwide
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Totals */}
               <div className="space-y-3 pt-5 border-t border-stone-100">
                 <div className="flex justify-between text-stone-500 text-sm">
                   <span>Subtotal</span>
                   <span>${cartTotal.toLocaleString()}</span>
                 </div>
+
+                {/* ✅ Dynamic Shipping Row */}
                 <div className="flex justify-between text-stone-500 text-sm">
-                  <span>Shipping</span>
-                  <span className="text-green-600 font-medium">Free</span>
+                  <span>
+                    Shipping
+                    {shippingInfo?.zone && (
+                      <span className="text-stone-400 text-xs ml-1">
+                        ({shippingInfo.zone})
+                      </span>
+                    )}
+                  </span>
+                  {isCalculatingShipping ? (
+                    <Loader size={14} className="animate-spin text-stone-400" />
+                  ) : shippingInfo?.isFreeShipping ? (
+                    <span className="text-green-600 font-medium">FREE</span>
+                  ) : shippingInfo?.shippingCost !== undefined ? (
+                    <span>${shippingInfo.shippingCost.toFixed(2)}</span>
+                  ) : (
+                    <span className="text-stone-400 text-xs">
+                      Enter country
+                    </span>
+                  )}
                 </div>
+
+                {/* Estimated Delivery */}
+                {shippingInfo?.estimatedDays && !shippingInfo?.isFreeShipping && (
+                  <div className="flex items-start gap-1.5 text-xs text-stone-400 -mt-1">
+                    <Info size={12} className="mt-0.5 flex-shrink-0" />
+                    <span>Estimated delivery: {shippingInfo.estimatedDays}</span>
+                  </div>
+                )}
+
                 <div className="flex justify-between text-stone-500 text-sm">
                   <span>Tax</span>
                   <span>$0.00</span>
                 </div>
+
+                {/* ✅ Final Total Includes Shipping */}
                 <div className="flex justify-between text-xl font-serif
                                 text-stone-900 pt-4 border-t border-stone-200">
                   <span>Total</span>
                   <span className="text-amber-700">
-                    ${cartTotal.toLocaleString()}
+                    ${finalTotal.toLocaleString()}
                   </span>
                 </div>
               </div>
+
+              {/* Free Shipping Progress Bar (when not yet free) */}
+              {!shippingInfo?.isFreeShipping && cartTotal < 1000 && (
+                <div className="mt-4 pt-4 border-t border-stone-100">
+                  <div className="flex justify-between text-xs text-stone-600 mb-1.5">
+                    <span>Add ${(1000 - cartTotal).toLocaleString()} for FREE shipping</span>
+                    <span>{Math.round((cartTotal / 1000) * 100)}%</span>
+                  </div>
+                  <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-amber-500 rounded-full transition-all duration-500"
+                      style={{ width: `${Math.min((cartTotal / 1000) * 100, 100)}%` }}
+                    />
+                  </div>
+                </div>
+              )}
 
               <div className="mt-6 pt-4 border-t border-stone-100">
                 <p className="text-xs text-stone-400 flex items-center
