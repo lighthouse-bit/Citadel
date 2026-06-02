@@ -17,6 +17,7 @@ import VerifyEmail          from './pages/VerifyEmail';
 import VerificationBanner   from './components/auth/VerificationBanner';
 import CommissionPayment    from './pages/CommissionPayment';
 import { trackPageView }    from './utils/analytics';
+import OrderTracking from './pages/OrderTracking';
 
 
 // Layout Components
@@ -103,6 +104,9 @@ function App() {
                   <Route path="/about"        element={<PublicLayout><About /></PublicLayout>} />
                   <Route path="/contact"      element={<PublicLayout><Contact /></PublicLayout>} />
                   <Route path="/checkout"     element={<PublicLayout><Checkout /></PublicLayout>} />
+
+                  <Route path="/track"               element={<PublicLayout><OrderTracking /></PublicLayout>} />
+                  <Route path="/track/:orderNumber"  element={<PublicLayout><OrderTracking /></PublicLayout>} />
                   
                   <Route path="/checkout/success" element={<PublicLayout><Checkout /></PublicLayout>} />
                   <Route path="/verify-email" element={<PublicLayout><VerifyEmail /></PublicLayout>} />
