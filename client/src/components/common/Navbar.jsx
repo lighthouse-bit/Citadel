@@ -97,7 +97,7 @@ const Navbar = ({ onOpenAuth }) => {
                 style={{ letterSpacing: '0.25em' }}
               >
                 {/* ✅ Now reads tagline from settings */}
-                {settings.siteTagline.toUpperCase()}
+                {(settings.siteTagline || 'Fine Art Atelier').toUpperCase()}
               </span>
             </motion.div>
           </Link>
