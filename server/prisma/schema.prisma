@@ -297,26 +297,7 @@ model Admin {
   @@index([email])
 }
 
-model SiteSettings {
-  id                 String  @id @default("settings")
-  siteName           String  @default("Citadel")
-  siteTagline        String? // ✅ Added missing field
-  artistName         String?
-  artistBio          String? @db.Text
-  contactEmail       String?
-  phone              String? // ✅ Added missing field
-  address            String? // ✅ Added missing field
-  socialInstagram    String?
-  socialTwitter      String?
-  socialFacebook     String?
-  commissionOpen     Boolean @default(true)
-  commissionWaitTime String?
-  shippingInfo       String? @db.Text
-  returnPolicy       String? @db.Text
-  heroTitle          String? // ✅ Added missing field
-  heroSubtitle       String? // ✅ Added missing field
-  aboutPageContent   String? @db.Text // ✅ Added missing field
-}
+
 
 model Notification {
   id         String   @id @default(uuid())
@@ -337,44 +318,49 @@ model Notification {
   @@index([isRead])
 }
 
-model Settings {
-  id                        String   @id @default(cuid())
-  siteName                  String   @default("Citadel")
-  siteTagline               String?
-  artistName                String?
-  artistBio                 String?
-  contactEmail              String?
-  phone                     String?
-  address                   String?
+model SiteSettings {
+  id                          String   @id @default("settings")
+  siteName                    String   @default("Highmarc")
+  siteTagline                 String?  @default("Fine Art Atelier")
+  artistName                  String?
+  artistBio                   String?  @db.Text
+  contactEmail                String?
+  phone                       String?
+  address                     String?
 
-  paystackPublicKey         String?
-  paystackSecretKey         String?
-  currency                  String   @default("USD")
-  enableTax                 Boolean  @default(false)
-  taxRate                   Float    @default(7.5)
+  // Payment
+  currency                    String?  @default("USD")
+  enableTax                   Boolean  @default(false)
+  taxRate                     Float?   @default(7.5)
 
-  freeShippingThreshold     Float    @default(500)
-  shippingFee               Float    @default(0)
-  internationalShipping     Boolean  @default(true)
+  // Shipping
+  freeShippingThreshold       Float?   @default(500)
+  shippingFee                 Float?   @default(0)
+  internationalShipping       Boolean  @default(true)
 
-  commissionOpen            Boolean  @default(true)
-  commissionDepositPercentage Int   @default(70)
-  commissionWaitTime        String?
-  minimumCommissionPrice    Float    @default(500)
+  // Commissions
+  commissionOpen              Boolean  @default(true)
+  commissionDepositPercentage Int?     @default(70)
+  commissionWaitTime          String?
+  minimumCommissionPrice      Float?   @default(500)
 
-  socialInstagram           String?
-  socialTwitter             String?
-  socialFacebook            String?
+  // Social
+  socialInstagram             String?
+  socialTwitter               String?
+  socialFacebook              String?
 
-  metaDescription           String?
-  heroTitle                 String?
-  heroSubtitle              String?
+  // SEO
+  metaDescription             String?  @db.Text
+  heroTitle                   String?
+  heroSubtitle                String?
+  aboutPageContent            String?  @db.Text
 
-  shippingInfo              String?
-  returnPolicy              String?
+  // Policies
+  shippingInfo                String?  @db.Text
+  returnPolicy                String?  @db.Text
 
-  createdAt                 DateTime @default(now())
-  updatedAt                 DateTime @updatedAt
+  // ✅ FIX — Add default to avoid migration error
+  updatedAt                   DateTime @default(now()) @updatedAt
 }
 
 model PageView {
