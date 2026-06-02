@@ -141,3 +141,20 @@ export const analyticsAPI = {
   getSummary:    (period) => api.get('/analytics/summary', { params: { period } }),
 };
 export default api;
+
+// ==========================================
+// SHIPPING API
+// ==========================================
+export const shippingAPI = {
+  // Public — used in checkout
+  getZones:  ()     => api.get('/shipping/zones'),
+  calculate: (data) => api.post('/shipping/calculate', data),
+
+  // Admin
+  getAdminZones: ()       => api.get('/shipping/admin/zones'),
+  createZone:    (data)   => api.post('/shipping/admin/zones', data),
+  updateZone:    (id, d)  => api.put(`/shipping/admin/zones/${id}`, d),
+  deleteZone:    (id)     => api.delete(`/shipping/admin/zones/${id}`),
+  upsertRate:    (data)   => api.post('/shipping/admin/rates', data),
+  seedDefaults:  ()       => api.post('/shipping/admin/seed'),
+};
