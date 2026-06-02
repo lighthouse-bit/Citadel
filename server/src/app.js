@@ -6,6 +6,7 @@ require('dotenv').config();
 const analyticsRoutes = require('./routes/analyticsRoutes');
 const app = express();
 const settingsRoutes = require('./routes/settingsRoutes');
+const shippingRoutes = require('./routes/shippingRoutes');
 
 // =========================
 // CORS CONFIG (FIXED)
@@ -69,6 +70,7 @@ app.use('/api/notifications', require('./routes/notificationRoutes'));
 app.use('/api/contact', require('./routes/contactRoutes'));
 app.use('/api/settings', require('./routes/settingsRoutes'));
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/shipping', shippingRoutes);
 
 
 // =========================
