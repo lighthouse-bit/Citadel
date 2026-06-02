@@ -64,43 +64,43 @@ const Checkout = () => {
   };
 
   // ── Verify Payment After Paystack Redirect ────────────────
-  const verifyPayment = async (reference) => {
-    setVerifying(true);
+ const verifyPayment = async (reference) => {
+  setVerifying(true);
 
-    try {
-      const response = await paymentsAPI.verifyPayment(reference);
+  try {
+    const response = await paymentsAPI.verifyPayment(reference);
 
-      if (response.data.success) {
-        // ✅ Track purchase in analytics
-        const pendingOrder = JSON.parse(
-          localStorage.getItem('pending_order') || '{}'
-        );
+    if (response.data.success) {
+      const pendingOrder = JSON.parse(
+        localStorage.getItem('pending_order') || '{}'
+      );
 
-        trackPurchase(
-          pendingOrder,
-          cartItems,
-          cartTotal
-        );
+      // ✅ Track purchase
+      trackPurchase(pendingOrder, cartItems, cartTotal);
 
-        // Clear cart
-        clearCart();
-        localStorage.removeItem('pending_order');
+      // ✅ AGGRESSIVE CLEAR — clear ALL traces of the cart
+      localStorage.removeItem('citadel_cart');
+      localStorage.removeItem('pending_order');
+      sessionStorage.removeItem('citadel_cart');
 
-        setCompletedOrder(response.data.order || pendingOrder);
-        setStep('success');
-        toast.success('Payment Successful!');
-      } else {
-        toast.error('Payment verification failed');
-        navigate('/');
-      }
-    } catch (err) {
-      console.error('Verification error:', err);
-      toast.error('Failed to verify payment');
+      // ✅ Then clear context state
+      clearCart();
+
+      setCompletedOrder(response.data.order || pendingOrder);
+      setStep('success');
+      toast.success('Payment Successful!');
+    } else {
+      toast.error('Payment verification failed');
       navigate('/');
-    } finally {
-      setVerifying(false);
     }
-  };
+  } catch (err) {
+    console.error('Verification error:', err);
+    toast.error('Failed to verify payment');
+    navigate('/');
+  } finally {
+    setVerifying(false);
+  }
+};
 
   // ── Handle Checkout Submit ────────────────────────────────
   const handlePaymentSubmit = async (e) => {

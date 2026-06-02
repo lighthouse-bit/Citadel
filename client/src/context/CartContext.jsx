@@ -1,4 +1,4 @@
-// src/context/CartContext.jsx
+// client/src/context/CartContext.jsx
 import { createContext, useContext, useReducer, useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../hooks/useAuth';
@@ -36,8 +36,21 @@ export const CartProvider = ({ children }) => {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const { user } = useAuth();
 
-  // Load cart from localStorage
+  // ✅ Load cart from localStorage — BUT clear it if returning from Paystack
   useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const hasPaystackReference = urlParams.has('reference') || urlParams.has('trxref');
+
+    if (hasPaystackReference) {
+      // ✅ Coming back from Paystack — clear cart immediately
+      console.log('🧹 Detected Paystack redirect — clearing cart');
+      localStorage.removeItem('citadel_cart');
+      sessionStorage.removeItem('citadel_cart');
+      dispatch({ type: 'CLEAR_CART' });
+      return;
+    }
+
+    // Normal cart load
     const savedCart = localStorage.getItem('citadel_cart');
     if (savedCart) {
       try {
@@ -48,9 +61,13 @@ export const CartProvider = ({ children }) => {
     }
   }, []);
 
-  // Save cart to localStorage
+  // Save cart to localStorage whenever it changes
   useEffect(() => {
-    localStorage.setItem('citadel_cart', JSON.stringify(state.items));
+    if (state.items.length > 0) {
+      localStorage.setItem('citadel_cart', JSON.stringify(state.items));
+    } else {
+      localStorage.removeItem('citadel_cart');
+    }
   }, [state.items]);
 
   const addToCart = (item) => {
@@ -61,7 +78,6 @@ export const CartProvider = ({ children }) => {
       return;
     }
 
-    // ✅ Fixed — uses 'item' not 'artwork'
     trackAddToCart(item);
 
     dispatch({ type: 'ADD_ITEM', payload: item });
@@ -72,6 +88,7 @@ export const CartProvider = ({ children }) => {
     dispatch({ type: 'REMOVE_ITEM', payload: id });
   };
 
+  // ✅ Strong clear cart — wipes everything
   const clearCart = () => {
     dispatch({ type: 'CLEAR_CART' });
     localStorage.removeItem('citadel_cart');
