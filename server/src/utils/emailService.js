@@ -890,6 +890,268 @@ const sendCommissionBalanceInvoiceEmail = async ({
   }
 };
 
+
+// ── Order Shipped Email ──────────────────────────────────────────────────────
+const sendOrderShippedEmail = async ({
+  email,
+  firstName,
+  orderNumber,
+  trackingNumber,
+  trackingUrl,
+  carrier,
+  estimatedDelivery,
+  shippingAddress,
+}) => {
+  console.log(`📧 Sending shipped notification to ${email}...`);
+
+  try {
+    const transporter = createTransporter();
+
+    const estDate = estimatedDelivery
+      ? new Date(estimatedDelivery).toLocaleDateString('en-US', {
+          weekday: 'long',
+          year:    'numeric',
+          month:   'long',
+          day:     'numeric',
+        })
+      : null;
+
+    const mailOptions = {
+      from:    `"Highmarc Art Atelier" <${process.env.EMAIL_USER}>`,
+      to:      email,
+      subject: `Your Order is on the Way — ${orderNumber}`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <body style="margin:0;padding:0;background:#f5f5f4;font-family:Georgia,serif;">
+          <div style="max-width:600px;margin:40px auto;background:#ffffff;
+                      border:1px solid #e7e5e4;">
+
+            <!-- Header -->
+            <div style="background:#1c1917;padding:40px;text-align:center;">
+              <h1 style="color:#ffffff;margin:0;font-size:32px;letter-spacing:4px;
+                         font-weight:400;">HIGHMARC</h1>
+              <p style="color:#d97706;margin:8px 0 0;font-size:11px;
+                        letter-spacing:3px;text-transform:uppercase;">
+                Fine Art Atelier
+              </p>
+            </div>
+
+            <!-- Big Truck Banner -->
+            <div style="background:linear-gradient(135deg,#fef3c7,#fde68a);
+                        padding:48px 40px;text-align:center;">
+              <div style="font-size:64px;line-height:1;margin-bottom:16px;">🚚</div>
+              <h2 style="color:#1c1917;font-size:28px;font-weight:400;margin:0 0 8px;">
+                Your Artwork is on its Way!
+              </h2>
+              <p style="color:#78716c;font-size:16px;margin:0;">
+                Hi ${firstName}, your order has shipped.
+              </p>
+            </div>
+
+            <!-- Tracking Info -->
+            <div style="padding:40px;">
+              <div style="background:#f5f5f4;padding:24px;border-radius:12px;
+                          margin-bottom:24px;">
+                <p style="color:#78716c;font-size:11px;text-transform:uppercase;
+                          letter-spacing:1.5px;margin:0 0 8px;font-weight:600;">
+                  Order Number
+                </p>
+                <p style="color:#1c1917;font-size:20px;font-weight:bold;margin:0 0 20px;">
+                  ${orderNumber}
+                </p>
+
+                ${carrier ? `
+                <p style="color:#78716c;font-size:11px;text-transform:uppercase;
+                          letter-spacing:1.5px;margin:16px 0 4px;font-weight:600;">
+                  Carrier
+                </p>
+                <p style="color:#1c1917;font-size:16px;margin:0 0 16px;">
+                  ${carrier}
+                </p>
+                ` : ''}
+
+                ${trackingNumber ? `
+                <p style="color:#78716c;font-size:11px;text-transform:uppercase;
+                          letter-spacing:1.5px;margin:16px 0 4px;font-weight:600;">
+                  Tracking Number
+                </p>
+                <p style="color:#1c1917;font-size:18px;font-family:monospace;
+                          font-weight:bold;margin:0 0 16px;
+                          background:#ffffff;padding:12px;border-radius:8px;
+                          border:1px solid #e7e5e4;">
+                  ${trackingNumber}
+                </p>
+                ` : ''}
+
+                ${estDate ? `
+                <p style="color:#78716c;font-size:11px;text-transform:uppercase;
+                          letter-spacing:1.5px;margin:16px 0 4px;font-weight:600;">
+                  Estimated Delivery
+                </p>
+                <p style="color:#d97706;font-size:16px;font-weight:bold;margin:0;">
+                  ${estDate}
+                </p>
+                ` : ''}
+              </div>
+
+              ${trackingUrl ? `
+              <div style="text-align:center;margin:32px 0;">
+                <a href="${trackingUrl}"
+                   style="display:inline-block;background:#1c1917;color:#ffffff;
+                          padding:16px 40px;text-decoration:none;font-size:13px;
+                          letter-spacing:2px;text-transform:uppercase;
+                          border-radius:8px;">
+                  Track Your Package
+                </a>
+              </div>
+              ` : ''}
+
+              ${shippingAddress ? `
+              <div style="background:#fffbeb;border-left:3px solid #d97706;
+                          padding:20px;border-radius:0 8px 8px 0;margin:24px 0;">
+                <p style="color:#92400e;font-size:11px;text-transform:uppercase;
+                          letter-spacing:1.5px;margin:0 0 8px;font-weight:600;">
+                  Shipping To
+                </p>
+                <p style="color:#78716c;font-size:14px;line-height:1.6;margin:0;">
+                  ${shippingAddress.line1 || ''}<br/>
+                  ${shippingAddress.city || ''}${shippingAddress.state ? ', ' + shippingAddress.state : ''}
+                  ${shippingAddress.postalCode || ''}<br/>
+                  ${shippingAddress.country || ''}
+                </p>
+              </div>
+              ` : ''}
+
+              <p style="color:#78716c;font-size:14px;line-height:1.6;
+                        margin:32px 0 0;">
+                Your artwork has been carefully packaged and insured. 
+                We'll send another notification once it's delivered.
+              </p>
+
+              <p style="color:#78716c;font-size:14px;line-height:1.6;">
+                Questions? Reply to this email or contact us at 
+                <a href="mailto:${process.env.EMAIL_USER}" style="color:#d97706;">
+                  ${process.env.EMAIL_USER}
+                </a>
+              </p>
+            </div>
+
+            <!-- Footer -->
+            <div style="background:#f5f5f4;padding:24px 40px;
+                        border-top:1px solid #e7e5e4;text-align:center;">
+              <p style="color:#a8a29e;font-size:12px;margin:0;">
+                © ${new Date().getFullYear()} Highmarc Art Atelier. All rights reserved.
+              </p>
+              <p style="color:#a8a29e;font-size:12px;margin:8px 0 0;">
+                ${process.env.CLIENT_URL}
+              </p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    console.log('✅ Shipped email sent:', info.messageId);
+    return info;
+  } catch (error) {
+    console.error('❌ Shipped email error:', error.message);
+    throw error;
+  }
+};
+
+// ── Order Delivered Email ─────────────────────────────────────────────────────
+const sendOrderDeliveredEmail = async ({
+  email,
+  firstName,
+  orderNumber,
+}) => {
+  console.log(`📧 Sending delivered notification to ${email}...`);
+
+  try {
+    const transporter = createTransporter();
+
+    const mailOptions = {
+      from:    `"Highmarc Art Atelier" <${process.env.EMAIL_USER}>`,
+      to:      email,
+      subject: `Delivered — ${orderNumber} 🎉`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <body style="margin:0;padding:0;background:#f5f5f4;font-family:Georgia,serif;">
+          <div style="max-width:600px;margin:40px auto;background:#ffffff;
+                      border:1px solid #e7e5e4;">
+
+            <div style="background:#1c1917;padding:40px;text-align:center;">
+              <h1 style="color:#ffffff;margin:0;font-size:32px;letter-spacing:4px;
+                         font-weight:400;">HIGHMARC</h1>
+              <p style="color:#d97706;margin:8px 0 0;font-size:11px;
+                        letter-spacing:3px;text-transform:uppercase;">
+                Fine Art Atelier
+              </p>
+            </div>
+
+            <div style="background:linear-gradient(135deg,#dcfce7,#bbf7d0);
+                        padding:48px 40px;text-align:center;">
+              <div style="font-size:64px;line-height:1;margin-bottom:16px;">🎨</div>
+              <h2 style="color:#1c1917;font-size:28px;font-weight:400;margin:0 0 8px;">
+                Your Artwork Has Arrived!
+              </h2>
+              <p style="color:#78716c;font-size:16px;margin:0;">
+                Hi ${firstName}, we hope you love your new piece.
+              </p>
+            </div>
+
+            <div style="padding:40px;text-align:center;">
+              <p style="color:#57534e;font-size:16px;line-height:1.7;margin:0 0 24px;">
+                Order <strong>${orderNumber}</strong> has been delivered.
+              </p>
+
+              <p style="color:#57534e;font-size:14px;line-height:1.6;margin:0 0 32px;">
+                Thank you for choosing Highmarc. We'd love to hear what you 
+                think — your feedback means the world to us.
+              </p>
+
+              <div style="background:#fffbeb;border:1px solid #fde68a;
+                          padding:24px;border-radius:12px;margin:24px 0;">
+                <p style="color:#92400e;font-size:14px;margin:0;line-height:1.6;">
+                  📸 <strong>Share your artwork with us!</strong><br/>
+                  Tag us on Instagram or send us a photo of your piece in 
+                  its new home. We love seeing where our art ends up.
+                </p>
+              </div>
+
+              <p style="color:#78716c;font-size:13px;margin:32px 0 0;">
+                Interested in another piece? Browse our latest collection at 
+                <a href="${process.env.CLIENT_URL}/gallery" style="color:#d97706;">
+                  highmarc.com
+                </a>
+              </p>
+            </div>
+
+            <div style="background:#f5f5f4;padding:24px 40px;
+                        border-top:1px solid #e7e5e4;text-align:center;">
+              <p style="color:#a8a29e;font-size:12px;margin:0;">
+                © ${new Date().getFullYear()} Highmarc Art Atelier. All rights reserved.
+              </p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    console.log('✅ Delivered email sent:', info.messageId);
+    return info;
+  } catch (error) {
+    console.error('❌ Delivered email error:', error.message);
+    throw error;
+  }
+};
+
 // ── Exports ───────────────────────────────────────────────────────────────────
 module.exports = {
   sendVerificationEmail,
@@ -898,5 +1160,7 @@ module.exports = {
   sendContactEmail,   
   sendOrderInvoiceEmail,               
   sendCommissionDepositInvoiceEmail,  
-  sendCommissionBalanceInvoiceEmail,           
+  sendCommissionBalanceInvoiceEmail,
+   sendOrderShippedEmail,      
+  sendOrderDeliveredEmail,          
 };

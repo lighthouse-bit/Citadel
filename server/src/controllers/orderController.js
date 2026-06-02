@@ -2,6 +2,8 @@
 const prisma = require('../config/database');
 const {
   sendOrderInvoiceEmail,
+  sendOrderShippedEmail,       
+  sendOrderDeliveredEmail,   
 } = require('../utils/emailService');
 
 // ─────────────────────────────────────────────────────────
@@ -209,7 +211,7 @@ exports.getOrderById = async (req, res) => {
 // ─────────────────────────────────────────────────────────
 exports.updateOrderStatus = async (req, res) => {
   try {
-    const { id }                = req.params;
+    const { id } = req.params;
     const {
       status,
       trackingNumber,
@@ -220,35 +222,24 @@ exports.updateOrderStatus = async (req, res) => {
     } = req.body;
 
     const updateData = {};
+    const shouldSendShippedEmail   = status?.toUpperCase() === 'SHIPPED';
+    const shouldSendDeliveredEmail = status?.toUpperCase() === 'DELIVERED';
 
     if (status) {
       updateData.status = status.toUpperCase();
-
-      if (status.toUpperCase() === 'SHIPPED') {
-        updateData.shippedAt = new Date();
-      }
-      if (status.toUpperCase() === 'DELIVERED') {
-        updateData.deliveredAt = new Date();
-      }
+      if (status.toUpperCase() === 'SHIPPED')   updateData.shippedAt   = new Date();
+      if (status.toUpperCase() === 'DELIVERED') updateData.deliveredAt = new Date();
     }
 
-    if (trackingNumber !== undefined) {
-      updateData.trackingNumber = trackingNumber;
-    }
-    if (trackingUrl !== undefined) {
-      updateData.trackingUrl = trackingUrl;
-    }
-    if (carrier !== undefined) {
-      updateData.carrier = carrier;
-    }
+    if (trackingNumber    !== undefined) updateData.trackingNumber    = trackingNumber;
+    if (trackingUrl       !== undefined) updateData.trackingUrl       = trackingUrl;
+    if (carrier           !== undefined) updateData.carrier           = carrier;
     if (estimatedDelivery !== undefined) {
       updateData.estimatedDelivery = estimatedDelivery
         ? new Date(estimatedDelivery)
         : null;
     }
-    if (internalNotes !== undefined) {
-      updateData.internalNotes = internalNotes;
-    }
+    if (internalNotes     !== undefined) updateData.internalNotes     = internalNotes;
 
     const order = await prisma.order.update({
       where:   { id },
@@ -262,12 +253,36 @@ exports.updateOrderStatus = async (req, res) => {
       },
     });
 
+    // ✅ Send shipped email
+    if (shouldSendShippedEmail && order.customer?.email) {
+      await sendOrderShippedEmail({
+        email:             order.customer.email,
+        firstName:         order.customer.firstName,
+        orderNumber:       order.orderNumber,
+        trackingNumber:    order.trackingNumber,
+        trackingUrl:       order.trackingUrl,
+        carrier:           order.carrier,
+        estimatedDelivery: order.estimatedDelivery,
+        shippingAddress:   order.shippingAddress,
+      }).catch(err => console.error('❌ Shipped email error:', err.message));
+    }
+
+    // ✅ Send delivered email
+    if (shouldSendDeliveredEmail && order.customer?.email) {
+      await sendOrderDeliveredEmail({
+        email:       order.customer.email,
+        firstName:   order.customer.firstName,
+        orderNumber: order.orderNumber,
+      }).catch(err => console.error('❌ Delivered email error:', err.message));
+    }
+
+    // Admin notification
     if (status) {
       const statusMessages = {
         CONFIRMED:  `✅ Order #${order.orderNumber} confirmed`,
         PROCESSING: `⚙️ Order #${order.orderNumber} is being processed`,
-        SHIPPED:    `🚚 Order #${order.orderNumber} has been shipped`,
-        DELIVERED:  `📦 Order #${order.orderNumber} delivered to customer`,
+        SHIPPED:    `🚚 Order #${order.orderNumber} shipped — customer notified`,
+        DELIVERED:  `📦 Order #${order.orderNumber} delivered — customer notified`,
         COMPLETED:  `🎉 Order #${order.orderNumber} completed`,
         CANCELLED:  `❌ Order #${order.orderNumber} was cancelled`,
       };
