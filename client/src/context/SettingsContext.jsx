@@ -51,33 +51,46 @@ export const SettingsProvider = ({ children }) => {
 
   // ── Load settings from backend on mount ────────────────────
   useEffect(() => {
-    const loadSettings = async () => {
-      try {
-        const response = await settingsAPI.get();
-        // Merge with defaults so missing fields fall back
-        setSettings({ ...defaultSettings, ...response.data });
-      } catch (error) {
-        console.error('Failed to load settings:', error);
-        // Fall back to defaults if API fails
-      } finally {
-        setIsLoaded(true);
-      }
-    };
+  const loadSettings = async () => {
+    try {
+      const response = await settingsAPI.get();
 
-    loadSettings();
-  }, []);
+      // ✅ Replace nulls with defaults
+      const cleaned = {};
+      for (const key in defaultSettings) {
+        cleaned[key] = response.data[key] ?? defaultSettings[key];
+      }
+
+      setSettings(cleaned);
+    } catch (error) {
+      console.error('Failed to load settings:', error);
+      setSettings(defaultSettings);
+    } finally {
+      setIsLoaded(true);
+    }
+  };
+
+  loadSettings();
+}, []);
 
   // ── Save settings to backend ───────────────────────────────
   const updateSettings = async (newSettings) => {
-    try {
-      const response = await settingsAPI.update(newSettings);
-      setSettings({ ...defaultSettings, ...response.data });
-      return response.data;
-    } catch (error) {
-      console.error('Failed to save settings:', error);
-      throw error;
+  try {
+    const response = await settingsAPI.update(newSettings);
+
+    // ✅ Replace nulls with defaults
+    const cleaned = {};
+    for (const key in defaultSettings) {
+      cleaned[key] = response.data[key] ?? defaultSettings[key];
     }
-  };
+
+    setSettings(cleaned);
+    return response.data;
+  } catch (error) {
+    console.error('Failed to save settings:', error);
+    throw error;
+  }
+};
 
   // ── Reset settings ─────────────────────────────────────────
   const resetSettings = async () => {
