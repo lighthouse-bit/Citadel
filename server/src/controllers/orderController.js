@@ -18,6 +18,9 @@ exports.createOrder = async (req, res) => {
       email,
       items,
       shippingAddress,
+      shippingCost = 0,           // ✅ From frontend
+      shippingZone  = 'Unknown',  // ✅ From frontend
+      shippingSize  = 'unknown',  // ✅ From frontend
     } = req.body;
 
     let customerId;
@@ -60,12 +63,15 @@ exports.createOrder = async (req, res) => {
       });
     }
 
-    // Calculate totals
-    const subtotal     = dbArtworks.reduce((sum, art) => sum + Number(art.price), 0);
-    const shippingCost = 0;
-    const tax          = 0;
-    const total        = subtotal + shippingCost + tax;
-    const orderNumber  = `ORD-${Date.now().toString().slice(-6)}`;
+    // ✅ Calculate totals WITH shipping included
+    const subtotal       = dbArtworks.reduce(
+      (sum, art) => sum + Number(art.price),
+      0
+    );
+    const finalShipping  = parseFloat(shippingCost) || 0;
+    const tax            = 0;
+    const total          = subtotal + finalShipping + tax;
+    const orderNumber    = `ORD-${Date.now().toString().slice(-6)}`;
 
     // Create order in transaction
     const order = await prisma.$transaction(async (tx) => {
@@ -73,7 +79,9 @@ exports.createOrder = async (req, res) => {
         data: {
           orderNumber,
           subtotal,
-          shippingCost,
+          shippingCost:      finalShipping,
+          shippingZone,
+          shippingSize,
           tax,
           total,
           status:            'PENDING',
@@ -101,7 +109,7 @@ exports.createOrder = async (req, res) => {
       await tx.notification.create({
         data: {
           type:    'ORDER',
-          message: `🛍️ New Order #${newOrder.orderNumber} — $${Number(newOrder.total).toLocaleString()}`,
+          message: `🛍️ New Order #${newOrder.orderNumber} — $${Number(newOrder.total).toLocaleString()} (${shippingZone})`,
           link:    `/admin/orders/${newOrder.id}`,
           isRead:  false,
         },
@@ -201,8 +209,15 @@ exports.getOrderById = async (req, res) => {
 // ─────────────────────────────────────────────────────────
 exports.updateOrderStatus = async (req, res) => {
   try {
-    const { id }                                    = req.params;
-    const { status, trackingNumber, internalNotes } = req.body;
+    const { id }                = req.params;
+    const {
+      status,
+      trackingNumber,
+      trackingUrl,
+      carrier,
+      estimatedDelivery,
+      internalNotes,
+    } = req.body;
 
     const updateData = {};
 
@@ -220,7 +235,17 @@ exports.updateOrderStatus = async (req, res) => {
     if (trackingNumber !== undefined) {
       updateData.trackingNumber = trackingNumber;
     }
-
+    if (trackingUrl !== undefined) {
+      updateData.trackingUrl = trackingUrl;
+    }
+    if (carrier !== undefined) {
+      updateData.carrier = carrier;
+    }
+    if (estimatedDelivery !== undefined) {
+      updateData.estimatedDelivery = estimatedDelivery
+        ? new Date(estimatedDelivery)
+        : null;
+    }
     if (internalNotes !== undefined) {
       updateData.internalNotes = internalNotes;
     }
@@ -267,7 +292,7 @@ exports.updateOrderStatus = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────────────────
-// Confirm payment after Stripe succeeds (called by frontend)
+// Confirm payment after Paystack succeeds (called by frontend)
 // POST /api/orders/:id/confirm-payment
 // ─────────────────────────────────────────────────────────
 exports.confirmOrderPayment = async (req, res) => {
@@ -293,12 +318,12 @@ exports.confirmOrderPayment = async (req, res) => {
       return res.status(404).json({ error: 'Order not found' });
     }
 
-    // ✅ Guard — don't double-update
+    // Guard — don't double-update
     if (order.paymentStatus === 'FULLY_PAID') {
       return res.json({ success: true, message: 'Already updated' });
     }
 
-    // ── Update order payment status ───────────────────────
+    // Update order payment status
     await prisma.order.update({
       where: { id },
       data: {
@@ -308,7 +333,7 @@ exports.confirmOrderPayment = async (req, res) => {
       },
     });
 
-    // ── Mark artworks as SOLD ─────────────────────────────
+    // Mark artworks as SOLD
     const artworkIds = order.items.map(i => i.artworkId).filter(Boolean);
     if (artworkIds.length > 0) {
       await prisma.artwork.updateMany({
@@ -317,7 +342,7 @@ exports.confirmOrderPayment = async (req, res) => {
       });
     }
 
-    // ── Notify admin ──────────────────────────────────────
+    // Notify admin
     await prisma.notification.create({
       data: {
         type:    'ORDER',
@@ -326,7 +351,7 @@ exports.confirmOrderPayment = async (req, res) => {
       },
     }).catch(() => {});
 
-    // ── ✅ Send invoice email to customer ─────────────────
+    // ✅ Send invoice email to customer (with shipping included)
     if (order.customer?.email) {
       await sendOrderInvoiceEmail({
         email:       order.customer.email,
