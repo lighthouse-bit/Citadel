@@ -19,7 +19,6 @@ const OrderDetail = () => {
   const [isSaving, setIsSaving]       = useState(false);
   const [isShipping, setIsShipping]   = useState(false);
 
-  // ── Shipping form state ────────────────────────────────
   const [shipping, setShipping] = useState({
     carrier:           '',
     trackingNumber:    '',
@@ -28,7 +27,6 @@ const OrderDetail = () => {
   });
   const [notes, setNotes] = useState('');
 
-  // ── Status options ─────────────────────────────────────
   const statusOptions = [
     { value: 'PENDING',    label: 'Pending',    icon: Clock        },
     { value: 'CONFIRMED',  label: 'Confirmed',  icon: CheckCircle  },
@@ -39,23 +37,21 @@ const OrderDetail = () => {
     { value: 'CANCELLED',  label: 'Cancelled',  icon: XCircle      },
   ];
 
-  // ── Carrier options ────────────────────────────────────
   const carriers = [
-    { value: '',                 label: 'Select carrier...',   urlPattern: '' },
-    { value: 'DHL',              label: 'DHL Express',         urlPattern: 'https://www.dhl.com/track?trackingNumber=' },
-    { value: 'FedEx',            label: 'FedEx',                urlPattern: 'https://www.fedex.com/fedextrack/?trknbr=' },
-    { value: 'UPS',              label: 'UPS',                  urlPattern: 'https://www.ups.com/track?tracknum=' },
-    { value: 'USPS',             label: 'USPS',                 urlPattern: 'https://tools.usps.com/go/TrackConfirmAction?tLabels=' },
-    { value: 'NIPOST',           label: 'NIPOST (Nigeria)',     urlPattern: '' },
-    { value: 'GIG Logistics',    label: 'GIG Logistics',        urlPattern: 'https://gigl-go.com/Tracking/' },
-    { value: 'Kwik Delivery',    label: 'Kwik Delivery',        urlPattern: '' },
-    { value: 'Sendbox',          label: 'Sendbox',              urlPattern: 'https://web.sendbox.co/track?tracking_code=' },
-    { value: 'ABC Transport',    label: 'ABC Transport',        urlPattern: '' },
-    { value: 'TopShip',          label: 'TopShip',              urlPattern: '' },
-    { value: 'Other',            label: 'Other',                urlPattern: '' },
+    { value: '',              label: 'Select carrier...', urlPattern: '' },
+    { value: 'DHL',           label: 'DHL Express',       urlPattern: 'https://www.dhl.com/track?trackingNumber=' },
+    { value: 'FedEx',         label: 'FedEx',             urlPattern: 'https://www.fedex.com/fedextrack/?trknbr=' },
+    { value: 'UPS',           label: 'UPS',               urlPattern: 'https://www.ups.com/track?tracknum=' },
+    { value: 'USPS',          label: 'USPS',              urlPattern: 'https://tools.usps.com/go/TrackConfirmAction?tLabels=' },
+    { value: 'NIPOST',        label: 'NIPOST (Nigeria)',  urlPattern: '' },
+    { value: 'GIG Logistics', label: 'GIG Logistics',     urlPattern: 'https://gigl-go.com/Tracking/' },
+    { value: 'Kwik Delivery', label: 'Kwik Delivery',     urlPattern: '' },
+    { value: 'Sendbox',       label: 'Sendbox',           urlPattern: 'https://web.sendbox.co/track?tracking_code=' },
+    { value: 'ABC Transport', label: 'ABC Transport',     urlPattern: '' },
+    { value: 'TopShip',       label: 'TopShip',           urlPattern: '' },
+    { value: 'Other',         label: 'Other',             urlPattern: '' },
   ];
 
-  // ── Fetch order ────────────────────────────────────────
   useEffect(() => {
     const fetchOrder = async () => {
       setIsLoading(true);
@@ -64,9 +60,9 @@ const OrderDetail = () => {
         const data = response.data;
         setOrder(data);
         setShipping({
-          carrier:           data.carrier           || '',
-          trackingNumber:    data.trackingNumber    || '',
-          trackingUrl:       data.trackingUrl       || '',
+          carrier:           data.carrier        || '',
+          trackingNumber:    data.trackingNumber || '',
+          trackingUrl:       data.trackingUrl    || '',
           estimatedDelivery: data.estimatedDelivery
             ? new Date(data.estimatedDelivery).toISOString().split('T')[0]
             : '',
@@ -83,7 +79,6 @@ const OrderDetail = () => {
     fetchOrder();
   }, [id, navigate]);
 
-  // ── Auto-fill tracking URL based on carrier + number ───
   useEffect(() => {
     if (shipping.carrier && shipping.trackingNumber) {
       const carrierInfo = carriers.find(c => c.value === shipping.carrier);
@@ -96,7 +91,6 @@ const OrderDetail = () => {
     }
   }, [shipping.carrier, shipping.trackingNumber]);
 
-  // ── Update order status ────────────────────────────────
   const handleStatusChange = async (newStatus) => {
     const oldStatus = order.status;
     setOrder(prev => ({ ...prev, status: newStatus }));
@@ -104,7 +98,7 @@ const OrderDetail = () => {
     try {
       await ordersAPI.updateStatus(id, { status: newStatus });
       const msg = newStatus === 'SHIPPED' || newStatus === 'DELIVERED'
-        ? `Status updated to ${newStatus.toLowerCase()} — customer notified by email`
+        ? `Status updated to ${newStatus.toLowerCase()} — customer notified`
         : `Status updated to ${newStatus.replace('_', ' ').toLowerCase()}`;
       toast.success(msg);
     } catch (error) {
@@ -113,7 +107,6 @@ const OrderDetail = () => {
     }
   };
 
-  // ── Save shipping details ──────────────────────────────
   const handleSaveShipping = async () => {
     setIsSaving(true);
     try {
@@ -140,7 +133,6 @@ const OrderDetail = () => {
     }
   };
 
-  // ── Mark as Shipped (saves shipping info + sends email) ─
   const handleMarkAsShipped = async () => {
     if (!shipping.carrier) {
       toast.error('Please select a carrier first');
@@ -151,13 +143,10 @@ const OrderDetail = () => {
       return;
     }
 
-    if (!window.confirm(
-      'Mark order as shipped and notify the customer via email?'
-    )) return;
+    if (!window.confirm('Mark as shipped and notify customer via email?')) return;
 
     setIsShipping(true);
     try {
-      // Save shipping info AND change status in one call
       await ordersAPI.updateStatus(id, {
         status:            'SHIPPED',
         carrier:           shipping.carrier,
@@ -176,7 +165,7 @@ const OrderDetail = () => {
         estimatedDelivery: shipping.estimatedDelivery,
       }));
 
-      toast.success('Order marked as shipped — customer notified by email!');
+      toast.success('Order shipped — customer notified by email!');
     } catch (error) {
       toast.error('Failed to mark as shipped');
     } finally {
@@ -184,24 +173,23 @@ const OrderDetail = () => {
     }
   };
 
-  // ── Style helpers ──────────────────────────────────────
   const getStatusStyle = (status) => {
     const styles = {
       PENDING:    'bg-yellow-100 text-yellow-800 border-yellow-200',
-      CONFIRMED:  'bg-blue-100   text-blue-800   border-blue-200',
+      CONFIRMED:  'bg-blue-100 text-blue-800 border-blue-200',
       PROCESSING: 'bg-purple-100 text-purple-800 border-purple-200',
       SHIPPED:    'bg-indigo-100 text-indigo-800 border-indigo-200',
-      DELIVERED:  'bg-teal-100   text-teal-800   border-teal-200',
-      COMPLETED:  'bg-green-100  text-green-800  border-green-200',
-      CANCELLED:  'bg-red-100    text-red-800    border-red-200',
+      DELIVERED:  'bg-teal-100 text-teal-800 border-teal-200',
+      COMPLETED:  'bg-green-100 text-green-800 border-green-200',
+      CANCELLED:  'bg-red-100 text-red-800 border-red-200',
     };
     return styles[status] || 'bg-stone-100 text-stone-700 border-stone-200';
   };
 
   const getPaymentStyle = (paymentStatus) => {
     const styles = {
-      UNPAID:     'bg-red-100    text-red-700',
-      FULLY_PAID: 'bg-green-100  text-green-700',
+      UNPAID:     'bg-red-100 text-red-700',
+      FULLY_PAID: 'bg-green-100 text-green-700',
       REFUNDED:   'bg-orange-100 text-orange-700',
     };
     return styles[paymentStatus] || 'bg-stone-100 text-stone-700';
@@ -228,14 +216,12 @@ const OrderDetail = () => {
   return (
     <div className="space-y-6 pb-12">
 
-      {/* ── Page Header ─────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between
-                      gap-4 sticky top-0 bg-stone-100 z-10 py-4 border-b border-stone-200">
+      {/* Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 sticky top-0 bg-stone-100 z-10 py-4 border-b border-stone-200">
         <div>
           <button
             onClick={() => navigate('/admin/orders')}
-            className="inline-flex items-center gap-2 text-stone-600
-                       hover:text-stone-900 transition-colors mb-2"
+            className="inline-flex items-center gap-2 text-stone-600 hover:text-stone-900 transition-colors mb-2"
           >
             <ArrowLeft size={18} />
             Back to Orders
@@ -249,56 +235,46 @@ const OrderDetail = () => {
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
-          <span className={`px-3 py-1.5 rounded-full text-xs font-bold
-                            flex items-center gap-1
-                            ${getPaymentStyle(order.paymentStatus)}`}>
+          <span className={`px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1 ${getPaymentStyle(order.paymentStatus)}`}>
             <CreditCard size={12} />
             {getPaymentLabel(order.paymentStatus)}
           </span>
-          <span className={`px-4 py-2 rounded-full text-sm font-medium border
-                            ${getStatusStyle(order.status)}`}>
+          <span className={`px-4 py-2 rounded-full text-sm font-medium border ${getStatusStyle(order.status)}`}>
             {order.status.replace('_', ' ')}
           </span>
         </div>
       </div>
 
-      {/* ── Alert Banners ───────────────────────────────────── */}
+      {/* Alert Banners */}
       {order.paymentStatus === 'UNPAID' && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4
-                        flex items-center gap-3">
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-3">
           <CreditCard size={20} className="text-red-500 flex-shrink-0" />
           <div>
             <p className="text-red-800 font-medium text-sm">Payment Pending</p>
             <p className="text-red-600 text-xs mt-0.5">
-              This order has not been paid yet. Total due: ${Number(order.total).toLocaleString()}
+              Total due: ${Number(order.total).toLocaleString()}
             </p>
           </div>
         </div>
       )}
 
       {order.paymentStatus === 'FULLY_PAID' && order.status === 'PENDING' && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4
-                        flex items-center gap-3">
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center gap-3">
           <CheckCircle size={20} className="text-amber-600 flex-shrink-0" />
           <div>
-            <p className="text-amber-800 font-medium text-sm">
-              Payment Received — Action Required
-            </p>
+            <p className="text-amber-800 font-medium text-sm">Payment Received — Action Required</p>
             <p className="text-amber-600 text-xs mt-0.5">
-              Payment confirmed. Please update the order status to begin processing.
+              Update the order status to begin processing.
             </p>
           </div>
         </div>
       )}
 
       {order.status === 'SHIPPED' && (
-        <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4
-                        flex items-center gap-3">
+        <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 flex items-center gap-3">
           <Truck size={20} className="text-indigo-600 flex-shrink-0" />
           <div>
-            <p className="text-indigo-800 font-medium text-sm">
-              Order Shipped — Customer Notified
-            </p>
+            <p className="text-indigo-800 font-medium text-sm">Order Shipped — Customer Notified</p>
             <p className="text-indigo-600 text-xs mt-0.5">
               Shipped on {new Date(order.shippedAt).toLocaleDateString()}
               {order.trackingNumber && ` · Tracking: ${order.trackingNumber}`}
@@ -309,12 +285,11 @@ const OrderDetail = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-        {/* ── LEFT COLUMN ──────────────────────────────────── */}
+        {/* LEFT COLUMN */}
         <div className="lg:col-span-2 space-y-6">
 
           {/* Order Items */}
-          <div className="bg-white rounded-xl border border-stone-200 shadow-sm
-                          overflow-hidden">
+          <div className="bg-white rounded-xl border border-stone-200 shadow-sm overflow-hidden">
             <div className="p-6 border-b border-stone-200">
               <h2 className="text-lg font-semibold text-stone-900">
                 Items ({order.items?.length || 0})
@@ -323,8 +298,7 @@ const OrderDetail = () => {
             <div className="divide-y divide-stone-100">
               {order.items?.map((item) => (
                 <div key={item.id} className="p-6 flex gap-4">
-                  <div className="w-20 h-20 flex-shrink-0 bg-stone-100
-                                  rounded-lg overflow-hidden">
+                  <div className="w-20 h-20 flex-shrink-0 bg-stone-100 rounded-lg overflow-hidden">
                     {item.artwork?.images?.[0]?.url ? (
                       <img
                         src={item.artwork.images[0].url}
@@ -357,13 +331,10 @@ const OrderDetail = () => {
               ))}
             </div>
 
-            {/* Order Totals */}
             <div className="p-6 bg-stone-50 space-y-2 border-t border-stone-200">
               <div className="flex justify-between text-sm">
                 <span className="text-stone-600">Subtotal</span>
-                <span className="text-stone-900">
-                  ${Number(order.subtotal).toLocaleString()}
-                </span>
+                <span className="text-stone-900">${Number(order.subtotal).toLocaleString()}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-stone-600">
@@ -382,37 +353,29 @@ const OrderDetail = () => {
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-stone-600">Tax</span>
-                <span className="text-stone-900">
-                  ${Number(order.tax).toLocaleString()}
-                </span>
+                <span className="text-stone-900">${Number(order.tax).toLocaleString()}</span>
               </div>
-              <div className="flex justify-between text-lg font-semibold
-                              pt-4 border-t border-stone-200 mt-2">
+              <div className="flex justify-between text-lg font-semibold pt-4 border-t border-stone-200 mt-2">
                 <span className="text-stone-900">Total</span>
-                <span className="text-amber-700">
-                  ${Number(order.total).toLocaleString()}
-                </span>
+                <span className="text-amber-700">${Number(order.total).toLocaleString()}</span>
               </div>
             </div>
           </div>
 
-          {/* ── SHIPPING MANAGEMENT ────────────────────────── */}
+          {/* ── SHIPPING & TRACKING ──────────────────────── */}
           <div className="bg-white rounded-xl border border-stone-200 shadow-sm p-6">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-lg font-semibold text-stone-900
-                                flex items-center gap-2">
+                <h2 className="text-lg font-semibold text-stone-900 flex items-center gap-2">
                   <Truck size={20} className="text-amber-600" />
                   Shipping & Tracking
                 </h2>
                 <p className="text-stone-500 text-sm mt-1">
-                  Add carrier and tracking info, then notify customer
+                  Add carrier and tracking, then notify customer
                 </p>
               </div>
               {isShipped && (
-                <span className="px-3 py-1 bg-green-100 text-green-700
-                                 text-xs font-medium rounded-full
-                                 flex items-center gap-1">
+                <span className="px-3 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full flex items-center gap-1">
                   <CheckCircle size={12} />
                   Customer Notified
                 </span>
@@ -420,7 +383,6 @@ const OrderDetail = () => {
             </div>
 
             <div className="space-y-4">
-
               {/* Carrier */}
               <div>
                 <label className="block text-sm font-medium text-stone-600 mb-2">
@@ -429,8 +391,7 @@ const OrderDetail = () => {
                 <select
                   value={shipping.carrier}
                   onChange={(e) => setShipping({ ...shipping, carrier: e.target.value })}
-                  className="w-full px-4 py-2.5 border border-stone-300 rounded-lg
-                             focus:outline-none focus:border-amber-500 bg-white"
+                  className="w-full px-4 py-2.5 border border-stone-300 rounded-lg focus:outline-none focus:border-amber-500 bg-white"
                 >
                   {carriers.map(c => (
                     <option key={c.value} value={c.value}>{c.label}</option>
@@ -446,13 +407,9 @@ const OrderDetail = () => {
                 <input
                   type="text"
                   value={shipping.trackingNumber}
-                  onChange={(e) => setShipping({
-                    ...shipping,
-                    trackingNumber: e.target.value,
-                  })}
-                  placeholder="Enter tracking number from carrier"
-                  className="w-full px-4 py-2.5 border border-stone-300 rounded-lg
-                             focus:outline-none focus:border-amber-500 font-mono"
+                  onChange={(e) => setShipping({ ...shipping, trackingNumber: e.target.value })}
+                  placeholder="Enter tracking number"
+                  className="w-full px-4 py-2.5 border border-stone-300 rounded-lg focus:outline-none focus:border-amber-500 font-mono"
                 />
               </div>
 
@@ -461,29 +418,23 @@ const OrderDetail = () => {
                 <label className="block text-sm font-medium text-stone-600 mb-2">
                   Tracking URL
                   <span className="text-stone-400 font-normal text-xs ml-1">
-                    (auto-filled from carrier)
+                    (auto-filled)
                   </span>
                 </label>
                 <div className="flex gap-2">
                   <input
                     type="url"
                     value={shipping.trackingUrl}
-                    onChange={(e) => setShipping({
-                      ...shipping,
-                      trackingUrl: e.target.value,
-                    })}
+                    onChange={(e) => setShipping({ ...shipping, trackingUrl: e.target.value })}
                     placeholder="https://..."
-                    className="flex-1 px-4 py-2.5 border border-stone-300 rounded-lg
-                               focus:outline-none focus:border-amber-500"
+                    className="flex-1 px-4 py-2.5 border border-stone-300 rounded-lg focus:outline-none focus:border-amber-500"
                   />
                   {shipping.trackingUrl && (
                     <a
                       href={shipping.trackingUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="p-2.5 bg-stone-100 rounded-lg text-stone-600
-                                 hover:bg-stone-200 border border-stone-200
-                                 transition-colors"
+                      className="p-2.5 bg-stone-100 rounded-lg text-stone-600 hover:bg-stone-200 border border-stone-200 transition-colors"
                       title="Test tracking link"
                     >
                       <ExternalLink size={20} />
@@ -500,31 +451,23 @@ const OrderDetail = () => {
                 <input
                   type="date"
                   value={shipping.estimatedDelivery}
-                  onChange={(e) => setShipping({
-                    ...shipping,
-                    estimatedDelivery: e.target.value,
-                  })}
+                  onChange={(e) => setShipping({ ...shipping, estimatedDelivery: e.target.value })}
                   min={new Date().toISOString().split('T')[0]}
-                  className="w-full px-4 py-2.5 border border-stone-300 rounded-lg
-                             focus:outline-none focus:border-amber-500"
+                  className="w-full px-4 py-2.5 border border-stone-300 rounded-lg focus:outline-none focus:border-amber-500"
                 />
               </div>
 
               {/* Action Buttons */}
-              <div className="flex flex-col sm:flex-row gap-3 pt-4
-                              border-t border-stone-100">
+              <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-stone-100">
                 <button
                   onClick={handleSaveShipping}
                   disabled={isSaving}
-                  className="flex-1 px-6 py-3 border border-stone-300 rounded-lg
-                             text-stone-700 hover:bg-stone-50 transition-colors
-                             flex items-center justify-center gap-2
-                             disabled:opacity-50"
+                  className="flex-1 px-6 py-3 border border-stone-300 rounded-lg text-stone-700 hover:bg-stone-50 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   {isSaving ? (
                     <><Loader size={18} className="animate-spin" /> Saving...</>
                   ) : (
-                    <><Save size={18} /> Save Without Sending Email</>
+                    <><Save size={18} /> Save Only</>
                   )}
                 </button>
 
@@ -532,15 +475,12 @@ const OrderDetail = () => {
                   <button
                     onClick={handleMarkAsShipped}
                     disabled={isShipping || !shipping.carrier || !shipping.trackingNumber}
-                    className="flex-1 px-6 py-3 bg-indigo-600 text-white rounded-lg
-                               hover:bg-indigo-700 transition-colors
-                               flex items-center justify-center gap-2
-                               disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex-1 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isShipping ? (
                       <><Loader size={18} className="animate-spin" /> Sending...</>
                     ) : (
-                      <><Send size={18} /> Mark as Shipped + Notify Customer</>
+                      <><Send size={18} /> Mark as Shipped + Notify</>
                     )}
                   </button>
                 )}
@@ -554,20 +494,16 @@ const OrderDetail = () => {
             </div>
           </div>
 
-          {/* ── Update Status ──────────────────────────────── */}
+          {/* Update Status */}
           <div className="bg-white rounded-xl border border-stone-200 shadow-sm p-6">
-            <h2 className="text-lg font-semibold text-stone-900 mb-2">
-              Update Status
-            </h2>
+            <h2 className="text-lg font-semibold text-stone-900 mb-2">Update Status</h2>
             <p className="text-stone-500 text-sm mb-4">
-              Quickly change order status. "Shipped" and "Delivered" 
-              will email the customer.
+              Click a status to update. "Shipped" and "Delivered" will email the customer.
             </p>
 
             <div className="bg-stone-50 rounded-lg p-3 mb-4">
               <div className="flex flex-wrap gap-2 text-xs">
-                {['PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'COMPLETED']
-                  .map((s, i, arr) => (
+                {['PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'COMPLETED'].map((s, i, arr) => (
                   <span key={s} className="flex items-center gap-1">
                     <span className={`px-2 py-0.5 rounded font-medium ${getStatusStyle(s)}`}>
                       {s.replace('_', ' ')}
@@ -579,52 +515,42 @@ const OrderDetail = () => {
             </div>
 
             <div className="flex flex-wrap gap-2">
-              {statusOptions.map((option) => (
-                <button
-                  key={option.value}
-                  onClick={() => handleStatusChange(option.value)}
-                  
-                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg
-                              border transition-all text-sm font-medium ${
-                    order.status === option.value
-                      ? 'bg-stone-900 text-white border-stone-900 shadow-md'
-                      : option.value === 'CANCELLED'
-                        ? 'bg-white text-red-600 border-red-200 hover:bg-red-50'
-                        : 'bg-white text-stone-600 border-stone-200 hover:border-amber-500 hover:text-amber-700'
-                  }`}
-                >
-                  <option.icon size={15} />
-                  {option.label}
-                </button>
-              ))}
+              {statusOptions.map((option) => {
+                const isActive = order.status === option.value;
+                const isCancel = option.value === 'CANCELLED';
+                let btnClass = 'bg-white text-stone-600 border-stone-200 hover:border-amber-500 hover:text-amber-700';
+                if (isActive) btnClass = 'bg-stone-900 text-white border-stone-900 shadow-md';
+                else if (isCancel) btnClass = 'bg-white text-red-600 border-red-200 hover:bg-red-50';
+
+                return (
+                  <button
+                    key={option.value}
+                    onClick={() => handleStatusChange(option.value)}
+                    className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg border transition-all text-sm font-medium ${btnClass}`}
+                  >
+                    <option.icon size={15} />
+                    {option.label}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          {/* ── Internal Notes ─────────────────────────────── */}
+          {/* Internal Notes */}
           <div className="bg-white rounded-xl border border-stone-200 shadow-sm p-6">
-            <h2 className="text-lg font-semibold text-stone-900 mb-4">
-              Internal Notes
-            </h2>
+            <h2 className="text-lg font-semibold text-stone-900 mb-4">Internal Notes</h2>
             <div className="space-y-4">
-              <div>
-                <textarea
-                  rows={3}
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Private notes visible only to admins..."
-                  className="w-full px-4 py-3 border border-stone-300 rounded-lg
-                             focus:outline-none focus:border-amber-500
-                             text-stone-900 resize-none"
-                />
-                <p className="text-xs text-stone-400 mt-1">
-                  These notes are NOT visible to the customer
-                </p>
-              </div>
+              <textarea
+                rows={3}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Private notes visible only to admins..."
+                className="w-full px-4 py-3 border border-stone-300 rounded-lg focus:outline-none focus:border-amber-500 text-stone-900 resize-none"
+              />
 
               {order.customerNotes && (
                 <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                  <p className="text-xs font-medium text-amber-700
-                                uppercase tracking-wider mb-1">
+                  <p className="text-xs font-medium text-amber-700 uppercase tracking-wider mb-1">
                     Customer Note
                   </p>
                   <p className="text-stone-700 text-sm">{order.customerNotes}</p>
@@ -635,9 +561,7 @@ const OrderDetail = () => {
                 <button
                   onClick={handleSaveShipping}
                   disabled={isSaving}
-                  className="inline-flex items-center gap-2 px-6 py-2.5 bg-stone-900
-                             text-white rounded-lg hover:bg-stone-800 transition-colors
-                             disabled:opacity-50"
+                  className="inline-flex items-center gap-2 px-6 py-2.5 bg-stone-900 text-white rounded-lg hover:bg-stone-800 transition-colors disabled:opacity-50"
                 >
                   {isSaving ? (
                     <><Loader size={18} className="animate-spin" /> Saving...</>
@@ -650,7 +574,7 @@ const OrderDetail = () => {
           </div>
         </div>
 
-        {/* ── RIGHT COLUMN ─────────────────────────────────── */}
+        {/* RIGHT COLUMN */}
         <div className="space-y-6">
 
           {/* Customer Info */}
@@ -658,22 +582,19 @@ const OrderDetail = () => {
             <h2 className="text-lg font-semibold text-stone-900 mb-4">Customer</h2>
             <div className="space-y-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-amber-100 rounded-full
-                                flex items-center justify-center">
+                <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center">
                   <User size={20} className="text-amber-700" />
                 </div>
                 <div>
                   <p className="font-medium text-stone-900">
                     {order.customer?.firstName} {order.customer?.lastName}
                   </p>
-                  <span className="text-xs text-stone-500 bg-stone-100
-                                   px-2 py-0.5 rounded">
+                  <span className="text-xs text-stone-500 bg-stone-100 px-2 py-0.5 rounded">
                     Customer
                   </span>
                 </div>
               </div>
-              <div className="pt-2 border-t border-stone-100 flex items-center
-                              gap-3 text-sm">
+              <div className="pt-2 border-t border-stone-100 flex items-center gap-3 text-sm">
                 <Mail size={16} className="text-stone-400 flex-shrink-0" />
                 <a
                   href={`mailto:${order.customer?.email}`}
@@ -693,9 +614,7 @@ const OrderDetail = () => {
 
           {/* Shipping Address */}
           <div className="bg-white rounded-xl border border-stone-200 shadow-sm p-6">
-            <h2 className="text-lg font-semibold text-stone-900 mb-4">
-              Shipping Address
-            </h2>
+            <h2 className="text-lg font-semibold text-stone-900 mb-4">Shipping Address</h2>
             {order.shippingAddress ? (
               <div className="flex items-start gap-3">
                 <MapPin size={18} className="text-stone-400 mt-0.5 flex-shrink-0" />
@@ -716,33 +635,25 @@ const OrderDetail = () => {
                 </div>
               </div>
             ) : (
-              <p className="text-stone-400 text-sm italic">
-                No shipping address provided
-              </p>
+              <p className="text-stone-400 text-sm italic">No shipping address provided</p>
             )}
           </div>
 
-          {/* Shipping Info */}
+          {/* Shipping Details */}
           {order.shippingZone && (
             <div className="bg-white rounded-xl border border-stone-200 shadow-sm p-6">
-              <h2 className="text-lg font-semibold text-stone-900 mb-4">
-                Shipping Details
-              </h2>
+              <h2 className="text-lg font-semibold text-stone-900 mb-4">Shipping Details</h2>
               <div className="space-y-3 text-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-stone-500 flex items-center gap-2">
                     <Globe size={14} /> Zone
                   </span>
-                  <span className="font-medium text-stone-900">
-                    {order.shippingZone}
-                  </span>
+                  <span className="font-medium text-stone-900">{order.shippingZone}</span>
                 </div>
                 {order.shippingSize && (
                   <div className="flex items-center justify-between">
                     <span className="text-stone-500">Package Size</span>
-                    <span className="font-medium text-stone-900 capitalize">
-                      {order.shippingSize}
-                    </span>
+                    <span className="font-medium text-stone-900 capitalize">{order.shippingSize}</span>
                   </div>
                 )}
                 <div className="flex items-center justify-between">
@@ -752,19 +663,15 @@ const OrderDetail = () => {
                   </span>
                 </div>
                 {order.carrier && (
-                  <div className="flex items-center justify-between
-                                   pt-3 border-t border-stone-100">
+                  <div className="flex items-center justify-between pt-3 border-t border-stone-100">
                     <span className="text-stone-500">Carrier</span>
-                    <span className="font-medium text-stone-900">
-                      {order.carrier}
-                    </span>
+                    <span className="font-medium text-stone-900">{order.carrier}</span>
                   </div>
                 )}
                 {order.trackingNumber && (
                   <div>
                     <p className="text-stone-500 mb-1">Tracking</p>
-                    <p className="font-mono text-xs bg-stone-50 p-2 rounded
-                                  break-all border border-stone-100">
+                    <p className="font-mono text-xs bg-stone-50 p-2 rounded break-all border border-stone-100">
                       {order.trackingNumber}
                     </p>
                   </div>
@@ -785,11 +692,9 @@ const OrderDetail = () => {
           <div className="bg-white rounded-xl border border-stone-200 shadow-sm p-6">
             <h2 className="text-lg font-semibold text-stone-900 mb-4">Payment</h2>
             <div className="space-y-3">
-              <div className="flex items-center justify-between p-3
-                              bg-stone-50 rounded-lg">
+              <div className="flex items-center justify-between p-3 bg-stone-50 rounded-lg">
                 <span className="text-stone-600 text-sm">Status</span>
-                <span className={`px-2.5 py-1 rounded-full text-xs font-bold
-                                  uppercase ${getPaymentStyle(order.paymentStatus)}`}>
+                <span className={`px-2.5 py-1 rounded-full text-xs font-bold uppercase ${getPaymentStyle(order.paymentStatus)}`}>
                   {getPaymentLabel(order.paymentStatus)}
                 </span>
               </div>
@@ -797,9 +702,7 @@ const OrderDetail = () => {
               <div className="flex items-center gap-3 text-sm">
                 <CreditCard size={16} className="text-stone-400 flex-shrink-0" />
                 <span className="text-stone-600">
-                  {order.stripePaymentIntentId
-                    ? 'Processed via Paystack'
-                    : 'Manual Payment'}
+                  {order.stripePaymentIntentId ? 'Processed via Paystack' : 'Manual Payment'}
                 </span>
               </div>
 
