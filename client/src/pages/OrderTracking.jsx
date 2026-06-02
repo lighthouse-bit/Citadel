@@ -5,43 +5,58 @@ import { motion } from 'framer-motion';
 import {
   Package, Truck, CheckCircle, Clock, MapPin,
   ExternalLink, Loader, ShoppingBag, Search, AlertCircle,
-  Mail, Calendar, Globe,
+  Mail, Activity, RefreshCw,
 } from 'lucide-react';
-import { ordersAPI } from '../services/api';
-import toast from 'react-hot-toast';
 import api from '../services/api';
+import toast from 'react-hot-toast';
 
 const OrderTracking = () => {
   const { orderNumber } = useParams();
-  const [order, setOrder]         = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError]         = useState(null);
-  const [searchInput, setSearchInput] = useState(orderNumber || '');
+  const [order, setOrder]                       = useState(null);
+  const [liveTracking, setLiveTracking]         = useState(null);
+  const [isLoading, setIsLoading]               = useState(true);
+  const [isLoadingTracking, setIsLoadingTracking] = useState(false);
+  const [error, setError]                       = useState(null);
+  const [searchInput, setSearchInput]           = useState(orderNumber || '');
 
   // ── Fetch order by order number ─────────────────────────
   const fetchOrder = async (number) => {
-  if (!number) {
-    setIsLoading(false);
-    return;
-  }
-
-  setIsLoading(true);
-  setError(null);
-  try {
-    // ✅ Use public tracking endpoint
-    const response = await api.get(`/orders/track/${number}`);
-    setOrder(response.data);
-  } catch (err) {
-    console.error('Order tracking error:', err);
-    if (err.response?.status === 404) {
-      setError('Order not found. Please check your order number.');
-    } else {
-      setError('Could not load order. Please try again.');
+    if (!number) {
+      setIsLoading(false);
+      return;
     }
-  } finally {
-    setIsLoading(false);
-  }
-};
+
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await api.get(`/orders/track/${number}`);
+      setOrder(response.data);
+    } catch (err) {
+      console.error('Order tracking error:', err);
+      if (err.response?.status === 404) {
+        setError('Order not found. Please check your order number.');
+      } else {
+        setError('Could not load order. Please try again.');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // ── Fetch live tracking from 17track ────────────────────
+  const fetchLiveTracking = async (orderNum) => {
+    setIsLoadingTracking(true);
+    try {
+      const response = await api.get(`/tracking/${orderNum}`);
+      if (response.data.hasTracking) {
+        setLiveTracking(response.data.tracking);
+      }
+    } catch (err) {
+      console.error('Live tracking error:', err);
+    } finally {
+      setIsLoadingTracking(false);
+    }
+  };
 
   useEffect(() => {
     if (orderNumber) {
@@ -51,10 +66,24 @@ const OrderTracking = () => {
     }
   }, [orderNumber]);
 
+  // ── Fetch live tracking after order loads ───────────────
+  useEffect(() => {
+    if (order?.trackingNumber && order?.carrier) {
+      fetchLiveTracking(order.orderNumber);
+    }
+  }, [order]);
+
   const handleSearch = (e) => {
     e.preventDefault();
     if (searchInput.trim()) {
       window.location.href = `/track/${searchInput.trim()}`;
+    }
+  };
+
+  const handleRefreshTracking = () => {
+    if (order?.orderNumber) {
+      fetchLiveTracking(order.orderNumber);
+      toast.success('Refreshing tracking...');
     }
   };
 
@@ -92,7 +121,7 @@ const OrderTracking = () => {
     );
   }
 
-  // ── No order number provided — Show search form ─────────
+  // ── No order number or error — Show search form ─────────
   if (!orderNumber || error) {
     return (
       <div className="min-h-screen pt-24 pb-16 bg-stone-50">
@@ -115,7 +144,6 @@ const OrderTracking = () => {
             </p>
           </div>
 
-          {/* Error message */}
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6
                             flex items-center gap-3">
@@ -166,7 +194,6 @@ const OrderTracking = () => {
             </div>
           </div>
 
-          {/* Quick Links */}
           <div className="mt-8 text-center">
             <Link
               to="/"
@@ -256,7 +283,7 @@ const OrderTracking = () => {
             </h2>
 
             <div className="relative">
-              {/* Progress line */}
+              {/* Progress line (desktop) */}
               <div className="absolute top-5 left-5 right-5 h-0.5 bg-stone-200
                               hidden sm:block">
                 <div
@@ -269,7 +296,7 @@ const OrderTracking = () => {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-6 relative">
-                {timelineSteps.map((step, index) => (
+                {timelineSteps.map((step) => (
                   <div key={step.id} className="text-center sm:text-center">
                     <div className="flex sm:flex-col items-center sm:items-center gap-3 sm:gap-0">
                       <div className={`w-10 h-10 rounded-full flex items-center
@@ -302,7 +329,7 @@ const OrderTracking = () => {
           </motion.div>
         )}
 
-        {/* Tracking Info */}
+        {/* Tracking Info Card */}
         {order.trackingNumber && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -388,6 +415,96 @@ const OrderTracking = () => {
               </div>
             </div>
           </motion.div>
+        )}
+
+        {/* ── LIVE TRACKING UPDATES (from 17track) ──────── */}
+        {liveTracking?.events?.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.25 }}
+            className="bg-white rounded-xl border border-stone-200 shadow-sm p-6"
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-lg font-semibold text-stone-900 flex items-center gap-2">
+                <Activity size={18} className="text-amber-600" />
+                Live Tracking Updates
+              </h2>
+              <button
+                onClick={handleRefreshTracking}
+                disabled={isLoadingTracking}
+                className="text-xs text-amber-600 hover:text-amber-700
+                           flex items-center gap-1 disabled:opacity-50"
+              >
+                <RefreshCw size={12} className={isLoadingTracking ? 'animate-spin' : ''} />
+                Refresh
+              </button>
+            </div>
+
+            {/* Current Status */}
+            {liveTracking.status && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
+                <p className="text-xs text-amber-700 uppercase tracking-wider font-medium mb-1">
+                  Current Status
+                </p>
+                <p className="text-stone-900 font-semibold">
+                  {liveTracking.statusText || liveTracking.status}
+                </p>
+                {liveTracking.location && (
+                  <p className="text-stone-600 text-sm mt-1 flex items-center gap-1">
+                    <MapPin size={12} /> {liveTracking.location}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Events Timeline */}
+            <div className="space-y-4">
+              {liveTracking.events.map((event, index) => (
+                <div key={index} className="flex gap-4">
+                  <div className="flex flex-col items-center">
+                    <div className={`w-3 h-3 rounded-full flex-shrink-0 ${
+                      index === 0
+                        ? 'bg-amber-500 ring-4 ring-amber-100'
+                        : 'bg-stone-300'
+                    }`} />
+                    {index < liveTracking.events.length - 1 && (
+                      <div className="w-0.5 flex-1 bg-stone-200 mt-1
+                                      min-h-[20px]" />
+                    )}
+                  </div>
+                  <div className="flex-1 pb-4">
+                    <p className="text-sm font-medium text-stone-900">
+                      {event.description || event.status}
+                    </p>
+                    {event.location && (
+                      <p className="text-xs text-stone-500 mt-0.5 flex items-center gap-1">
+                        <MapPin size={10} /> {event.location}
+                      </p>
+                    )}
+                    {event.date && (
+                      <p className="text-xs text-stone-400 mt-1">
+                        {new Date(event.date).toLocaleString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+
+        {/* Live tracking loading */}
+        {isLoadingTracking && !liveTracking && order.trackingNumber && (
+          <div className="bg-white rounded-xl border border-stone-200 shadow-sm p-6 text-center">
+            <Loader size={20} className="animate-spin text-amber-600 mx-auto mb-2" />
+            <p className="text-sm text-stone-500">Loading live tracking updates...</p>
+          </div>
         )}
 
         {/* Order Items */}
