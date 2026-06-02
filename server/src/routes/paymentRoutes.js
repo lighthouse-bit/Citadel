@@ -229,7 +229,7 @@ router.post('/artwork-payment', authenticateUser, async (req, res) => {
       currency: 'NGN',
       reference: `artwork_${order.id}_${Date.now()}`,
       metadata: { orderId: order.id, paymentType: 'artwork' },
-      callback_url: `${process.env.SERVER_URL}/api/payments/callback`,
+      callback_url: `${process.env.CLIENT_URL}/checkout`,
     });
 
     if (!paystackData.status) return res.status(500).json(paystackData);
@@ -279,7 +279,7 @@ router.post('/commission-deposit', authenticateUser, async (req, res) => {
       currency: 'NGN',
       reference: `commission_deposit_${commission.id}_${Date.now()}`,
       metadata: { commissionId: commission.id, paymentType: 'commission_deposit' },
-      callback_url: `${process.env.SERVER_URL}/api/payments/callback`,
+      callback_url: `${process.env.CLIENT_URL}/commission/payment/${commission.id}`,
     });
 
     if (!paystackData.status) return res.status(500).json(paystackData);
