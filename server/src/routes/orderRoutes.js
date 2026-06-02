@@ -4,6 +4,10 @@ const router  = express.Router();
 const orderController = require('../controllers/orderController');
 const { authenticateAdmin, authenticateUser } = require('../middleware/auth');
 
+
+// ✅ Public tracking — search by order number
+router.get('/track/:orderNumber', orderController.trackOrder);
+
 // Create order (guest or logged-in user)
 router.post('/', authenticateUser, orderController.createOrder);
 

@@ -391,3 +391,42 @@ exports.confirmOrderPayment = async (req, res) => {
     res.status(500).json({ error: 'Failed to confirm payment' });
   }
 };
+
+// ─────────────────────────────────────────────────────────
+// Track order by number (Public — no auth required)
+// GET /api/orders/track/:orderNumber
+// ─────────────────────────────────────────────────────────
+exports.trackOrder = async (req, res) => {
+  try {
+    const { orderNumber } = req.params;
+
+    const order = await prisma.order.findUnique({
+      where: { orderNumber },
+      include: {
+        customer: {
+          select: {
+            firstName: true,
+            lastName:  true,
+          },
+        },
+        items: {
+          include: { artwork: { include: { images: { take: 1 } } } },
+        },
+        shippingAddress: true,
+      },
+    });
+
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    // ✅ Don't expose sensitive info
+    delete order.internalNotes;
+    delete order.stripePaymentIntentId;
+
+    res.json(order);
+  } catch (error) {
+    console.error('Track order error:', error);
+    res.status(500).json({ error: 'Failed to track order' });
+  }
+};

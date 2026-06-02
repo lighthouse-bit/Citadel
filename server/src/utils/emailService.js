@@ -37,10 +37,10 @@ const sendVerificationEmail = async (email, token, firstName) => {
                       border:1px solid #e7e5e4;">
             <div style="background:#1c1917;padding:40px;text-align:center;">
               <h1 style="color:#ffffff;margin:0;font-size:32px;letter-spacing:4px;
-                         font-weight:400;">CITADEL</h1>
+                         font-weight:400;">HIGHMARC</h1>
               <p style="color:#d97706;margin:8px 0 0;font-size:11px;
                         letter-spacing:3px;text-transform:uppercase;">
-                Highmarc
+                Fine Art Atelier
               </p>
             </div>
             <div style="padding:48px 40px;">
@@ -113,10 +113,10 @@ const sendCommissionConfirmationEmail = async (email, firstName, commissionNumbe
                       border:1px solid #e7e5e4;">
             <div style="background:#1c1917;padding:40px;text-align:center;">
               <h1 style="color:#ffffff;margin:0;font-size:32px;letter-spacing:4px;
-                         font-weight:400;">CITADEL</h1>
+                         font-weight:400;">HIGHMARC</h1>
               <p style="color:#d97706;margin:8px 0 0;font-size:11px;
                         letter-spacing:3px;text-transform:uppercase;">
-                Highmarc
+                Fine Art Atelier
               </p>
             </div>
             <div style="padding:48px 40px;">
@@ -188,10 +188,10 @@ const sendOrderConfirmationEmail = async (email, firstName, orderNumber, total) 
                       border:1px solid #e7e5e4;">
             <div style="background:#1c1917;padding:40px;text-align:center;">
               <h1 style="color:#ffffff;margin:0;font-size:32px;letter-spacing:4px;
-                         font-weight:400;">CITADEL</h1>
+                         font-weight:400;">HIGHMARC</h1>
               <p style="color:#d97706;margin:8px 0 0;font-size:11px;
                         letter-spacing:3px;text-transform:uppercase;">
-                Highmarc
+                Fine Art Atelier
               </p>
             </div>
             <div style="padding:48px 40px;">
@@ -216,6 +216,15 @@ const sendOrderConfirmationEmail = async (email, firstName, orderNumber, total) 
                     $${Number(total).toLocaleString()}
                   </span>
                 </div>
+              </div>
+              <div style="text-align:center;margin:24px 0;">
+                <a href="${process.env.CLIENT_URL}/track/${orderNumber}"
+                   style="display:inline-block;background:#1c1917;color:#ffffff;
+                          padding:14px 32px;text-decoration:none;font-size:12px;
+                          letter-spacing:2px;text-transform:uppercase;
+                          border-radius:8px;">
+                  Track Your Order
+                </a>
               </div>
               <p style="color:#78716c;font-size:14px;line-height:1.6;">
                 You will receive a shipping notification with tracking information
@@ -250,11 +259,10 @@ const sendContactEmail = async ({ name, email, subject, message }) => {
   try {
     const transporter = createTransporter();
 
-    // ✅ Email to YOU (admin) — notification of new message
     const adminMailOptions = {
-      from:    `"Citadel Contact Form" <${process.env.EMAIL_USER}>`,
+      from:    `"Highmarc Contact Form" <${process.env.EMAIL_USER}>`,
       to:      process.env.EMAIL_USER,
-      replyTo: email, // ✅ Reply goes directly to the visitor
+      replyTo: email,
       subject: `New Contact Message: ${subject || 'No Subject'} — from ${name}`,
       html: `
         <!DOCTYPE html>
@@ -264,7 +272,7 @@ const sendContactEmail = async ({ name, email, subject, message }) => {
                       border:1px solid #e7e5e4;">
             <div style="background:#1c1917;padding:40px;text-align:center;">
               <h1 style="color:#ffffff;margin:0;font-size:32px;letter-spacing:4px;
-                         font-weight:400;">CITADEL</h1>
+                         font-weight:400;">HIGHMARC</h1>
               <p style="color:#d97706;margin:8px 0 0;font-size:11px;
                         letter-spacing:3px;text-transform:uppercase;">
                 New Contact Message
@@ -327,7 +335,6 @@ const sendContactEmail = async ({ name, email, subject, message }) => {
       `,
     };
 
-    // ✅ Auto-reply to the visitor
     const visitorMailOptions = {
       from:    `"Highmarc" <${process.env.EMAIL_USER}>`,
       to:      email,
@@ -340,10 +347,10 @@ const sendContactEmail = async ({ name, email, subject, message }) => {
                       border:1px solid #e7e5e4;">
             <div style="background:#1c1917;padding:40px;text-align:center;">
               <h1 style="color:#ffffff;margin:0;font-size:32px;letter-spacing:4px;
-                         font-weight:400;">CITADEL</h1>
+                         font-weight:400;">HIGHMARC</h1>
               <p style="color:#d97706;margin:8px 0 0;font-size:11px;
                         letter-spacing:3px;text-transform:uppercase;">
-                Highmarc
+                Fine Art Atelier
               </p>
             </div>
             <div style="padding:48px 40px;">
@@ -383,7 +390,6 @@ const sendContactEmail = async ({ name, email, subject, message }) => {
       `,
     };
 
-    // ✅ Send both emails simultaneously
     await Promise.all([
       transporter.sendMail(adminMailOptions),
       transporter.sendMail(visitorMailOptions),
@@ -396,7 +402,6 @@ const sendContactEmail = async ({ name, email, subject, message }) => {
   }
 };
 
-
 // ── Order Invoice Email ───────────────────────────────────────────────────────
 const sendOrderInvoiceEmail = async ({
   email, firstName, orderNumber, items,
@@ -407,7 +412,6 @@ const sendOrderInvoiceEmail = async ({
   try {
     const transporter = createTransporter();
 
-    // Build items rows
     const itemRows = items.map(item => `
       <tr>
         <td style="padding:12px 0;border-bottom:1px solid #e7e5e4;
@@ -431,18 +435,14 @@ const sendOrderInvoiceEmail = async ({
         <body style="margin:0;padding:0;background:#f5f5f4;font-family:Georgia,serif;">
           <div style="max-width:600px;margin:40px auto;background:#ffffff;
                       border:1px solid #e7e5e4;">
-
-            <!-- Header -->
             <div style="background:#1c1917;padding:40px;text-align:center;">
               <h1 style="color:#ffffff;margin:0;font-size:32px;letter-spacing:4px;
-                         font-weight:400;">CITADEL</h1>
+                         font-weight:400;">HIGHMARC</h1>
               <p style="color:#d97706;margin:8px 0 0;font-size:11px;
                         letter-spacing:3px;text-transform:uppercase;">
-                Highmarc
+                Fine Art Atelier
               </p>
             </div>
-
-            <!-- Invoice Header -->
             <div style="padding:40px 40px 0;display:flex;justify-content:space-between;
                         align-items:flex-start;">
               <div>
@@ -465,11 +465,7 @@ const sendOrderInvoiceEmail = async ({
                 </p>
               </div>
             </div>
-
-            <!-- Divider -->
             <div style="margin:24px 40px;border-top:2px solid #d97706;"></div>
-
-            <!-- Items -->
             <div style="padding:0 40px;">
               <table style="width:100%;border-collapse:collapse;">
                 <thead>
@@ -491,8 +487,6 @@ const sendOrderInvoiceEmail = async ({
                 </tbody>
               </table>
             </div>
-
-            <!-- Totals -->
             <div style="padding:24px 40px;">
               <div style="background:#f5f5f4;padding:24px;border-radius:8px;">
                 <div style="display:flex;justify-content:space-between;
@@ -535,8 +529,15 @@ const sendOrderInvoiceEmail = async ({
                 </div>
               </div>
             </div>
-
-            <!-- Message -->
+            <div style="text-align:center;padding:0 40px;margin:24px 0;">
+              <a href="${process.env.CLIENT_URL}/track/${orderNumber}"
+                 style="display:inline-block;background:#1c1917;color:#ffffff;
+                        padding:14px 32px;text-decoration:none;font-size:12px;
+                        letter-spacing:2px;text-transform:uppercase;
+                        border-radius:8px;">
+                Track Your Order
+              </a>
+            </div>
             <div style="padding:0 40px 40px;">
               <p style="color:#57534e;font-size:14px;line-height:1.6;">
                 Your artwork will be carefully packaged and shipped to you.
@@ -550,8 +551,6 @@ const sendOrderInvoiceEmail = async ({
                 </a>
               </p>
             </div>
-
-            <!-- Footer -->
             <div style="background:#f5f5f4;padding:24px 40px;
                         border-top:1px solid #e7e5e4;text-align:center;">
               <p style="color:#a8a29e;font-size:12px;margin:0;">
@@ -596,18 +595,14 @@ const sendCommissionDepositInvoiceEmail = async ({
         <body style="margin:0;padding:0;background:#f5f5f4;font-family:Georgia,serif;">
           <div style="max-width:600px;margin:40px auto;background:#ffffff;
                       border:1px solid #e7e5e4;">
-
-            <!-- Header -->
             <div style="background:#1c1917;padding:40px;text-align:center;">
               <h1 style="color:#ffffff;margin:0;font-size:32px;letter-spacing:4px;
-                         font-weight:400;">CITADEL</h1>
+                         font-weight:400;">HIGHMARC</h1>
               <p style="color:#d97706;margin:8px 0 0;font-size:11px;
                         letter-spacing:3px;text-transform:uppercase;">
-                Highmarc
+                Fine Art Atelier
               </p>
             </div>
-
-            <!-- Invoice Header -->
             <div style="padding:40px 40px 0;">
               <div style="display:flex;justify-content:space-between;
                           align-items:flex-start;">
@@ -634,11 +629,7 @@ const sendCommissionDepositInvoiceEmail = async ({
                 </div>
               </div>
             </div>
-
-            <!-- Divider -->
             <div style="margin:24px 40px;border-top:2px solid #d97706;"></div>
-
-            <!-- Commission Details -->
             <div style="padding:0 40px;">
               <table style="width:100%;border-collapse:collapse;">
                 <tr>
@@ -663,8 +654,6 @@ const sendCommissionDepositInvoiceEmail = async ({
                 </tr>
               </table>
             </div>
-
-            <!-- Payment Breakdown -->
             <div style="padding:24px 40px;">
               <div style="background:#f5f5f4;padding:24px;border-radius:8px;">
                 <p style="color:#78716c;font-size:12px;text-transform:uppercase;
@@ -699,8 +688,6 @@ const sendCommissionDepositInvoiceEmail = async ({
                 </div>
               </div>
             </div>
-
-            <!-- Status Banner -->
             <div style="margin:0 40px 40px;background:#fffbeb;border:1px solid #fde68a;
                         border-radius:8px;padding:20px;">
               <p style="color:#92400e;font-size:14px;margin:0;font-weight:bold;">
@@ -712,8 +699,6 @@ const sendCommissionDepositInvoiceEmail = async ({
                 upon completion.
               </p>
             </div>
-
-            <!-- Footer -->
             <div style="background:#f5f5f4;padding:24px 40px;
                         border-top:1px solid #e7e5e4;text-align:center;">
               <p style="color:#a8a29e;font-size:12px;margin:0;">
@@ -758,18 +743,14 @@ const sendCommissionBalanceInvoiceEmail = async ({
         <body style="margin:0;padding:0;background:#f5f5f4;font-family:Georgia,serif;">
           <div style="max-width:600px;margin:40px auto;background:#ffffff;
                       border:1px solid #e7e5e4;">
-
-            <!-- Header -->
             <div style="background:#1c1917;padding:40px;text-align:center;">
               <h1 style="color:#ffffff;margin:0;font-size:32px;letter-spacing:4px;
-                         font-weight:400;">CITADEL</h1>
+                         font-weight:400;">HIGHMARC</h1>
               <p style="color:#d97706;margin:8px 0 0;font-size:11px;
                         letter-spacing:3px;text-transform:uppercase;">
-                Highmarc
+                Fine Art Atelier
               </p>
             </div>
-
-            <!-- Invoice Header -->
             <div style="padding:40px 40px 0;">
               <div style="display:flex;justify-content:space-between;">
                 <div>
@@ -793,11 +774,7 @@ const sendCommissionBalanceInvoiceEmail = async ({
                 </div>
               </div>
             </div>
-
-            <!-- Divider -->
             <div style="margin:24px 40px;border-top:2px solid #d97706;"></div>
-
-            <!-- Commission Details -->
             <div style="padding:0 40px;">
               <table style="width:100%;border-collapse:collapse;">
                 <tr>
@@ -818,8 +795,6 @@ const sendCommissionBalanceInvoiceEmail = async ({
                 </tr>
               </table>
             </div>
-
-            <!-- Payment Summary -->
             <div style="padding:24px 40px;">
               <div style="background:#f5f5f4;padding:24px;border-radius:8px;">
                 <p style="color:#78716c;font-size:12px;text-transform:uppercase;
@@ -852,8 +827,6 @@ const sendCommissionBalanceInvoiceEmail = async ({
                 </div>
               </div>
             </div>
-
-            <!-- Completion Banner -->
             <div style="margin:0 40px 40px;background:#f0fdf4;border:1px solid #bbf7d0;
                         border-radius:8px;padding:20px;text-align:center;">
               <p style="color:#166534;font-size:18px;margin:0;font-weight:bold;">
@@ -864,8 +837,6 @@ const sendCommissionBalanceInvoiceEmail = async ({
                 We will be in touch regarding delivery and shipping details.
               </p>
             </div>
-
-            <!-- Footer -->
             <div style="background:#f5f5f4;padding:24px 40px;
                         border-top:1px solid #e7e5e4;text-align:center;">
               <p style="color:#a8a29e;font-size:12px;margin:0;">
@@ -889,7 +860,6 @@ const sendCommissionBalanceInvoiceEmail = async ({
     throw error;
   }
 };
-
 
 // ── Order Shipped Email ──────────────────────────────────────────────────────
 const sendOrderShippedEmail = async ({
@@ -995,17 +965,25 @@ const sendOrderShippedEmail = async ({
                 ` : ''}
               </div>
 
-              ${trackingUrl ? `
+              <!-- Tracking Buttons -->
               <div style="text-align:center;margin:32px 0;">
+                ${trackingUrl ? `
                 <a href="${trackingUrl}"
                    style="display:inline-block;background:#1c1917;color:#ffffff;
                           padding:16px 40px;text-decoration:none;font-size:13px;
                           letter-spacing:2px;text-transform:uppercase;
-                          border-radius:8px;">
-                  Track Your Package
+                          border-radius:8px;margin-bottom:12px;">
+                  Track with ${carrier || 'Carrier'}
+                </a>
+                <br/>
+                ` : ''}
+                <a href="${process.env.CLIENT_URL}/track/${orderNumber}"
+                   style="display:inline-block;color:#d97706;text-decoration:none;
+                          font-size:14px;margin-top:8px;border-bottom:1px solid #d97706;
+                          padding-bottom:2px;">
+                  View order status on Highmarc →
                 </a>
               </div>
-              ` : ''}
 
               ${shippingAddress ? `
               <div style="background:#fffbeb;border-left:3px solid #d97706;
@@ -1123,6 +1101,15 @@ const sendOrderDeliveredEmail = async ({
                 </p>
               </div>
 
+              <div style="text-align:center;margin:24px 0;">
+                <a href="${process.env.CLIENT_URL}/track/${orderNumber}"
+                   style="display:inline-block;color:#d97706;text-decoration:none;
+                          font-size:14px;border-bottom:1px solid #d97706;
+                          padding-bottom:2px;">
+                  View order details →
+                </a>
+              </div>
+
               <p style="color:#78716c;font-size:13px;margin:32px 0 0;">
                 Interested in another piece? Browse our latest collection at 
                 <a href="${process.env.CLIENT_URL}/gallery" style="color:#d97706;">
@@ -1157,10 +1144,10 @@ module.exports = {
   sendVerificationEmail,
   sendCommissionConfirmationEmail,
   sendOrderConfirmationEmail,
-  sendContactEmail,   
-  sendOrderInvoiceEmail,               
-  sendCommissionDepositInvoiceEmail,  
+  sendContactEmail,
+  sendOrderInvoiceEmail,
+  sendCommissionDepositInvoiceEmail,
   sendCommissionBalanceInvoiceEmail,
-   sendOrderShippedEmail,      
-  sendOrderDeliveredEmail,          
+  sendOrderShippedEmail,
+  sendOrderDeliveredEmail,
 };
