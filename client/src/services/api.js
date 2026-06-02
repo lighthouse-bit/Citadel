@@ -127,9 +127,8 @@ export const contactAPI = {
 // SETTINGS API
 // ==========================================
 export const settingsAPI = {
-  getSettings: () => api.get('/settings'),
-  updateSettings: (data) => api.put('/settings', data),
-  resetSettings: () => api.post('/settings/reset'),
+  get:    ()     => api.get('/settings'),
+  update: (data) => api.put('/settings', data),
 };
 
 

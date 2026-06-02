@@ -1,104 +1,107 @@
 // client/src/context/SettingsContext.jsx
 import { createContext, useContext, useState, useEffect } from 'react';
 import { settingsAPI } from '../services/api';
-import toast from 'react-hot-toast';
 
 const SettingsContext = createContext();
 
 const defaultSettings = {
-  siteName: 'Citadel',
-  siteTagline: 'Fine Art Atelier',
-  artistName: 'Artist Name',
-  artistBio: 'Fine artist specializing in portraits and landscapes.',
-  contactEmail: 'contact@citadel-art.com',
-  phone: '+2348087535982',
-  address: 'Johnson Tower Ikeja GRA, Lagos',
+  siteName:                    'Highmarc',
+  siteTagline:                 'Fine Art Atelier',
+  artistName:                  'Artist Name',
+  artistBio:                   '',
+  contactEmail:                '',
+  phone:                       '',
+  address:                     '',
 
-  paystackPublicKey: '',
-  paystackSecretKey: '',
-  currency: 'USD',
-  enableTax: false,
-  taxRate: 7.5,
+  // Payment
+  currency:                    'USD',
+  enableTax:                   false,
+  taxRate:                     7.5,
 
-  freeShippingThreshold: 500,
-  shippingFee: 0,
-  internationalShipping: true,
+  // Shipping
+  freeShippingThreshold:       500,
+  shippingFee:                 0,
+  internationalShipping:       true,
 
-  commissionOpen: true,
+  // Commissions
+  commissionOpen:              true,
   commissionDepositPercentage: 70,
-  commissionWaitTime: '2-4 weeks',
-  minimumCommissionPrice: 500,
+  commissionWaitTime:          '2-4 weeks',
+  minimumCommissionPrice:      500,
 
-  socialInstagram: 'https://instagram.com/citadelart',
-  socialTwitter: 'https://twitter.com/citadelart',
-  socialFacebook: '',
+  // Social
+  socialInstagram:             '',
+  socialTwitter:               '',
+  socialFacebook:              '',
 
-  metaDescription: 'Luxury art gallery showcasing original paintings and commissions.',
-  heroTitle: 'Citadel',
-  heroSubtitle: 'Where Artistry Meets Timeless Elegance',
+  // SEO
+  metaDescription:             '',
+  heroTitle:                   'HIGHMARC',
+  heroSubtitle:                'Where Artistry Meets Timeless Elegance',
+  aboutPageContent:            '',
 
-  shippingInfo: 'Free worldwide shipping on all original artworks.',
-  returnPolicy: '14-day return policy for undamaged items in original packaging.',
+  // Policies
+  shippingInfo:                '',
+  returnPolicy:                '',
 };
 
 export const SettingsProvider = ({ children }) => {
-  const [settings, setSettings] = useState(defaultSettings);
-  const [isLoaded, setIsLoaded] = useState(false);
+  const [settings, setSettings]   = useState(defaultSettings);
+  const [isLoaded, setIsLoaded]   = useState(false);
 
-  const fetchSettings = async () => {
-    try {
-      const response = await settingsAPI.getSettings();
-      setSettings({ ...defaultSettings, ...response.data });
-    } catch (error) {
-      console.error('Failed to fetch settings:', error);
-      toast.error('Using default settings');
-      setSettings(defaultSettings);
-    } finally {
-      setIsLoaded(true);
-    }
-  };
-
+  // ── Load settings from backend on mount ────────────────────
   useEffect(() => {
-    fetchSettings();
+    const loadSettings = async () => {
+      try {
+        const response = await settingsAPI.get();
+        // Merge with defaults so missing fields fall back
+        setSettings({ ...defaultSettings, ...response.data });
+      } catch (error) {
+        console.error('Failed to load settings:', error);
+        // Fall back to defaults if API fails
+      } finally {
+        setIsLoaded(true);
+      }
+    };
+
+    loadSettings();
   }, []);
 
+  // ── Save settings to backend ───────────────────────────────
   const updateSettings = async (newSettings) => {
     try {
-      const response = await settingsAPI.updateSettings(newSettings);
-      setSettings({ ...defaultSettings, ...response.data.settings || newSettings });
-      toast.success('Settings saved successfully!');
-      return true;
+      const response = await settingsAPI.update(newSettings);
+      setSettings({ ...defaultSettings, ...response.data });
+      return response.data;
     } catch (error) {
-      console.error('Update failed:', error);
-      toast.error('Failed to save settings');
-      return false;
+      console.error('Failed to save settings:', error);
+      throw error;
     }
   };
 
+  // ── Reset settings ─────────────────────────────────────────
   const resetSettings = async () => {
     try {
-      const response = await settingsAPI.resetSettings();
-      setSettings({ ...defaultSettings, ...response.data.settings });
-      toast.success('Settings reset to defaults');
+      const response = await settingsAPI.update(defaultSettings);
+      setSettings({ ...defaultSettings, ...response.data });
     } catch (error) {
-      console.error('Reset failed:', error);
-      toast.error('Failed to reset settings');
-      setSettings(defaultSettings);
+      console.error('Failed to reset settings:', error);
+      throw error;
     }
   };
 
   const getSetting = (key) => settings[key] ?? defaultSettings[key];
 
   return (
-    <SettingsContext.Provider value={{
-      settings,
-      isLoaded,
-      updateSettings,
-      resetSettings,
-      fetchSettings,
-      getSetting,
-      defaultSettings,
-    }}>
+    <SettingsContext.Provider
+      value={{
+        settings,
+        updateSettings,
+        resetSettings,
+        getSetting,
+        isLoaded,
+      }}
+    >
       {children}
     </SettingsContext.Provider>
   );
