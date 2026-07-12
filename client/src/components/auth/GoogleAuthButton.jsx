@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Loader } from 'lucide-react';
 
 const SCRIPT_ID = 'google-identity-services';
+const DEFAULT_GOOGLE_CLIENT_ID = '1050404875372-dir2v8sobkf4757c129pjl0hgum3dlak.apps.googleusercontent.com';
 
 const loadGoogleScript = () => new Promise((resolve, reject) => {
   if (window.google?.accounts?.id) {
@@ -29,7 +30,9 @@ const loadGoogleScript = () => new Promise((resolve, reject) => {
 const GoogleAuthButton = ({ onCredential, disabled = false }) => {
   const buttonRef = useRef(null);
   const onCredentialRef = useRef(onCredential);
-  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+  // OAuth client IDs are public identifiers. The environment variable allows
+  // deployments to override the project default without disabling the button.
+  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || DEFAULT_GOOGLE_CLIENT_ID;
 
   useEffect(() => {
     onCredentialRef.current = onCredential;

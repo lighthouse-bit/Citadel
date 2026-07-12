@@ -202,13 +202,11 @@ const AuthModal = ({ isOpen, onClose }) => {
                     disabled={isLoading}
                   />
 
-                  {import.meta.env.VITE_GOOGLE_CLIENT_ID && (
-                    <div className="flex items-center gap-3 my-5">
-                      <div className="h-px flex-1 bg-stone-200" />
-                      <span className="text-xs uppercase tracking-wider text-stone-400">or</span>
-                      <div className="h-px flex-1 bg-stone-200" />
-                    </div>
-                  )}
+                  <div className="flex items-center gap-3 my-5">
+                    <div className="h-px flex-1 bg-stone-200" />
+                    <span className="text-xs uppercase tracking-wider text-stone-400">or</span>
+                    <div className="h-px flex-1 bg-stone-200" />
+                  </div>
 
                   <form onSubmit={handleSubmit} className="space-y-4">
                     {mode === 'register' && (
