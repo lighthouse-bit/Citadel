@@ -8,6 +8,7 @@ import { useAuth } from '../hooks/useAuth';
 import { ordersAPI, paymentsAPI, shippingAPI, marketingAPI } from '../services/api';
 import { trackPurchase } from '../utils/analytics';
 import toast from 'react-hot-toast';
+import { checkoutTotal } from '../utils/checkoutTotals';
 
 // ─────────────────────────────────────────────────────────
 // Cart Image Helper
@@ -56,7 +57,7 @@ const Checkout = () => {
 
   // ✅ Calculate final total including shipping
   const shippingCost = shippingInfo?.shippingCost || 0;
-  const finalTotal   = cartTotal - (appliedPromotion?.discount || 0) + shippingCost;
+  const finalTotal   = checkoutTotal(cartTotal,shippingCost,appliedPromotion?.discount||0);
   const applyPromotion = async () => {
     try { const { data } = await marketingAPI.validatePromotion({ code: promoCode, subtotal: cartTotal, artworkIds: cartItems.map(item => item.id) }); setAppliedPromotion(data); toast.success(`${data.code} applied`); }
     catch (error) { setAppliedPromotion(null); toast.error(error.response?.data?.error || 'Invalid promotion'); }

@@ -1,0 +1,59 @@
+name: Quality
+on:
+  pull_request:
+  push:
+    branches: [master, "agent/**"]
+permissions:
+  contents: read
+concurrency:
+  group: quality-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/citadel_test
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/citadel_test
+      JWT_SECRET: ci-only-not-a-production-secret
+      GOOGLE_CLIENT_ID: 1050404875372-dir2v8sobkf4757c129pjl0hgum3dlak.apps.googleusercontent.com
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_PASSWORD: postgres, POSTGRES_DB: citadel_test }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 10s --health-timeout 5s --health-retries 5
+    defaults: { run: { working-directory: server } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: server/package-lock.json }
+      - run: npm ci
+      - run: npx prisma validate
+      - run: npx prisma migrate deploy
+      - run: npm test
+      - run: npm run build
+      - run: npm audit --audit-level=high
+  frontend:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: client } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: client/package-lock.json }
+      - run: npm ci
+      - run: npm test
+      - run: npm run lint:ci
+      - run: npm run build
+      - name: Full lint baseline (non-blocking until legacy findings are cleared)
+        continue-on-error: true
+        run: npm run lint
+      - run: npm audit --audit-level=high
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: node scripts/scan-secrets.js

@@ -1,0 +1,3 @@
+const test=require('node:test');const assert=require('node:assert/strict');const{signPaystackPayload,verifyPaystackSignature}=require('../src/utils/paymentSecurity');
+test('valid Paystack signature is accepted',()=>{const payload='{"event":"charge.success"}',secret='test-secret',signature=signPaystackPayload(payload,secret);assert.equal(verifyPaystackSignature(payload,signature,secret),true);});
+test('tampered payload and malformed signatures are rejected',()=>{const signature=signPaystackPayload('original','secret');assert.equal(verifyPaystackSignature('tampered',signature,'secret'),false);assert.equal(verifyPaystackSignature('original','not-hex','secret'),false);assert.equal(verifyPaystackSignature('original','', 'secret'),false);});

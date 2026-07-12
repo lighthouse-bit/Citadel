@@ -1,0 +1,4 @@
+const test=require('node:test');const assert=require('node:assert/strict');const{calculatePromotionDiscount,commissionReceipts}=require('../src/utils/commerceMath');
+test('percentage promotion respects maximum discount',()=>assert.equal(calculatePromotionDiscount({discountType:'PERCENTAGE',value:25,maximumDiscount:40},200),40));
+test('fixed promotion never makes subtotal negative',()=>assert.equal(calculatePromotionDiscount({discountType:'FIXED',value:500},120),120));
+test('commission receipts include only payments inside range',()=>{const start=new Date('2026-07-01'),end=new Date('2026-07-31T23:59:59Z');const receipts=commissionReceipts({depositPaidAt:new Date('2026-06-20'),balancePaidAt:new Date('2026-07-12'),depositAmount:700,balanceAmount:300},start,end);assert.deepEqual(receipts.map(item=>[item.stage,item.amount]),[['Balance',300]]);});

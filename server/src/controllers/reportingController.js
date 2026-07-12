@@ -1,5 +1,6 @@
 const prisma = require('../config/database');
 const { recordAudit } = require('../utils/auditService');
+const { commissionReceipts } = require('../utils/commerceMath');
 
 const range = query => {
   const end = query.to ? new Date(`${query.to}T23:59:59.999Z`) : new Date();
@@ -9,12 +10,6 @@ const range = query => {
   return { start, end };
 };
 const day = date => date.toISOString().slice(0,10);
-const commissionReceipts = (item,start,end) => {
-  const receipts=[];
-  if(item.depositPaidAt&&item.depositPaidAt>=start&&item.depositPaidAt<=end)receipts.push({date:item.depositPaidAt,amount:Number(item.depositAmount||0),stage:'Deposit'});
-  if(item.balancePaidAt&&item.balancePaidAt>=start&&item.balancePaidAt<=end)receipts.push({date:item.balancePaidAt,amount:Number(item.balanceAmount||0),stage:'Balance'});
-  return receipts;
-};
 
 const buildReport = async (start,end) => {
   const [orders,commissions,topItems,customers,promotions,refundOrders] = await Promise.all([

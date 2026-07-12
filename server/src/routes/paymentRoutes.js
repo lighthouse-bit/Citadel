@@ -6,6 +6,7 @@ const prisma = require('../config/database');
 const https = require('https');
 const crypto = require('crypto');
 const { recordOperationalEvent } = require('../utils/operationalEvents');
+const { verifyPaystackSignature } = require('../utils/paymentSecurity');
 
 const {
   sendOrderInvoiceEmail,
@@ -167,12 +168,7 @@ router.post('/webhook', async (req, res) => {
   else if (typeof req.body === 'string') bodyString = req.body;
   else bodyString = JSON.stringify(req.body);
 
-  const expectedHash = crypto
-    .createHmac('sha512', PAYSTACK_SECRET)
-    .update(bodyString)
-    .digest('hex');
-
-  if (hash !== expectedHash) { recordOperationalEvent('PAYMENT_WEBHOOK_REJECTED','Invalid Paystack webhook signature',null,'WARNING'); return res.sendStatus(400); }
+  if (!verifyPaystackSignature(bodyString,hash,PAYSTACK_SECRET)) { recordOperationalEvent('PAYMENT_WEBHOOK_REJECTED','Invalid Paystack webhook signature',null,'WARNING'); return res.sendStatus(400); }
 
   try {
     const event = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;

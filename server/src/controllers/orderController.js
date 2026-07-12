@@ -7,6 +7,7 @@ const {
 } = require('../utils/emailService');
 const { registerTracking } = require('../utils/trackingService');
 const { recordAudit } = require('../utils/auditService');
+const { calculatePromotionDiscount } = require('../utils/commerceMath');
 
 // ─────────────────────────────────────────────────────────
 // Create order (Public/User)
@@ -83,9 +84,7 @@ exports.createOrder = async (req, res) => {
       const valid = appliedPromotion && appliedPromotion.isActive && (!appliedPromotion.startsAt || appliedPromotion.startsAt <= now) && (!appliedPromotion.endsAt || appliedPromotion.endsAt >= now) && (!appliedPromotion.usageLimit || appliedPromotion.usageCount < appliedPromotion.usageLimit) && (!appliedPromotion.minimumOrder || subtotal >= Number(appliedPromotion.minimumOrder));
       const eligible = valid && (!appliedPromotion.artworkIds.length || dbArtworks.some(art => appliedPromotion.artworkIds.includes(art.id))) && (!appliedPromotion.categories.length || dbArtworks.some(art => appliedPromotion.categories.includes(art.category)));
       if (!eligible) return res.status(400).json({ error: 'Promotion is no longer valid for this order' });
-      discountAmount = appliedPromotion.discountType === 'PERCENTAGE' ? subtotal * Number(appliedPromotion.value) / 100 : Number(appliedPromotion.value);
-      if (appliedPromotion.maximumDiscount) discountAmount = Math.min(discountAmount, Number(appliedPromotion.maximumDiscount));
-      discountAmount = Math.min(discountAmount, subtotal);
+      discountAmount = calculatePromotionDiscount(appliedPromotion,subtotal);
     }
     const total          = subtotal - discountAmount + finalShipping + tax;
     const orderNumber    = `ORD-${Date.now().toString().slice(-6)}`;
