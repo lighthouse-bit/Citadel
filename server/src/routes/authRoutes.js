@@ -14,6 +14,8 @@ router.post('/google', authController.googleAuth);
 // email
 router.get('/verify-email', authController.verifyEmail); 
 
+router.post('/resend-verification', authenticateUser, authController.resendVerification);
+
 // Get Profile (Protected)
 router.get('/me', authenticateUser, authController.getProfile);
 

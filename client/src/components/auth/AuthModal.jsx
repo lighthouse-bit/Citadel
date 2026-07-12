@@ -58,8 +58,19 @@ const AuthModal = ({ isOpen, onClose }) => {
     try {
       const result = await googleAuth(credential);
       if (result.success) {
-        onClose();
-        resetForm();
+        if (result.needsVerification) {
+          const [firstName = '', ...lastNameParts] = result.user.name.split(' ');
+          setFormData({
+            firstName,
+            lastName: lastNameParts.join(' '),
+            email: result.user.email,
+            password: '',
+          });
+          setMode('verification');
+        } else {
+          onClose();
+          resetForm();
+        }
       }
     } finally {
       setIsLoading(false);

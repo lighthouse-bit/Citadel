@@ -347,23 +347,22 @@ exports.googleAuth = async (req, res) => {
 
       await prisma.$executeRaw`
         UPDATE "Customer"
-        SET "googleId" = ${payload.sub},
-            "isVerified" = true,
-            "verificationToken" = NULL,
-            "updatedAt" = NOW()
+        SET "googleId" = ${payload.sub}, "updatedAt" = NOW()
         WHERE id = ${user.id}
       `;
-      user = { ...user, googleId: payload.sub, isVerified: true };
+      user = { ...user, googleId: payload.sub };
     } else {
       const firstName = payload.given_name || payload.name?.split(' ')[0] || 'Google';
       const lastName = payload.family_name || payload.name?.split(' ').slice(1).join(' ') || 'User';
+      const verificationToken = crypto.randomBytes(32).toString('hex');
 
       user = await prisma.customer.create({
         data: {
           email,
           firstName,
           lastName,
-          isVerified: true,
+          isVerified: false,
+          verificationToken,
         }
       });
 
@@ -373,6 +372,12 @@ exports.googleAuth = async (req, res) => {
         WHERE id = ${user.id}
       `;
       user = { ...user, googleId: payload.sub };
+
+      try {
+        await sendVerificationEmail(email, verificationToken, firstName);
+      } catch (emailError) {
+        console.error('Google signup verification email failed:', emailError.message);
+      }
     }
 
     return res.json(createSession(user));

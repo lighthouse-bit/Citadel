@@ -97,9 +97,13 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('citadel_user', JSON.stringify(user));
       setUser(user);
       setIsAuthenticated(true);
-      setShowVerificationBanner(false);
+      setShowVerificationBanner(user.isVerified === false);
       toast.success(`Welcome, ${user.name.split(' ')[0]}!`);
-      return { success: true };
+      return {
+        success: true,
+        needsVerification: user.isVerified === false,
+        user,
+      };
     } catch (error) {
       const message = error.response?.data?.error || 'Google authentication failed';
       toast.error(message);
