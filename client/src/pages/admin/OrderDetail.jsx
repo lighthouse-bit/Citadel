@@ -5,7 +5,7 @@ import {
   ArrowLeft, Package, Truck, CheckCircle, XCircle,
   Clock, User, Mail, Phone, MapPin, CreditCard,
   Save, Loader, ExternalLink, ShoppingBag, Send,
-  Globe,
+  Globe, Printer, FileText, RefreshCw, Ban,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { ordersAPI } from '../../services/api';
@@ -18,6 +18,7 @@ const OrderDetail = () => {
   const [isLoading, setIsLoading]     = useState(true);
   const [isSaving, setIsSaving]       = useState(false);
   const [isShipping, setIsShipping]   = useState(false);
+  const [actionLoading, setActionLoading] = useState('');
 
   const [shipping, setShipping] = useState({
     carrier:           '',
@@ -101,7 +102,7 @@ const OrderDetail = () => {
         ? `Status updated to ${newStatus.toLowerCase()} — customer notified`
         : `Status updated to ${newStatus.replace('_', ' ').toLowerCase()}`;
       toast.success(msg);
-    } catch (error) {
+    } catch {
       setOrder(prev => ({ ...prev, status: oldStatus }));
       toast.error('Failed to update status');
     }
@@ -126,7 +127,7 @@ const OrderDetail = () => {
         internalNotes:     notes,
       }));
       toast.success('Shipping details saved');
-    } catch (error) {
+    } catch {
       toast.error('Failed to save details');
     } finally {
       setIsSaving(false);
@@ -166,12 +167,24 @@ const OrderDetail = () => {
       }));
 
       toast.success('Order shipped — customer notified by email!');
-    } catch (error) {
+    } catch {
       toast.error('Failed to mark as shipped');
     } finally {
       setIsShipping(false);
     }
   };
+
+  const handleResend = async (type) => {
+    try { setActionLoading(type); await ordersAPI.resendEmail(id, type); toast.success(`${type === 'shipping' ? 'Shipping email' : 'Invoice'} sent`); } catch (error) { toast.error(error.response?.data?.error || 'Email failed'); } finally { setActionLoading(''); }
+  };
+
+  const handleCancel = async () => {
+    const reason = window.prompt('Enter the cancellation reason:'); if (!reason) return;
+    if (!window.confirm('Cancel this order? Paid orders will still require a manual refund.')) return;
+    try { setActionLoading('cancel'); const { data } = await ordersAPI.cancel(id, reason); setOrder(prev=>({...prev,status:'CANCELLED'})); toast.success(data.requiresRefund ? 'Cancelled — refund review required' : 'Order cancelled'); } catch (error) { toast.error(error.response?.data?.error || 'Cancellation failed'); } finally { setActionLoading(''); }
+  };
+
+  const handlePrint = (type) => { const previous = document.title; document.title = `${type}-${order.orderNumber}`; window.print(); document.title = previous; };
 
   const getStatusStyle = (status) => {
     const styles = {
@@ -214,7 +227,7 @@ const OrderDetail = () => {
   const isShipped = ['SHIPPED', 'DELIVERED', 'COMPLETED'].includes(order.status);
 
   return (
-    <div className="space-y-6 pb-12">
+    <div className="print-order space-y-6 pb-12">
 
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 sticky top-0 bg-stone-100 z-10 py-4 border-b border-stone-200">
@@ -235,6 +248,11 @@ const OrderDetail = () => {
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
+          <button onClick={()=>handlePrint('invoice')} className="px-3 py-2 bg-white border rounded-lg text-sm flex gap-2"><FileText size={15}/>Invoice</button>
+          <button onClick={()=>handlePrint('packing-slip')} className="px-3 py-2 bg-white border rounded-lg text-sm flex gap-2"><Printer size={15}/>Packing slip</button>
+          <button disabled={!!actionLoading} onClick={()=>handleResend('invoice')} className="px-3 py-2 bg-white border rounded-lg text-sm flex gap-2"><RefreshCw size={15}/>Resend invoice</button>
+          {isShipped && <button disabled={!!actionLoading} onClick={()=>handleResend('shipping')} className="px-3 py-2 bg-white border rounded-lg text-sm flex gap-2"><Send size={15}/>Resend shipping</button>}
+          {!['SHIPPED','DELIVERED','CANCELLED'].includes(order.status) && <button disabled={!!actionLoading} onClick={handleCancel} className="px-3 py-2 bg-red-50 text-red-700 border border-red-200 rounded-lg text-sm flex gap-2"><Ban size={15}/>Cancel</button>}
           <span className={`px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1 ${getPaymentStyle(order.paymentStatus)}`}>
             <CreditCard size={12} />
             {getPaymentLabel(order.paymentStatus)}

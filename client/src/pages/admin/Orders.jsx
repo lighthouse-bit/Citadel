@@ -3,9 +3,10 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Search, Eye, Package, Truck, CheckCircle, 
-  XCircle, Clock, Loader, CreditCard, ShoppingBag, RefreshCw
+  XCircle, Clock, Loader, CreditCard, ShoppingBag, RefreshCw,
+  Download, AlertTriangle, ChevronLeft, ChevronRight
 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion as Motion } from 'framer-motion';
 import { ordersAPI } from '../../services/api';
 import toast from 'react-hot-toast';
 
@@ -16,6 +17,13 @@ const Orders = () => {
   const [filterStatus, setFilterStatus] = useState('');
   const [paymentStatus, setPaymentStatus] = useState('');
   const [lastUpdated, setLastUpdated] = useState(new Date());
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [bulkStatus, setBulkStatus] = useState('PROCESSING');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [stalledOnly, setStalledOnly] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0 });
 
   const fetchOrders = async () => {
     setIsLoading(true);
@@ -24,8 +32,15 @@ const Orders = () => {
         status: filterStatus || undefined,
         paymentStatus: paymentStatus || undefined,
         search: searchQuery || undefined,
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
+        stalled: stalledOnly || undefined,
+        page,
+        limit: 20,
       });
       setOrders(response.data.orders || response.data);
+      setPagination(response.data.pagination || { page: 1, pages: 1, total: response.data.orders?.length || 0 });
+      setSelectedIds([]);
       setLastUpdated(new Date());
     } catch (error) {
       console.error('Orders load failed', error);
@@ -38,13 +53,22 @@ const Orders = () => {
   // Initial load and filter change
   useEffect(() => {
     fetchOrders();
-  }, [filterStatus, paymentStatus, searchQuery]);
+  }, [filterStatus, paymentStatus, searchQuery, dateFrom, dateTo, stalledOnly, page]);
 
   // Auto-refresh every 8 seconds
   useEffect(() => {
     const interval = setInterval(fetchOrders, 8000);
     return () => clearInterval(interval);
-  }, [filterStatus, paymentStatus, searchQuery]);
+  }, [filterStatus, paymentStatus, searchQuery, dateFrom, dateTo, stalledOnly, page]);
+
+  const handleBulkUpdate = async () => {
+    if (!selectedIds.length || !window.confirm(`Update ${selectedIds.length} orders to ${bulkStatus}? Shipping, delivery, and cancellation must be handled individually.`)) return;
+    try { await ordersAPI.bulkUpdateStatus(selectedIds, bulkStatus); toast.success('Orders updated'); fetchOrders(); } catch { toast.error('Bulk update failed'); }
+  };
+
+  const handleExport = async () => {
+    try { const response = await ordersAPI.exportCsv(); const url = URL.createObjectURL(response.data); const link = document.createElement('a'); link.href = url; link.download = `orders-${new Date().toISOString().slice(0,10)}.csv`; link.click(); URL.revokeObjectURL(url); } catch { toast.error('Export failed'); }
+  };
 
   // Client-side search
   const filteredOrders = orders.filter(order => {
@@ -126,13 +150,7 @@ const Orders = () => {
           </h1>
           <p className="text-stone-500">Last updated: {lastUpdated.toLocaleTimeString()}</p>
         </div>
-        <button
-          onClick={fetchOrders}
-          className="flex items-center gap-2 px-4 py-2 bg-white border border-stone-300 rounded-lg hover:bg-stone-50 transition-colors"
-        >
-          <RefreshCw size={16} />
-          Refresh Now
-        </button>
+        <div className="flex gap-2"><button onClick={handleExport} className="flex items-center gap-2 px-4 py-2 bg-white border rounded-lg"><Download size={16}/>Export CSV</button><button onClick={fetchOrders} className="flex items-center gap-2 px-4 py-2 bg-white border border-stone-300 rounded-lg hover:bg-stone-50 transition-colors"><RefreshCw size={16}/>Refresh</button></div>
       </div>
 
       {/* Stats */}
@@ -186,8 +204,13 @@ const Orders = () => {
           <select value={paymentStatus} onChange={e=>setPaymentStatus(e.target.value)} className="px-4 py-2 border border-stone-300 rounded-lg">
             <option value="">All Payments</option><option value="UNPAID">Unpaid</option><option value="FULLY_PAID">Paid</option><option value="REFUNDED">Refunded</option>
           </select>
+          <input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)} className="px-3 py-2 border rounded-lg" title="From date"/>
+          <input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)} className="px-3 py-2 border rounded-lg" title="To date"/>
+          <label className="flex items-center gap-2 px-3 text-sm"><input type="checkbox" checked={stalledOnly} onChange={e=>setStalledOnly(e.target.checked)}/>Stalled only</label>
         </div>
       </div>
+
+      {selectedIds.length > 0 && <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center gap-3"><b>{selectedIds.length} selected</b><select value={bulkStatus} onChange={e=>setBulkStatus(e.target.value)} className="border rounded-lg px-3 py-2"><option value="PENDING">Pending</option><option value="CONFIRMED">Confirmed</option><option value="PROCESSING">Processing</option></select><button onClick={handleBulkUpdate} className="bg-stone-900 text-white px-4 py-2 rounded-lg">Apply status</button></div>}
 
       {/* Table */}
       <div className="bg-white rounded-xl border border-stone-200 shadow-sm overflow-hidden">
@@ -195,6 +218,7 @@ const Orders = () => {
           <table className="w-full">
             <thead className="bg-stone-50 border-b border-stone-200">
               <tr>
+                <th className="px-4 py-4"><input type="checkbox" checked={orders.length>0&&selectedIds.length===orders.length} onChange={e=>setSelectedIds(e.target.checked?orders.map(o=>o.id):[])}/></th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-stone-500 uppercase tracking-wider">Order</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-stone-500 uppercase tracking-wider">Customer</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-stone-500 uppercase tracking-wider">Total</th>
@@ -207,17 +231,19 @@ const Orders = () => {
             <tbody className="divide-y divide-stone-100">
               {filteredOrders.length > 0 ? (
                 filteredOrders.map((order, index) => (
-                  <motion.tr
+                  <Motion.tr
                     key={order.id}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: index * 0.03 }}
                     className="hover:bg-stone-50 transition-colors"
                   >
+                    <td className="px-4"><input type="checkbox" checked={selectedIds.includes(order.id)} onChange={e=>setSelectedIds(ids=>e.target.checked?[...ids,order.id]:ids.filter(id=>id!==order.id))}/></td>
                     <td className="px-6 py-4">
                       <p className="font-medium text-stone-900 text-sm">
                         {order.orderNumber}
                       </p>
+                      {order.isStalled && <span className="inline-flex items-center gap-1 text-xs text-red-600 mt-1"><AlertTriangle size={12}/>Stalled</span>}
                       <p className="text-xs text-stone-400 mt-0.5">
                         {order.items?.length || 0} item{order.items?.length !== 1 ? 's' : ''}
                       </p>
@@ -265,11 +291,11 @@ const Orders = () => {
                         <Eye size={18} />
                       </Link>
                     </td>
-                  </motion.tr>
+                  </Motion.tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan="7" className="px-6 py-16 text-center">
+                  <td colSpan="8" className="px-6 py-16 text-center">
                     <ShoppingBag size={40} className="mx-auto text-stone-300 mb-3" />
                     <p className="text-stone-500">No orders found</p>
                   </td>
@@ -279,6 +305,7 @@ const Orders = () => {
           </table>
         </div>
       </div>
+      <div className="flex items-center justify-between"><p className="text-sm text-stone-500">{pagination.total} orders</p><div className="flex items-center gap-2"><button disabled={page<=1} onClick={()=>setPage(p=>p-1)} className="p-2 border rounded disabled:opacity-40"><ChevronLeft size={17}/></button><span className="text-sm">Page {pagination.page} of {pagination.pages || 1}</span><button disabled={page>=pagination.pages} onClick={()=>setPage(p=>p+1)} className="p-2 border rounded disabled:opacity-40"><ChevronRight size={17}/></button></div></div>
     </div>
   );
 };

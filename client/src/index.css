@@ -1,6 +1,13 @@
 /* client/src/index.css - MINIMAL VERSION */
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Montserrat:wght@300;400;500;600&display=swap');
 
+@media print {
+  body * { visibility: hidden !important; }
+  .print-order, .print-order * { visibility: visible !important; }
+  .print-order { position: absolute; inset: 0; background: white; padding: 24px; }
+  .print-order button, .print-order select, .print-order textarea { display: none !important; }
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

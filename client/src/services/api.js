@@ -76,6 +76,10 @@ export const ordersAPI = {
   getAll:       (params)   => api.get('/orders', { params }),
   getById:      (id)       => api.get(`/orders/${id}`),
   updateStatus: (id, data) => api.patch(`/orders/${id}/status`, data),
+  bulkUpdateStatus: (orderIds, status) => api.patch('/orders/bulk/status', { orderIds, status }),
+  exportCsv: () => api.get('/orders/admin/export', { responseType: 'blob' }),
+  resendEmail: (id, type) => api.post(`/orders/${id}/resend-email`, { type }),
+  cancel: (id, reason) => api.post(`/orders/${id}/cancel`, { reason }),
 };
 
 // ==========================================

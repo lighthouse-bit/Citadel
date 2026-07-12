@@ -136,13 +136,16 @@ exports.createOrder = async (req, res) => {
 // ─────────────────────────────────────────────────────────
 exports.getAllOrders = async (req, res) => {
   try {
-    const { status, paymentStatus, search, page = 1, limit = 20, customerEmail } = req.query;
+    const { status, paymentStatus, search, dateFrom, dateTo, stalled, page = 1, limit = 20, customerEmail } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     const where = {};
+    if (req.user?.role !== 'admin') where.customerId = req.user?.id || '__anonymous__';
     if (status)        where.status   = status.toUpperCase();
     if (paymentStatus) where.paymentStatus = paymentStatus.toUpperCase();
     if (customerEmail) where.customer = { email: customerEmail };
+    if (dateFrom || dateTo) where.createdAt = { ...(dateFrom && { gte: new Date(dateFrom) }), ...(dateTo && { lte: new Date(`${dateTo}T23:59:59.999Z`) }) };
+    if (stalled === 'true') { where.updatedAt = { lt: new Date(Date.now() - 3 * 86400000) }; where.status = { in: ['PENDING', 'CONFIRMED', 'PROCESSING'] }; }
     if (search) where.OR = [
       { orderNumber: { contains: search, mode: 'insensitive' } },
       { trackingNumber: { contains: search, mode: 'insensitive' } },
@@ -171,7 +174,7 @@ exports.getAllOrders = async (req, res) => {
     ]);
 
     res.json({
-      orders,
+      orders: orders.map(order => ({ ...order, isStalled: ['PENDING','CONFIRMED','PROCESSING'].includes(order.status) && Date.now() - new Date(order.updatedAt).getTime() > 3 * 86400000 })),
       pagination: {
         page:  parseInt(page),
         limit: parseInt(limit),
@@ -315,6 +318,7 @@ exports.updateOrderStatus = async (req, res) => {
       }});
       await recordAudit(req, 'UPDATE_ORDER', 'Order', order.id, { changedFields, status: status?.toUpperCase() });
     }
+    if (req.user?.role !== 'admin' && order.customerId !== req.user?.id) return res.status(403).json({ error: 'Access denied' });
 
     // ✅ Register tracking with 17track for live updates
     if (shouldSendShippedEmail && order.trackingNumber && order.carrier) {
@@ -460,4 +464,58 @@ exports.confirmOrderPayment = async (req, res) => {
     console.error('Error confirming order payment:', error);
     res.status(500).json({ error: 'Failed to confirm payment' });
   }
+};
+
+exports.bulkUpdateStatus = async (req, res) => {
+  try {
+    const { orderIds, status } = req.body;
+    const nextStatus = status?.toUpperCase();
+    if (!Array.isArray(orderIds) || !orderIds.length || !['PENDING','CONFIRMED','PROCESSING'].includes(nextStatus)) return res.status(400).json({ error: 'Bulk updates support pending, confirmed, and processing states only' });
+    await prisma.$transaction(async tx => {
+      await tx.order.updateMany({ where: { id: { in: orderIds }, status: { notIn: ['DELIVERED','CANCELLED'] } }, data: { status: nextStatus } });
+      for (const orderId of orderIds) await tx.orderEvent.create({ data: { orderId, adminId: req.user.id, type: 'BULK_STATUS_CHANGED', message: `Status changed to ${nextStatus} in bulk action` } });
+    });
+    await recordAudit(req, 'BULK_UPDATE_ORDERS', 'Order', null, { orderIds, status: nextStatus });
+    res.json({ success: true, updated: orderIds.length });
+  } catch (error) { console.error(error); res.status(500).json({ error: 'Bulk update failed' }); }
+};
+
+exports.exportOrders = async (req, res) => {
+  try {
+    const orders = await prisma.order.findMany({ include: { customer: true }, orderBy: { createdAt: 'desc' }, take: 5000 });
+    const esc = value => `"${String(value ?? '').replaceAll('"','""')}"`;
+    const rows = [['Order','Customer','Email','Total','Payment','Status','Tracking','Created'], ...orders.map(o => [o.orderNumber, `${o.customer.firstName} ${o.customer.lastName}`, o.customer.email, o.total, o.paymentStatus, o.status, o.trackingNumber, o.createdAt.toISOString()])];
+    res.setHeader('Content-Type','text/csv'); res.setHeader('Content-Disposition',`attachment; filename="orders-${new Date().toISOString().slice(0,10)}.csv"`); res.send(rows.map(row => row.map(esc).join(',')).join('\n'));
+  } catch (error) { console.error(error); res.status(500).json({ error: 'Export failed' }); }
+};
+
+exports.resendOrderEmail = async (req, res) => {
+  try {
+    const order = await prisma.order.findUnique({ where: { id: req.params.id }, include: { customer: true, items: { include: { artwork: { include: { images: { take: 1 } } } } }, shippingAddress: true } });
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+    if (req.body.type === 'shipping') {
+      if (!order.trackingNumber) return res.status(400).json({ error: 'Tracking details are required' });
+      await sendOrderShippedEmail({ email: order.customer.email, firstName: order.customer.firstName, orderNumber: order.orderNumber, trackingNumber: order.trackingNumber, trackingUrl: order.trackingUrl, carrier: order.carrier, estimatedDelivery: order.estimatedDelivery, shippingAddress: order.shippingAddress });
+    } else {
+      await sendOrderInvoiceEmail({ email: order.customer.email, firstName: order.customer.firstName, orderNumber: order.orderNumber, items: order.items, subtotal: order.subtotal, shipping: order.shippingCost, tax: order.tax, total: order.total, createdAt: order.createdAt });
+    }
+    await recordAudit(req, 'RESEND_ORDER_EMAIL', 'Order', order.id, { type: req.body.type || 'invoice' });
+    res.json({ success: true });
+  } catch (error) { console.error(error); res.status(500).json({ error: 'Failed to send email' }); }
+};
+
+exports.cancelOrder = async (req, res) => {
+  try {
+    const order = await prisma.order.findUnique({ where: { id: req.params.id }, include: { items: true } });
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+    if (['SHIPPED','DELIVERED','CANCELLED'].includes(order.status)) return res.status(409).json({ error: 'This order can no longer be cancelled' });
+    const reason = req.body.reason?.trim(); if (!reason) return res.status(400).json({ error: 'Cancellation reason is required' });
+    await prisma.$transaction(async tx => {
+      await tx.order.update({ where: { id: order.id }, data: { status: 'CANCELLED', internalNotes: [order.internalNotes, `Cancellation: ${reason}`].filter(Boolean).join('\n') } });
+      if (order.paymentStatus === 'UNPAID') await tx.artwork.updateMany({ where: { id: { in: order.items.map(i=>i.artworkId) }, status: 'RESERVED' }, data: { status: 'AVAILABLE' } });
+      await tx.orderEvent.create({ data: { orderId: order.id, adminId: req.user.id, type: 'ORDER_CANCELLED', message: `Order cancelled: ${reason}`, metadata: { requiresRefund: order.paymentStatus === 'FULLY_PAID' } } });
+    });
+    await recordAudit(req, 'CANCEL_ORDER', 'Order', order.id, { reason, requiresRefund: order.paymentStatus === 'FULLY_PAID' });
+    res.json({ success: true, requiresRefund: order.paymentStatus === 'FULLY_PAID' });
+  } catch (error) { console.error(error); res.status(500).json({ error: 'Cancellation failed' }); }
 };
