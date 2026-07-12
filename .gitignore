@@ -4,3 +4,7 @@
 **/.env
 **/.env.*
 !**/.env.example
+
+# Dependencies are installed from lockfiles during builds.
+server/node_modules/
+client/node_modules/

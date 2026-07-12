@@ -324,9 +324,14 @@ exports.googleAuth = async (req, res) => {
     }
 
     const email = payload.email.toLowerCase();
-    let user = await prisma.customer.findFirst({
-      where: { OR: [{ googleId: payload.sub }, { email }] }
-    });
+    const users = await prisma.$queryRaw`
+      SELECT id, email, "firstName", "lastName", password,
+             "isVerified", "googleId"
+      FROM "Customer"
+      WHERE "googleId" = ${payload.sub} OR email = ${email}
+      LIMIT 1
+    `;
+    let user = users[0];
 
     if (user) {
       if (user.googleId && user.googleId !== payload.sub) {
@@ -340,14 +345,15 @@ exports.googleAuth = async (req, res) => {
         });
       }
 
-      user = await prisma.customer.update({
-        where: { id: user.id },
-        data: {
-          googleId: payload.sub,
-          isVerified: true,
-          verificationToken: null,
-        }
-      });
+      await prisma.$executeRaw`
+        UPDATE "Customer"
+        SET "googleId" = ${payload.sub},
+            "isVerified" = true,
+            "verificationToken" = NULL,
+            "updatedAt" = NOW()
+        WHERE id = ${user.id}
+      `;
+      user = { ...user, googleId: payload.sub, isVerified: true };
     } else {
       const firstName = payload.given_name || payload.name?.split(' ')[0] || 'Google';
       const lastName = payload.family_name || payload.name?.split(' ').slice(1).join(' ') || 'User';
@@ -357,10 +363,16 @@ exports.googleAuth = async (req, res) => {
           email,
           firstName,
           lastName,
-          googleId: payload.sub,
           isVerified: true,
         }
       });
+
+      await prisma.$executeRaw`
+        UPDATE "Customer"
+        SET "googleId" = ${payload.sub}
+        WHERE id = ${user.id}
+      `;
+      user = { ...user, googleId: payload.sub };
     }
 
     return res.json(createSession(user));
