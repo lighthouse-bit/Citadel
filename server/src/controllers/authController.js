@@ -5,7 +5,8 @@ const crypto = require('crypto');
 const { sendVerificationEmail } = require('../utils/emailService');
 const { OAuth2Client } = require('google-auth-library');
 
-const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+const DEFAULT_GOOGLE_CLIENT_ID = '1050404875372-dir2v8sobkf4757c129pjl0hgum3dlak.apps.googleusercontent.com';
+const googleClient = new OAuth2Client();
 
 const createSession = (user) => ({
   token: jwt.sign(
@@ -302,11 +303,11 @@ exports.resendVerification = async (req, res) => {
 exports.googleAuth = async (req, res) => {
   try {
     const { credential } = req.body;
-    const clientId = process.env.GOOGLE_CLIENT_ID;
-
-    if (!clientId) {
-      return res.status(503).json({ error: 'Google authentication is not configured' });
-    }
+    const configuredClientId = process.env.GOOGLE_CLIENT_ID?.trim();
+    const allowedAudiences = [...new Set([
+      DEFAULT_GOOGLE_CLIENT_ID,
+      configuredClientId,
+    ].filter(Boolean))];
 
     if (!credential) {
       return res.status(400).json({ error: 'Google credential is required' });
@@ -314,7 +315,7 @@ exports.googleAuth = async (req, res) => {
 
     const ticket = await googleClient.verifyIdToken({
       idToken: credential,
-      audience: clientId,
+      audience: allowedAudiences,
     });
     const payload = ticket.getPayload();
 
@@ -364,7 +365,18 @@ exports.googleAuth = async (req, res) => {
 
     return res.json(createSession(user));
   } catch (error) {
-    console.error('Google authentication error:', error.message);
+    console.error('Google authentication error:', {
+      message: error.message,
+      code: error.code,
+      stack: error.stack,
+    });
+
+    if (typeof error.code === 'string' && error.code.startsWith('P')) {
+      return res.status(503).json({
+        error: 'Google account verified, but account creation failed'
+      });
+    }
+
     return res.status(401).json({ error: 'Google authentication failed' });
   }
 };
