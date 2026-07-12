@@ -1,1 +1,6 @@
 .vercel
+
+# Local environment files may contain credentials.
+**/.env
+**/.env.*
+!**/.env.example

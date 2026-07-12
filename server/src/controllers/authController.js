@@ -3,6 +3,24 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { sendVerificationEmail } = require('../utils/emailService');
+const { OAuth2Client } = require('google-auth-library');
+
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+const createSession = (user) => ({
+  token: jwt.sign(
+    { id: user.id, email: user.email, role: 'customer' },
+    process.env.JWT_SECRET || 'citadel-secret-key',
+    { expiresIn: '7d' }
+  ),
+  user: {
+    id: user.id,
+    name: `${user.firstName} ${user.lastName}`.trim(),
+    email: user.email,
+    isVerified: user.isVerified,
+    role: 'customer'
+  }
+});
 
 // ==========================================
 // 1. REGISTER USER 1fwfff
@@ -275,5 +293,78 @@ exports.resendVerification = async (req, res) => {
   } catch (error) {
     console.error('Resend verification error:', error);
     res.status(500).json({ error: 'Failed to resend verification email' });
+  }
+};
+
+// ==========================================
+// GOOGLE SIGN-UP / SIGN-IN
+// ==========================================
+exports.googleAuth = async (req, res) => {
+  try {
+    const { credential } = req.body;
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+
+    if (!clientId) {
+      return res.status(503).json({ error: 'Google authentication is not configured' });
+    }
+
+    if (!credential) {
+      return res.status(400).json({ error: 'Google credential is required' });
+    }
+
+    const ticket = await googleClient.verifyIdToken({
+      idToken: credential,
+      audience: clientId,
+    });
+    const payload = ticket.getPayload();
+
+    if (!payload?.sub || !payload.email || !payload.email_verified) {
+      return res.status(401).json({ error: 'Google account could not be verified' });
+    }
+
+    const email = payload.email.toLowerCase();
+    let user = await prisma.customer.findFirst({
+      where: { OR: [{ googleId: payload.sub }, { email }] }
+    });
+
+    if (user) {
+      if (user.googleId && user.googleId !== payload.sub) {
+        return res.status(409).json({ error: 'This email is linked to another Google account' });
+      }
+
+      const googleIsAuthoritative = email.endsWith('@gmail.com') || Boolean(payload.hd);
+      if (!user.googleId && !googleIsAuthoritative) {
+        return res.status(409).json({
+          error: 'Sign in with your password before linking this Google account'
+        });
+      }
+
+      user = await prisma.customer.update({
+        where: { id: user.id },
+        data: {
+          googleId: payload.sub,
+          isVerified: true,
+          verificationToken: null,
+        }
+      });
+    } else {
+      const firstName = payload.given_name || payload.name?.split(' ')[0] || 'Google';
+      const lastName = payload.family_name || payload.name?.split(' ').slice(1).join(' ') || 'User';
+
+      user = await prisma.customer.create({
+        data: {
+          email,
+          firstName,
+          lastName,
+          googleId: payload.sub,
+          isVerified: true,
+        }
+      });
+    }
+
+    return res.json(createSession(user));
+  } catch (error) {
+    console.error('Google authentication error:', error.message);
+    return res.status(401).json({ error: 'Google authentication failed' });
   }
 };

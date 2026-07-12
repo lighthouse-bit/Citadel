@@ -88,6 +88,25 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const googleAuth = async (credential) => {
+    try {
+      const response = await axios.post(`${API_URL}/auth/google`, { credential });
+      const { token, user } = response.data;
+
+      localStorage.setItem('citadel_token', token);
+      localStorage.setItem('citadel_user', JSON.stringify(user));
+      setUser(user);
+      setIsAuthenticated(true);
+      setShowVerificationBanner(false);
+      toast.success(`Welcome, ${user.name.split(' ')[0]}!`);
+      return { success: true };
+    } catch (error) {
+      const message = error.response?.data?.error || 'Google authentication failed';
+      toast.error(message);
+      return { success: false, error: message };
+    }
+  };
+
   const logout = () => {
     localStorage.removeItem('citadel_token');
     setUser(null);
@@ -119,6 +138,7 @@ export const AuthProvider = ({ children }) => {
     showVerificationBanner,
     login,
     register,
+    googleAuth,
     logout,
     checkAuth,
     dismissVerificationBanner,

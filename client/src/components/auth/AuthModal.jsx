@@ -1,12 +1,13 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Mail, Lock, User, ArrowRight, Loader, CheckCircle, MailCheck } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
+import GoogleAuthButton from './GoogleAuthButton';
 
 const AuthModal = ({ isOpen, onClose }) => {
   const [mode, setMode] = useState('login'); // 'login', 'register', 'verification'
   const [isLoading, setIsLoading] = useState(false);
-  const { login, register, resendVerification } = useAuth();
+  const { login, register, googleAuth, resendVerification } = useAuth();
   
   const [formData, setFormData] = useState({
     firstName: '',
@@ -51,6 +52,19 @@ const AuthModal = ({ isOpen, onClose }) => {
       setIsLoading(false);
     }
   };
+
+  const handleGoogleCredential = useCallback(async (credential) => {
+    setIsLoading(true);
+    try {
+      const result = await googleAuth(credential);
+      if (result.success) {
+        onClose();
+        resetForm();
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, [googleAuth, onClose]);
 
   const resetForm = () => {
     setFormData({ firstName: '', lastName: '', email: '', password: '' });
@@ -183,6 +197,19 @@ const AuthModal = ({ isOpen, onClose }) => {
 
                 {/* Form */}
                 <div className="p-8">
+                  <GoogleAuthButton
+                    onCredential={handleGoogleCredential}
+                    disabled={isLoading}
+                  />
+
+                  {import.meta.env.VITE_GOOGLE_CLIENT_ID && (
+                    <div className="flex items-center gap-3 my-5">
+                      <div className="h-px flex-1 bg-stone-200" />
+                      <span className="text-xs uppercase tracking-wider text-stone-400">or</span>
+                      <div className="h-px flex-1 bg-stone-200" />
+                    </div>
+                  )}
+
                   <form onSubmit={handleSubmit} className="space-y-4">
                     {mode === 'register' && (
                       <div className="grid grid-cols-2 gap-4">

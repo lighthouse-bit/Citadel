@@ -9,6 +9,8 @@ router.post('/register', authController.register);
 // Login snkfs
 router.post('/login', authController.login);
 
+router.post('/google', authController.googleAuth);
+
 // email
 router.get('/verify-email', authController.verifyEmail); 
 
