@@ -59,6 +59,7 @@ export const commissionsAPI = {
   getMyCommissionById: (id) => api.get(`/commissions/my-commissions/${id}`),
   getById:             (id) => api.get(`/commissions/${id}`),
   updateStatus:    (id, data) => api.patch(`/commissions/${id}/status`, data),
+  exportCsv:       (params) => api.get('/commissions/export', { params, responseType: 'blob' }),
 
   // ✅ Explicit JSON header to ensure Axios sends correctly
   addProgressImage: (id, data) => api.post(

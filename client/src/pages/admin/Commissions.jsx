@@ -1,283 +1,107 @@
-// src/pages/admin/Commissions.jsx
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { 
-  Search, Eye, Calendar, DollarSign, 
-  User, Image, Loader, CreditCard 
-} from 'lucide-react';
-import { motion } from 'framer-motion';
-import { commissionsAPI } from '../../services/api';
+import { Search, Eye, Calendar, DollarSign, User, Loader, CreditCard, Download, LayoutGrid, Columns3, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { commissionsAPI } from '../../services/api';
+
+const STATUSES = ['PENDING', 'REVIEWING', 'ACCEPTED', 'IN_PROGRESS', 'REVISION', 'COMPLETED', 'CANCELLED'];
+const ACTIVE_COLUMNS = ['PENDING', 'REVIEWING', 'ACCEPTED', 'IN_PROGRESS', 'REVISION', 'COMPLETED'];
+const statusStyle = {
+  PENDING: 'bg-yellow-100 text-yellow-700', REVIEWING: 'bg-amber-100 text-amber-700',
+  ACCEPTED: 'bg-blue-100 text-blue-700', IN_PROGRESS: 'bg-purple-100 text-purple-700',
+  REVISION: 'bg-orange-100 text-orange-700', COMPLETED: 'bg-green-100 text-green-700',
+  CANCELLED: 'bg-red-100 text-red-700',
+};
+const paymentStyle = { UNPAID: 'bg-red-100 text-red-700', DEPOSIT_PAID: 'bg-blue-100 text-blue-700', FULLY_PAID: 'bg-green-100 text-green-700' };
+const label = value => value?.replaceAll('_', ' ').replace(/\b\w/g, letter => letter.toUpperCase());
+
+const CommissionCard = ({ commission, draggable = false, onDragStart }) => (
+  <article draggable={draggable} onDragStart={onDragStart} className="bg-white rounded-xl border border-stone-200 p-4 shadow-sm">
+    <div className="flex items-start justify-between gap-2">
+      <div className="min-w-0">
+        <p className="text-xs text-stone-400 font-mono">{commission.commissionNumber}</p>
+        <h3 className="font-semibold text-stone-900 truncate">{commission.artStyle}</h3>
+      </div>
+      {commission.isOverdue && <span title="Overdue"><AlertTriangle size={17} className="text-red-500" /></span>}
+    </div>
+    <p className="mt-2 text-sm text-stone-600 flex items-center gap-1"><User size={14} /> {commission.customer?.firstName} {commission.customer?.lastName}</p>
+    <div className="flex flex-wrap gap-1.5 mt-3">
+      <span className={`px-2 py-1 rounded-full text-[11px] font-medium ${statusStyle[commission.status]}`}>{label(commission.status)}</span>
+      <span className={`px-2 py-1 rounded-full text-[11px] font-medium ${paymentStyle[commission.paymentStatus] || 'bg-stone-100'}`}><CreditCard size={10} className="inline mr-1" />{label(commission.paymentStatus)}</span>
+    </div>
+    <div className="grid grid-cols-2 gap-2 mt-3 text-xs text-stone-500">
+      <span className="flex items-center gap-1"><DollarSign size={13} />{commission.finalPrice ? Number(commission.finalPrice).toLocaleString() : `Est. ${Number(commission.estimatedPrice || 0).toLocaleString()}`}</span>
+      <span className={commission.isOverdue ? 'text-red-600 font-medium flex items-center gap-1' : 'flex items-center gap-1'}><Calendar size={13} />{commission.deadline ? new Date(commission.deadline).toLocaleDateString() : 'No deadline'}</span>
+    </div>
+    {commission.amountDue > 0 && <p className="mt-3 rounded-lg bg-amber-50 px-2.5 py-2 text-xs font-medium text-amber-800">${commission.amountDue.toLocaleString()} payment due</p>}
+    <Link to={`/admin/commissions/${commission.id}`} className="mt-4 pt-3 border-t border-stone-100 flex items-center justify-end gap-1 text-sm font-medium text-amber-700 hover:text-amber-800"><Eye size={14} /> View details</Link>
+  </article>
+);
 
 const Commissions = () => {
-  const [commissions, setCommissions]   = useState([]);
-  const [isLoading, setIsLoading]       = useState(true);
-  const [searchQuery, setSearchQuery]   = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
+  const [commissions, setCommissions] = useState([]);
+  const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0 });
+  const [loading, setLoading] = useState(true);
+  const [view, setView] = useState('grid');
+  const [filters, setFilters] = useState({ search: '', status: '', paymentStatus: '', overdue: false, page: 1 });
 
-  useEffect(() => {
-    const fetchCommissions = async () => {
-      setIsLoading(true);
-      try {
-        const response = await commissionsAPI.getAll({ 
-          status: filterStatus || undefined 
-        });
-        setCommissions(response.data.commissions);
-      } catch (error) {
-        console.error('Error fetching commissions:', error);
-        toast.error('Failed to load commissions');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchCommissions();
-  }, [filterStatus]);
+  const fetchCommissions = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await commissionsAPI.getAll({ ...filters, overdue: filters.overdue || undefined, limit: view === 'board' ? 100 : 20 });
+      setCommissions(response.data.commissions);
+      setPagination(response.data.pagination);
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to load commissions');
+    } finally { setLoading(false); }
+  }, [filters, view]);
 
-  // ── Client-side search filter ─────────────────────────
-  const filteredCommissions = commissions.filter(commission => {
-    const query = searchQuery.toLowerCase();
-    return (
-      commission.commissionNumber?.toLowerCase().includes(query) ||
-      commission.customer?.firstName?.toLowerCase().includes(query) || // ✅ fixed: client → customer
-      commission.customer?.lastName?.toLowerCase().includes(query)  || // ✅ fixed
-      commission.customer?.email?.toLowerCase().includes(query)     || // ✅ fixed
-      commission.artStyle?.toLowerCase().includes(query)
-    );
-  });
+  useEffect(() => { const timer = setTimeout(fetchCommissions, 250); return () => clearTimeout(timer); }, [fetchCommissions]);
+  const updateFilter = (key, value) => setFilters(previous => ({ ...previous, [key]: value, page: key === 'page' ? value : 1 }));
 
-  // ── Status styles ─────────────────────────────────────
-  const getStatusStyle = (status) => {
-    const styles = {
-      PENDING:     'bg-yellow-100 text-yellow-700  border-yellow-200',
-      REVIEWING:   'bg-amber-100  text-amber-700   border-amber-200',
-      ACCEPTED:    'bg-blue-100   text-blue-700    border-blue-200',
-      IN_PROGRESS: 'bg-purple-100 text-purple-700  border-purple-200',
-      REVISION:    'bg-orange-100 text-orange-700  border-orange-200',
-      COMPLETED:   'bg-green-100  text-green-700   border-green-200',
-      CANCELLED:   'bg-red-100    text-red-700     border-red-200',
-    };
-    return styles[status] || 'bg-stone-100 text-stone-700 border-stone-200';
+  const exportCsv = async () => {
+    try {
+      const response = await commissionsAPI.exportCsv({ ...filters, page: undefined });
+      const url = URL.createObjectURL(response.data);
+      const anchor = document.createElement('a'); anchor.href = url; anchor.download = `commissions-${new Date().toISOString().slice(0, 10)}.csv`; anchor.click();
+      URL.revokeObjectURL(url);
+    } catch { toast.error('Failed to export commissions'); }
   };
 
-  // ── Payment status styles ─────────────────────────────
-  const getPaymentStyle = (paymentStatus) => {
-    const styles = {
-      UNPAID:       'bg-red-100  text-red-600',
-      DEPOSIT_PAID: 'bg-blue-100 text-blue-700',
-      FULLY_PAID:   'bg-green-100 text-green-700',
-    };
-    return styles[paymentStatus] || 'bg-stone-100 text-stone-600';
+  const moveCommission = async (commission, status) => {
+    if (commission.status === status) return;
+    if (status === 'ACCEPTED' && !commission.finalPrice) return toast.error('Set the final price in commission details before accepting');
+    if (status === 'CANCELLED') return toast.error('Cancel commissions from the detail page so a reason is recorded');
+    try {
+      await commissionsAPI.updateStatus(commission.id, { status });
+      setCommissions(items => items.map(item => item.id === commission.id ? { ...item, status } : item));
+      toast.success(`Moved to ${label(status)}`);
+    } catch (error) { toast.error(error.response?.data?.error || 'Could not move commission'); }
   };
 
-  const getPaymentLabel = (paymentStatus) => {
-    const labels = {
-      UNPAID:       'Unpaid',
-      DEPOSIT_PAID: 'Deposit Paid',
-      FULLY_PAID:   'Fully Paid',
-    };
-    return labels[paymentStatus] || paymentStatus;
-  };
-
-  const formatStatus = (status) => 
-    status?.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'Unknown';
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-24">
-        <Loader size={32} className="animate-spin text-amber-600" />
+  return <div className="space-y-6">
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div><h1 className="text-2xl text-stone-900" style={{ fontFamily: "'Playfair Display', serif" }}>Commissions</h1><p className="text-stone-500">Track work, deadlines and client payments</p></div>
+      <div className="flex gap-2">
+        <button onClick={() => setView(view === 'grid' ? 'board' : 'grid')} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border bg-white text-sm"><Columns3 size={16} />{view === 'grid' ? 'Kanban' : 'Cards'}</button>
+        <button onClick={exportCsv} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-stone-900 text-white text-sm"><Download size={16} />Export</button>
       </div>
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-
-      {/* Header */}
-      <div>
-        <h1
-          className="text-2xl text-stone-900"
-          style={{ fontFamily: "'Playfair Display', serif" }}
-        >
-          Commissions
-        </h1>
-        <p className="text-stone-500">Manage bespoke artwork requests</p>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        {[
-          { label: 'Total',       value: commissions.length,                                            color: 'bg-stone-900'  },
-          { label: 'Pending',     value: commissions.filter(c => c.status === 'PENDING').length,        color: 'bg-yellow-500' },
-          { label: 'In Progress', value: commissions.filter(c => c.status === 'IN_PROGRESS').length,    color: 'bg-purple-500' },
-          { label: 'Completed',   value: commissions.filter(c => c.status === 'COMPLETED').length,      color: 'bg-green-500'  },
-          { label: 'Deposit Due', value: commissions.filter(c => c.paymentStatus === 'UNPAID' && c.status === 'ACCEPTED').length, color: 'bg-blue-500' },
-        ].map((stat, index) => (
-          <div key={index} className="bg-white rounded-xl border border-stone-200 p-4">
-            <div className="flex items-center justify-between">
-              <p className="text-stone-600 text-sm">{stat.label}</p>
-              <div className={`w-3 h-3 rounded-full ${stat.color}`} />
-            </div>
-            <p className="text-2xl font-bold text-stone-900 mt-2">{stat.value}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Filters */}
-      <div className="bg-white rounded-xl border border-stone-200 shadow-sm p-4">
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="relative flex-1">
-            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
-            <input
-              type="text"
-              placeholder="Search by client, ID, or style..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-stone-300 rounded-lg
-                         focus:outline-none focus:border-amber-500 text-stone-900"
-            />
-          </div>
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="px-4 py-2 border border-stone-300 rounded-lg
-                       focus:outline-none focus:border-amber-500 text-stone-700"
-          >
-            <option value="">All Status</option>
-            <option value="PENDING">Pending</option>
-            <option value="REVIEWING">Reviewing</option>
-            <option value="ACCEPTED">Accepted</option>
-            <option value="IN_PROGRESS">In Progress</option>
-            <option value="REVISION">Revision</option>
-            <option value="COMPLETED">Completed</option>
-            <option value="CANCELLED">Cancelled</option>
-          </select>
-        </div>
-      </div>
-
-      {/* Commissions Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {filteredCommissions.map((commission, index) => (
-          <motion.div
-            key={commission.id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.05 }}
-            className="bg-white rounded-xl border border-stone-200 shadow-sm overflow-hidden"
-          >
-            <div className="p-6">
-              {/* Card Header */}
-              <div className="flex items-start justify-between mb-4">
-                <div>
-                  <p className="text-xs text-stone-400 font-mono">
-                    {commission.commissionNumber}
-                  </p>
-                  <h3 className="text-lg font-semibold text-stone-900">
-                    {commission.artStyle}
-                  </h3>
-                </div>
-                <div className="flex flex-col items-end gap-1.5">
-                  <span className={`px-3 py-1 rounded-full text-xs font-medium border 
-                                   ${getStatusStyle(commission.status)}`}>
-                    {formatStatus(commission.status)}
-                  </span>
-                  {/* ✅ Payment status badge */}
-                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium flex items-center gap-1
-                                   ${getPaymentStyle(commission.paymentStatus)}`}>
-                    <CreditCard size={10} />
-                    {getPaymentLabel(commission.paymentStatus)}
-                  </span>
-                </div>
-              </div>
-
-              {/* Description */}
-              <p className="text-stone-600 text-sm mb-4 line-clamp-2">
-                {commission.description}
-              </p>
-
-              {/* Details Grid */}
-              <div className="grid grid-cols-2 gap-3 mb-4">
-                <div className="flex items-center gap-2 text-sm text-stone-600">
-                  <User size={15} className="text-stone-400 flex-shrink-0" />
-                  <span className="truncate">
-                    {commission.customer?.firstName} {commission.customer?.lastName}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 text-sm text-stone-600">
-                  <DollarSign size={15} className="text-stone-400 flex-shrink-0" />
-                  {commission.finalPrice 
-                    ? <span className="font-medium text-stone-900">
-                        ${Number(commission.finalPrice).toLocaleString()}
-                      </span>
-                    : <span className="text-stone-400 italic text-xs">
-                        Est: ${Number(commission.estimatedPrice).toLocaleString()}
-                      </span>
-                  }
-                </div>
-                <div className="flex items-center gap-2 text-sm text-stone-600">
-                  <Calendar size={15} className="text-stone-400 flex-shrink-0" />
-                  {commission.deadline 
-                    ? new Date(commission.deadline).toLocaleDateString() 
-                    : 'No deadline'}
-                </div>
-                <div className="flex items-center gap-2 text-sm text-stone-600">
-                  <Image size={15} className="text-stone-400 flex-shrink-0" />
-                  {commission.referenceImages?.length || 0} reference{commission.referenceImages?.length !== 1 ? 's' : ''}
-                </div>
-              </div>
-
-              {/* ✅ Payment progress bar for accepted commissions */}
-              {commission.status === 'ACCEPTED' && commission.paymentStatus === 'UNPAID' && (
-                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <p className="text-xs text-blue-700 font-medium">
-                    ⏳ Awaiting 70% deposit from client
-                  </p>
-                </div>
-              )}
-
-              {commission.paymentStatus === 'DEPOSIT_PAID' && (
-                <div className="mb-4 p-3 bg-purple-50 border border-purple-200 rounded-lg">
-                  <p className="text-xs text-purple-700 font-medium">
-                    ✅ Deposit received — work in progress
-                  </p>
-                </div>
-              )}
-
-              {commission.paymentStatus === 'FULLY_PAID' && (
-                <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-                  <p className="text-xs text-green-700 font-medium">
-                    ✅ Fully paid — commission complete
-                  </p>
-                </div>
-              )}
-
-              {/* Footer */}
-              <div className="flex items-center justify-between pt-4 border-t border-stone-100">
-                <p className="text-xs text-stone-400">
-                  {new Date(commission.createdAt).toLocaleDateString()}
-                </p>
-                <Link
-                  to={`/admin/commissions/${commission.id}`}
-                  className="inline-flex items-center gap-1.5 text-sm text-amber-600
-                             hover:text-amber-700 font-medium"
-                >
-                  <Eye size={15} />
-                  View Details
-                </Link>
-              </div>
-            </div>
-          </motion.div>
-        ))}
-      </div>
-
-      {/* Empty state */}
-      {!isLoading && filteredCommissions.length === 0 && (
-        <div className="bg-white rounded-xl border border-stone-200 p-12 text-center">
-          <Image size={48} className="mx-auto text-stone-300 mb-4" />
-          <p className="text-stone-500">No commissions found matching your criteria</p>
-        </div>
-      )}
     </div>
-  );
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      {[['Total', pagination.total], ['Overdue', commissions.filter(c => c.isOverdue).length], ['Deposit due', commissions.filter(c => c.paymentStatus === 'UNPAID' && c.status === 'ACCEPTED').length], ['Balance due', commissions.filter(c => c.paymentStatus === 'DEPOSIT_PAID').length]].map(([name, value]) => <div key={name} className="bg-white border rounded-xl p-4"><p className="text-xs text-stone-500">{name}</p><p className="text-2xl font-bold mt-1">{value}</p></div>)}
+    </div>
+    <div className="bg-white border rounded-xl p-4 grid md:grid-cols-4 gap-3">
+      <label className="relative md:col-span-2"><Search size={17} className="absolute left-3 top-3 text-stone-400" /><input value={filters.search} onChange={e => updateFilter('search', e.target.value)} placeholder="Search client, email, number or style" className="w-full pl-9 pr-3 py-2 border rounded-lg" /></label>
+      <select value={filters.status} onChange={e => updateFilter('status', e.target.value)} className="border rounded-lg px-3"><option value="">All statuses</option>{STATUSES.map(status => <option key={status} value={status}>{label(status)}</option>)}</select>
+      <select value={filters.paymentStatus} onChange={e => updateFilter('paymentStatus', e.target.value)} className="border rounded-lg px-3"><option value="">All payments</option><option value="UNPAID">Unpaid</option><option value="DEPOSIT_PAID">Deposit paid</option><option value="FULLY_PAID">Fully paid</option></select>
+      <label className="flex items-center gap-2 text-sm text-stone-700"><input type="checkbox" checked={filters.overdue} onChange={e => updateFilter('overdue', e.target.checked)} />Overdue only</label>
+    </div>
+    {loading ? <div className="py-20 flex justify-center"><Loader className="animate-spin text-amber-600" /></div> : view === 'board' ?
+      <div className="overflow-x-auto pb-4"><div className="flex gap-4 min-w-max">{ACTIVE_COLUMNS.map(status => <section key={status} onDragOver={event => event.preventDefault()} onDrop={event => { const item = commissions.find(c => c.id === event.dataTransfer.getData('commissionId')); if (item) moveCommission(item, status); }} className="w-72 rounded-xl bg-stone-100 p-3 min-h-72"><div className="flex justify-between mb-3"><h2 className="font-semibold text-sm">{label(status)}</h2><span className="text-xs bg-white rounded-full px-2 py-0.5">{commissions.filter(c => c.status === status).length}</span></div><div className="space-y-3">{commissions.filter(c => c.status === status).map(c => <CommissionCard key={c.id} commission={c} draggable onDragStart={event => event.dataTransfer.setData('commissionId', c.id)} />)}</div></section>)}</div></div>
+      : <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-5">{commissions.map(c => <CommissionCard key={c.id} commission={c} />)}</div>}
+    {!loading && !commissions.length && <div className="bg-white border rounded-xl py-16 text-center text-stone-500"><LayoutGrid className="mx-auto mb-3 text-stone-300" />No commissions match these filters.</div>}
+    {view === 'grid' && pagination.pages > 1 && <div className="flex justify-center items-center gap-3"><button disabled={pagination.page <= 1} onClick={() => updateFilter('page', pagination.page - 1)} className="px-3 py-2 border rounded-lg disabled:opacity-40">Previous</button><span className="text-sm">Page {pagination.page} of {pagination.pages}</span><button disabled={pagination.page >= pagination.pages} onClick={() => updateFilter('page', pagination.page + 1)} className="px-3 py-2 border rounded-lg disabled:opacity-40">Next</button></div>}
+  </div>;
 };
 
 export default Commissions;

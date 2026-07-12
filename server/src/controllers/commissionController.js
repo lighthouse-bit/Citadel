@@ -1,5 +1,37 @@
 // server/src/controllers/commissionController.js
 const prisma = require('../config/database');
+const { recordAudit } = require('../utils/auditService');
+
+const COMMISSION_STATUSES = ['PENDING', 'REVIEWING', 'ACCEPTED', 'IN_PROGRESS', 'REVISION', 'COMPLETED', 'CANCELLED'];
+
+const commissionWhere = ({ status, paymentStatus, search, overdue }) => {
+  const where = {};
+  if (status) where.status = status.toUpperCase();
+  if (paymentStatus) where.paymentStatus = paymentStatus.toUpperCase();
+  if (search?.trim()) {
+    const query = search.trim();
+    where.OR = [
+      { commissionNumber: { contains: query, mode: 'insensitive' } },
+      { artStyle: { contains: query, mode: 'insensitive' } },
+      { customer: { is: { email: { contains: query, mode: 'insensitive' } } } },
+      { customer: { is: { firstName: { contains: query, mode: 'insensitive' } } } },
+      { customer: { is: { lastName: { contains: query, mode: 'insensitive' } } } },
+    ];
+  }
+  if (overdue === 'true') {
+    where.deadline = { lt: new Date() };
+    where.status = { notIn: ['COMPLETED', 'CANCELLED'] };
+  }
+  return where;
+};
+
+const withWorkflowSummary = commission => ({
+  ...commission,
+  isOverdue: Boolean(commission.deadline && new Date(commission.deadline) < new Date() && !['COMPLETED', 'CANCELLED'].includes(commission.status)),
+  amountDue: commission.paymentStatus === 'UNPAID'
+    ? Number(commission.depositAmount || 0)
+    : commission.paymentStatus === 'DEPOSIT_PAID' ? Number(commission.balanceAmount || 0) : 0,
+});
 
 // ─────────────────────────────────────────────────────────
 // Create commission request (Public/User)
@@ -99,9 +131,11 @@ exports.createCommission = async (req, res) => {
 // ─────────────────────────────────────────────────────────
 exports.getAllCommissions = async (req, res) => {
   try {
-    const { status, page = 1, limit = 20 } = req.query;
-    const skip  = (parseInt(page) - 1) * parseInt(limit);
-    const where = status ? { status: status.toUpperCase() } : {};
+    const { status, paymentStatus, search, overdue, page = 1, limit = 20 } = req.query;
+    const safePage = Math.max(parseInt(page, 10) || 1, 1);
+    const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);
+    const skip  = (safePage - 1) * safeLimit;
+    const where = commissionWhere({ status, paymentStatus, search, overdue });
 
     const [commissions, total] = await Promise.all([
       prisma.commission.findMany({
@@ -113,18 +147,18 @@ exports.getAllCommissions = async (req, res) => {
         },
         orderBy: { createdAt: 'desc' },
         skip,
-        take: parseInt(limit),
+        take: safeLimit,
       }),
       prisma.commission.count({ where }),
     ]);
 
     res.json({
-      commissions,
+      commissions: commissions.map(withWorkflowSummary),
       pagination: {
-        page:  parseInt(page),
-        limit: parseInt(limit),
+        page: safePage,
+        limit: safeLimit,
         total,
-        pages: Math.ceil(total / parseInt(limit)),
+        pages: Math.ceil(total / safeLimit),
       },
     });
   } catch (error) {
@@ -244,8 +278,13 @@ exports.getCommissionById = async (req, res) => {
     if (!commission) {
       return res.status(404).json({ error: 'Commission not found' });
     }
+    const auditLogs = await prisma.auditLog.findMany({
+      where: { entity: 'Commission', entityId: id },
+      include: { admin: { select: { name: true, email: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
 
-    res.json(commission);
+    res.json({ ...withWorkflowSummary(commission), auditLogs });
   } catch (error) {
     console.error('Error fetching commission:', error);
     res.status(500).json({ error: 'Failed to fetch commission' });
@@ -259,10 +298,24 @@ exports.getCommissionById = async (req, res) => {
 exports.updateCommissionStatus = async (req, res) => {
   try {
     const { id }                       = req.params;
-    const { status, finalPrice, note } = req.body;
+    const { status, finalPrice, note, isInternal = false, cancellationReason } = req.body;
+    const nextStatus = status?.toUpperCase();
+
+    if (!COMMISSION_STATUSES.includes(nextStatus)) {
+      return res.status(400).json({ error: 'Invalid commission status' });
+    }
+
+    const existing = await prisma.commission.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ error: 'Commission not found' });
+    if (existing.status === 'COMPLETED' && nextStatus !== 'COMPLETED') {
+      return res.status(409).json({ error: 'A completed commission cannot be reopened from this screen' });
+    }
+    if (nextStatus === 'CANCELLED' && !cancellationReason?.trim()) {
+      return res.status(400).json({ error: 'A cancellation reason is required' });
+    }
 
     const updateData = {
-      status: status.toUpperCase(),
+      status: nextStatus,
     };
 
     if (finalPrice) {
@@ -271,11 +324,11 @@ exports.updateCommissionStatus = async (req, res) => {
       updateData.balanceAmount = parseFloat(finalPrice) * 0.30;
     }
 
-    if (status.toUpperCase() === 'IN_PROGRESS') {
+    if (nextStatus === 'IN_PROGRESS') {
       updateData.startedAt = new Date();
     }
 
-    if (status.toUpperCase() === 'COMPLETED') {
+    if (nextStatus === 'COMPLETED') {
       updateData.completedAt = new Date();
     }
 
@@ -289,13 +342,19 @@ exports.updateCommissionStatus = async (req, res) => {
       await prisma.commissionNote.create({
         data: {
           content:      note,
-          isInternal:   false,
+          isInternal:   Boolean(isInternal),
           commissionId: id,
         },
       });
     }
 
-    if (status.toUpperCase() === 'ACCEPTED') {
+    if (nextStatus === 'CANCELLED') {
+      await prisma.commissionNote.create({
+        data: { content: `Cancellation reason: ${cancellationReason.trim()}`, isInternal: true, commissionId: id },
+      });
+    }
+
+    if (nextStatus === 'ACCEPTED') {
       await prisma.notification.create({
         data: {
           type:    'COMMISSION',
@@ -304,6 +363,15 @@ exports.updateCommissionStatus = async (req, res) => {
         },
       }).catch(() => {});
     }
+
+    await recordAudit(req, existing.status === nextStatus ? 'UPDATE_COMMISSION' : 'UPDATE_COMMISSION_STATUS', 'Commission', id, {
+      fromStatus: existing.status,
+      toStatus: nextStatus,
+      finalPrice: finalPrice ? parseFloat(finalPrice) : undefined,
+      noteVisibility: note ? (isInternal ? 'internal' : 'customer') : undefined,
+      cancellationReason: nextStatus === 'CANCELLED' ? cancellationReason.trim() : undefined,
+      requiresRefundReview: nextStatus === 'CANCELLED' && existing.paymentStatus !== 'UNPAID',
+    });
 
     res.json(commission);
   } catch (error) {
@@ -338,10 +406,40 @@ exports.addProgressImage = async (req, res) => {
       },
     });
 
+    await recordAudit(req, 'ADD_COMMISSION_PROGRESS', 'Commission', id, {
+      description: description || null,
+      imageUrl: url,
+    });
+
     res.status(201).json(progressImage);
   } catch (error) {
     console.error('Error adding progress image:', error);
     res.status(500).json({ error: 'Failed to add progress image' });
+  }
+};
+
+// Download the filtered commission queue as CSV (Admin)
+exports.exportCommissions = async (req, res) => {
+  try {
+    const where = commissionWhere(req.query);
+    const commissions = await prisma.commission.findMany({
+      where,
+      include: { customer: true },
+      orderBy: { createdAt: 'desc' },
+      take: 5000,
+    });
+    const escape = value => `"${String(value ?? '').replace(/"/g, '""')}"`;
+    const rows = [
+      ['Commission', 'Customer', 'Email', 'Style', 'Status', 'Payment', 'Final price', 'Deadline', 'Created'],
+      ...commissions.map(c => [c.commissionNumber, `${c.customer.firstName || ''} ${c.customer.lastName || ''}`.trim(), c.customer.email, c.artStyle, c.status, c.paymentStatus, c.finalPrice || '', c.deadline?.toISOString() || '', c.createdAt.toISOString()]),
+    ];
+    await recordAudit(req, 'EXPORT_COMMISSIONS', 'Commission', null, { filters: req.query, count: commissions.length });
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="commissions-${new Date().toISOString().slice(0, 10)}.csv"`);
+    res.send(rows.map(row => row.map(escape).join(',')).join('\n'));
+  } catch (error) {
+    console.error('Error exporting commissions:', error);
+    res.status(500).json({ error: 'Failed to export commissions' });
   }
 };
 

@@ -49,6 +49,7 @@ const CommissionDetail = () => {
   const [isUploading, setIsUploading]         = useState(false);
   const [finalPrice, setFinalPrice]           = useState('');
   const [newNote, setNewNote]                 = useState('');
+  const [noteIsInternal, setNoteIsInternal]   = useState(true);
   const [showImageModal, setShowImageModal]   = useState(false);
   const [selectedImage, setSelectedImage]     = useState(null);
   const [showAcceptModal, setShowAcceptModal] = useState(false);
@@ -118,12 +119,19 @@ const CommissionDetail = () => {
       return;
     }
 
+    let cancellationReason;
+    if (newStatus === 'CANCELLED') {
+      cancellationReason = window.prompt('Why is this commission being cancelled? This is saved to the audit trail.');
+      if (!cancellationReason?.trim()) return;
+      if (!window.confirm('Cancel this commission? Payments are not refunded automatically and must be reviewed separately.')) return;
+    }
+
     try {
-      const response = await commissionsAPI.updateStatus(id, { status: newStatus });
-      setCommission(prev => ({ ...prev, status: response.data.status }));
+      const response = await commissionsAPI.updateStatus(id, { status: newStatus, cancellationReason });
+      setCommission(prev => ({ ...prev, ...response.data }));
       toast.success(`Status updated to ${newStatus.replace('_', ' ')}`);
     } catch (error) {
-      toast.error('Failed to update status');
+      toast.error(error.response?.data?.error || 'Failed to update status');
     }
   };
 
@@ -181,6 +189,7 @@ const CommissionDetail = () => {
       await commissionsAPI.updateStatus(id, {
         status: commission.status,
         note:   newNote,
+        isInternal: noteIsInternal,
       });
 
       setCommission(prev => ({
@@ -189,7 +198,7 @@ const CommissionDetail = () => {
           {
             id:         Date.now(),
             content:    newNote,
-            isInternal: false,
+            isInternal: noteIsInternal,
             createdAt:  new Date().toISOString(),
           },
           ...(prev.notes || []),
@@ -575,27 +584,30 @@ const CommissionDetail = () => {
               )}
             </div>
 
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={newNote}
-                onChange={(e) => setNewNote(e.target.value)}
-                placeholder="Add a note..."
-                className="flex-1 px-4 py-2.5 border border-stone-300 rounded-lg text-sm
-                           focus:outline-none focus:border-amber-500"
-                onKeyPress={(e) => e.key === 'Enter' && handleAddNote()}
-              />
-              <button
-                onClick={handleAddNote}
-                disabled={!newNote.trim() || isSaving}
-                className="px-4 py-2.5 bg-stone-900 text-white rounded-lg
-                           hover:bg-stone-800 disabled:opacity-50"
-              >
-                {isSaving
-                  ? <Loader size={18} className="animate-spin" />
-                  : <Send size={18} />
-                }
-              </button>
+            <div>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newNote}
+                  onChange={(e) => setNewNote(e.target.value)}
+                  placeholder="Add a note..."
+                  className="flex-1 px-4 py-2.5 border border-stone-300 rounded-lg text-sm
+                             focus:outline-none focus:border-amber-500"
+                  onKeyDown={(e) => e.key === 'Enter' && handleAddNote()}
+                />
+                <button
+                  onClick={handleAddNote}
+                  disabled={!newNote.trim() || isSaving}
+                  className="px-4 py-2.5 bg-stone-900 text-white rounded-lg
+                             hover:bg-stone-800 disabled:opacity-50"
+                >
+                  {isSaving ? <Loader size={18} className="animate-spin" /> : <Send size={18} />}
+                </button>
+              </div>
+              <label className="mt-2 flex items-center gap-2 text-xs text-stone-600">
+                <input type="checkbox" checked={noteIsInternal} onChange={(e) => setNoteIsInternal(e.target.checked)} />
+                Internal note (not shown to the customer)
+              </label>
             </div>
           </div>
         </div>
@@ -780,6 +792,17 @@ const CommissionDetail = () => {
                   date={commission.completedAt} color="green"
                 />
               )}
+              {commission.auditLogs?.map((event) => (
+                <div key={event.id} className="flex gap-3 pt-3 border-t border-stone-100">
+                  <Clock size={16} className="mt-0.5 text-stone-400 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-stone-800">{event.action.replaceAll('_', ' ').replace(/\b\w/g, letter => letter.toUpperCase())}</p>
+                    {event.metadata?.fromStatus && <p className="text-xs text-stone-500">{event.metadata.fromStatus.replaceAll('_', ' ')} → {event.metadata.toStatus.replaceAll('_', ' ')}</p>}
+                    {event.metadata?.cancellationReason && <p className="text-xs text-red-600">{event.metadata.cancellationReason}</p>}
+                    <p className="text-xs text-stone-400">{event.admin?.name || event.admin?.email || 'Admin'} · {new Date(event.createdAt).toLocaleString()}</p>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>

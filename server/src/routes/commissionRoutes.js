@@ -42,6 +42,7 @@ router.post(
 // ADMIN ROUTES
 // ─────────────────────────────────────────────────────────
 
+router.get('/export', authenticateAdmin, commissionController.exportCommissions);
 router.get('/',    authenticateAdmin, commissionController.getAllCommissions);
 router.get('/:id', authenticateAdmin, commissionController.getCommissionById);
 
