@@ -40,6 +40,10 @@ export const artworksAPI = {
   create: (data) => api.post('/artworks', data),
   update: (id, data) => api.put(`/artworks/${id}`, data),
   delete: (id) => api.delete(`/artworks/${id}`),
+  getAdminStats: () => api.get('/artworks/admin/stats'),
+  bulkUpdate: (artworkIds, data) => api.patch('/artworks/admin/bulk', { artworkIds, ...data }),
+  exportCsv: (params) => api.get('/artworks/admin/export', { params, responseType: 'blob' }),
+  getHistory: (id) => api.get(`/artworks/admin/${id}/history`),
 };
 
 // ==========================================
@@ -168,6 +172,7 @@ export const customersAPI = {
   getAll: (params) => api.get('/customers', { params }),
   getById: (id) => api.get(`/customers/${id}`),
   update: (id, data) => api.patch(`/customers/${id}`, data),
+  exportCsv: (params) => api.get('/customers/export', { params, responseType: 'blob' }),
 };
 
 export const auditAPI = {

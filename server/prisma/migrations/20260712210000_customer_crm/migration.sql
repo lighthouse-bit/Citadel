@@ -1,0 +1,3 @@
+ALTER TABLE "Customer"
+ADD COLUMN "suspensionReason" TEXT,
+ADD COLUMN "adminTags" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];

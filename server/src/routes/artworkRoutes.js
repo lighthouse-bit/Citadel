@@ -2,12 +2,12 @@
 const express = require('express');
 const router = express.Router();
 const prisma = require('../config/database');
-const { authenticateAdmin } = require('../middleware/auth');
+const { authenticateAdmin, authenticateUser } = require('../middleware/auth');
 const { deleteFromCloudinary } = require('../services/imageService');
 const { recordAudit } = require('../utils/auditService');
 
 // ── Get all artworks (Public) ────────────────────────────────────────────────
-router.get('/', async (req, res) => {
+router.get('/', authenticateUser, async (req, res) => {
   try {
     const {
       page     = 1,
@@ -20,11 +20,15 @@ router.get('/', async (req, res) => {
       search,
     } = req.query;
 
-    const skip  = (parseInt(page) - 1) * parseInt(limit);
+    const safePage = Math.max(parseInt(page, 10) || 1, 1);
+    const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 12, 1), 100);
+    const skip  = (safePage - 1) * safeLimit;
     const where = {};
 
     if (category) where.category = category.toUpperCase();
-    if (status)   where.status   = status.toUpperCase();
+    if (status && req.user?.role === 'admin') where.status = status.toUpperCase();
+    else if (status) where.status = { equals: status.toUpperCase(), notIn: ['DRAFT', 'ARCHIVED'] };
+    else if (req.user?.role !== 'admin') where.status = { notIn: ['DRAFT', 'ARCHIVED'] };
     if (featured === 'true') where.featured = true;
 
     if (search) {
@@ -38,11 +42,13 @@ router.get('/', async (req, res) => {
       prisma.artwork.findMany({
         where,
         include: {
-          images: { orderBy: { order: 'asc' } },
+          images: { orderBy: [{ isPrimary: 'desc' }, { order: 'asc' }] },
+          tags: { include: { tag: true } },
+          _count: { select: { orderItems: true } },
         },
-        orderBy: { [sort]: order },
+        orderBy: { [['createdAt', 'price', 'title', 'updatedAt'].includes(sort) ? sort : 'createdAt']: order === 'asc' ? 'asc' : 'desc' },
         skip,
-        take: parseInt(limit),
+        take: safeLimit,
       }),
       prisma.artwork.count({ where }),
     ]);
@@ -50,10 +56,10 @@ router.get('/', async (req, res) => {
     res.json({
       artworks,
       pagination: {
-        page:  parseInt(page),
-        limit: parseInt(limit),
+        page: safePage,
+        limit: safeLimit,
         total,
-        pages: Math.ceil(total / parseInt(limit)),
+        pages: Math.ceil(total / safeLimit),
       },
     });
   } catch (error) {
@@ -85,6 +91,57 @@ router.get('/featured', async (req, res) => {
     console.error('Error fetching featured artworks:', error);
     res.status(500).json({ error: 'Failed to fetch featured artworks' });
   }
+});
+
+router.get('/admin/stats', authenticateAdmin, async (req, res) => {
+  try {
+    const [total, available, sold, drafts, archived, aggregate] = await Promise.all([
+      prisma.artwork.count(), prisma.artwork.count({ where: { status: 'AVAILABLE' } }), prisma.artwork.count({ where: { status: 'SOLD' } }),
+      prisma.artwork.count({ where: { status: 'DRAFT' } }), prisma.artwork.count({ where: { status: 'ARCHIVED' } }),
+      prisma.artwork.aggregate({ where: { status: 'AVAILABLE' }, _sum: { price: true } }),
+    ]);
+    res.json({ total, available, sold, drafts, archived, availableValue: Number(aggregate._sum.price || 0) });
+  } catch (error) { console.error(error); res.status(500).json({ error: 'Failed to load inventory statistics' }); }
+});
+
+router.get('/admin/export', authenticateAdmin, async (req, res) => {
+  try {
+    const where = {};
+    if (req.query.status) where.status = req.query.status.toUpperCase();
+    if (req.query.category) where.category = req.query.category.toUpperCase();
+    if (req.query.search) where.OR = [{ title: { contains: req.query.search, mode: 'insensitive' } }, { medium: { contains: req.query.search, mode: 'insensitive' } }];
+    const artworks = await prisma.artwork.findMany({ where, include: { _count: { select: { orderItems: true } }, tags: { include: { tag: true } } }, orderBy: { createdAt: 'desc' }, take: 5000 });
+    const escape = value => `"${String(value ?? '').replace(/"/g, '""')}"`;
+    const rows = [['Title','Category','Medium','Price','Status','Featured','Sales','Tags','Created'], ...artworks.map(a => [a.title,a.category,a.medium,a.price,a.status,a.featured,a._count.orderItems,a.tags.map(t => t.tag.name).join('; '),a.createdAt.toISOString()])];
+    await recordAudit(req, 'EXPORT_ARTWORKS', 'Artwork', null, { count: artworks.length, filters: req.query });
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8'); res.setHeader('Content-Disposition', `attachment; filename="artworks-${new Date().toISOString().slice(0,10)}.csv"`);
+    res.send(rows.map(row => row.map(escape).join(',')).join('\n'));
+  } catch (error) { console.error(error); res.status(500).json({ error: 'Failed to export artworks' }); }
+});
+
+router.patch('/admin/bulk', authenticateAdmin, async (req, res) => {
+  try {
+    const { artworkIds, status, featured } = req.body;
+    if (!Array.isArray(artworkIds) || !artworkIds.length || artworkIds.length > 100) return res.status(400).json({ error: 'Select between 1 and 100 artworks' });
+    const data = {};
+    if (status !== undefined) data.status = status.toUpperCase();
+    if (featured !== undefined) data.featured = Boolean(featured);
+    if (!Object.keys(data).length) return res.status(400).json({ error: 'No bulk change supplied' });
+    const result = await prisma.artwork.updateMany({ where: { id: { in: artworkIds } }, data });
+    await recordAudit(req, 'BULK_UPDATE_ARTWORKS', 'Artwork', null, { artworkIds, ...data });
+    res.json({ updated: result.count });
+  } catch (error) { console.error(error); res.status(500).json({ error: 'Failed to update artworks' }); }
+});
+
+router.get('/admin/:id/history', authenticateAdmin, async (req, res) => {
+  try {
+    const logs = await prisma.auditLog.findMany({
+      where: { entity: 'Artwork', entityId: req.params.id },
+      include: { admin: { select: { name: true, email: true } } },
+      orderBy: { createdAt: 'desc' }, take: 100,
+    });
+    res.json(logs);
+  } catch (error) { console.error(error); res.status(500).json({ error: 'Failed to load artwork history' }); }
 });
 
 // ── Get single artwork by ID (Public) ───────────────────────────────────────
@@ -222,6 +279,9 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
       images, // ✅ Array from frontend with existing + new Cloudinary images
     } = req.body;
 
+    const existingArtwork = await prisma.artwork.findUnique({ where: { id }, select: { price: true, status: true, featured: true } });
+    if (!existingArtwork) return res.status(404).json({ error: 'Artwork not found' });
+
     // Build update data
     const updateData = {};
     if (title       !== undefined) updateData.title       = title;
@@ -279,6 +339,14 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
         }
         await prisma.artworkImage.delete({ where: { id: img.id } }).catch(() => {});
       }
+
+      const remainingImages = images.filter(img => (img.existing && keptExistingIds.includes(img.id)) || (!img.existing && img.url && img.publicId));
+      const currentImages = await prisma.artworkImage.findMany({ where: { artworkId: id }, orderBy: { createdAt: 'asc' } });
+      await prisma.$transaction(currentImages.map((image, index) => {
+        const requestedIndex = remainingImages.findIndex(item => item.id === image.id || item.publicId === image.publicId);
+        const orderIndex = requestedIndex >= 0 ? requestedIndex : index;
+        return prisma.artworkImage.update({ where: { id: image.id }, data: { order: orderIndex, isPrimary: orderIndex === 0 } });
+      }));
     }
 
     const artwork = await prisma.artwork.update({
@@ -288,7 +356,11 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
         images: { orderBy: { order: 'asc' } },
       },
     });
-    await recordAudit(req, 'UPDATE_ARTWORK', 'Artwork', artwork.id, { fields: Object.keys(updateData) });
+    await recordAudit(req, 'UPDATE_ARTWORK', 'Artwork', artwork.id, {
+      fields: Object.keys(updateData),
+      priceChange: updateData.price !== undefined && Number(existingArtwork.price) !== Number(updateData.price) ? { from: Number(existingArtwork.price), to: Number(updateData.price) } : undefined,
+      statusChange: updateData.status && existingArtwork.status !== updateData.status ? { from: existingArtwork.status, to: updateData.status } : undefined,
+    });
 
     res.json(artwork);
   } catch (error) {
@@ -304,11 +376,15 @@ router.delete('/:id', authenticateAdmin, async (req, res) => {
 
     const artwork = await prisma.artwork.findUnique({
       where:   { id },
-      include: { images: true },
+      include: { images: true, _count: { select: { orderItems: true } } },
     });
 
     if (!artwork) {
       return res.status(404).json({ error: 'Artwork not found' });
+    }
+
+    if (artwork._count.orderItems > 0) {
+      return res.status(409).json({ error: 'This artwork belongs to an order and cannot be deleted. Archive it instead.' });
     }
 
     // Delete images from Cloudinary

@@ -1,308 +1,52 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { 
-  Plus, 
-  Search, 
-  Edit, 
-  Trash2, 
-  Eye,
-  Image as ImageIcon,
-  Loader
-} from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { artworksAPI } from '../../services/api'; // Correct Import
+import { Plus, Search, Edit, Trash2, Eye, Image as ImageIcon, Loader, Download, Archive, CheckSquare, Star, DollarSign } from 'lucide-react';
+import { artworksAPI } from '../../services/api';
 import toast from 'react-hot-toast';
 
-const Artworks = () => {
+const STATUSES = ['DRAFT','AVAILABLE','SOLD','RESERVED','NOT_FOR_SALE','ARCHIVED'];
+const CATEGORIES = ['PAINTING','DRAWING','DIGITAL','MIXED_MEDIA','SCULPTURE','PHOTOGRAPHY'];
+const statusStyle = { DRAFT:'bg-slate-100 text-slate-700', AVAILABLE:'bg-green-100 text-green-700', SOLD:'bg-red-100 text-red-700', RESERVED:'bg-yellow-100 text-yellow-700', NOT_FOR_SALE:'bg-stone-100 text-stone-700', ARCHIVED:'bg-purple-100 text-purple-700' };
+const label = value => value?.replaceAll('_',' ').replace(/\b\w/g, letter => letter.toUpperCase());
+
+export default function Artworks() {
   const [artworks, setArtworks] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
-  const [filterCategory, setFilterCategory] = useState('');
-  
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [artworkToDelete, setArtworkToDelete] = useState(null);
+  const [stats, setStats] = useState({ total:0, available:0, sold:0, drafts:0, availableValue:0 });
+  const [pagination, setPagination] = useState({ page:1, pages:1, total:0 });
+  const [filters, setFilters] = useState({ search:'', status:'', category:'', sort:'createdAt', order:'desc', page:1 });
+  const [selected, setSelected] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  // Fetch Artworks from API
-  const fetchArtworks = async () => {
-    setIsLoading(true);
-    try {
-      // Pass 'all' statuses to admin view so we see SOLD/HIDDEN items too
-      const response = await artworksAPI.getAll({ 
-        limit: 100, // Get more items for admin view
-        status: ''  // Clear status filter to get everything
-      }); 
-      setArtworks(response.data.artworks);
-    } catch (error) {
-      console.error('Error fetching artworks:', error);
-      toast.error('Failed to load artworks');
-    } finally {
-      setIsLoading(false);
-    }
+  const load = useCallback(async () => {
+    try { setLoading(true); const [{ data }, statsResponse] = await Promise.all([artworksAPI.getAll({ ...filters, limit:20 }), artworksAPI.getAdminStats()]); setArtworks(data.artworks); setPagination(data.pagination); setStats(statsResponse.data); }
+    catch { toast.error('Failed to load artwork inventory'); } finally { setLoading(false); }
+  }, [filters]);
+  useEffect(() => { const timer = setTimeout(load, 250); return () => clearTimeout(timer); }, [load]);
+  const filter = (key,value) => setFilters(previous => ({ ...previous, [key]:value, page:key==='page'?value:1 }));
+  const toggle = id => setSelected(items => items.includes(id) ? items.filter(item => item!==id) : [...items,id]);
+
+  const bulkUpdate = async data => {
+    if (!selected.length) return;
+    try { await artworksAPI.bulkUpdate(selected, data); toast.success(`${selected.length} artwork${selected.length===1?'':'s'} updated`); setSelected([]); load(); }
+    catch (error) { toast.error(error.response?.data?.error || 'Bulk update failed'); }
+  };
+  const remove = async artwork => {
+    if (!window.confirm(`Delete “${artwork.title}”? This cannot be undone.`)) return;
+    try { await artworksAPI.delete(artwork.id); toast.success('Artwork deleted'); load(); }
+    catch (error) { toast.error(error.response?.data?.error || 'Delete failed'); }
+  };
+  const exportCsv = async () => {
+    try { const { data } = await artworksAPI.exportCsv({ search:filters.search,status:filters.status,category:filters.category }); const url=URL.createObjectURL(data); const anchor=document.createElement('a'); anchor.href=url; anchor.download=`artwork-inventory-${new Date().toISOString().slice(0,10)}.csv`; anchor.click(); URL.revokeObjectURL(url); }
+    catch { toast.error('Inventory export failed'); }
   };
 
-  useEffect(() => {
-    fetchArtworks();
-  }, []);
-
-  // Client-side filtering for the admin table
-  const filteredArtworks = artworks.filter(artwork => {
-    const matchesSearch = artwork.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         artwork.medium?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = !filterStatus || artwork.status === filterStatus;
-    const matchesCategory = !filterCategory || artwork.category === filterCategory;
-    return matchesSearch && matchesStatus && matchesCategory;
-  });
-
-  const handleDelete = (artwork) => {
-    setArtworkToDelete(artwork);
-    setShowDeleteModal(true);
-  };
-
-  const confirmDelete = async () => {
-    try {
-      await artworksAPI.delete(artworkToDelete.id);
-      setArtworks(prev => prev.filter(a => a.id !== artworkToDelete.id));
-      toast.success('Artwork deleted successfully');
-      setShowDeleteModal(false);
-      setArtworkToDelete(null);
-    } catch (error) {
-      console.error('Delete error:', error);
-      toast.error('Failed to delete artwork');
-    }
-  };
-
-  const getStatusBadge = (status) => {
-    const styles = {
-      AVAILABLE: 'bg-green-100 text-green-700',
-      SOLD: 'bg-red-100 text-red-700',
-      RESERVED: 'bg-yellow-100 text-yellow-700',
-      NOT_FOR_SALE: 'bg-stone-100 text-stone-700',
-    };
-    return styles[status] || 'bg-stone-100 text-stone-700';
-  };
-
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 
-            className="text-2xl text-stone-900"
-            style={{ fontFamily: "'Playfair Display', serif" }}
-          >
-            Artworks
-          </h1>
-          <p className="text-stone-500">Manage your artwork collection</p>
-        </div>
-        <Link
-          to="/admin/artworks/new"
-          className="inline-flex items-center justify-center gap-2 px-6 py-3 
-                   bg-stone-900 text-white text-sm font-medium rounded-lg
-                   hover:bg-stone-800 transition-colors"
-        >
-          <Plus size={18} />
-          Add Artwork
-        </Link>
-      </div>
-
-      {/* Filters */}
-      <div className="bg-white rounded-xl border border-stone-200 shadow-sm p-4">
-        <div className="flex flex-col md:flex-row gap-4">
-          {/* Search */}
-          <div className="relative flex-1">
-            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
-            <input
-              type="text"
-              placeholder="Search artworks..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-stone-300 rounded-lg
-                       focus:outline-none focus:border-amber-500 text-stone-900"
-            />
-          </div>
-
-          {/* Status Filter */}
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="px-4 py-2 border border-stone-300 rounded-lg
-                     focus:outline-none focus:border-amber-500 text-stone-700"
-          >
-            <option value="">All Status</option>
-            <option value="AVAILABLE">Available</option>
-            <option value="SOLD">Sold</option>
-            <option value="RESERVED">Reserved</option>
-            <option value="NOT_FOR_SALE">Not for Sale</option>
-          </select>
-
-          {/* Category Filter */}
-          <select
-            value={filterCategory}
-            onChange={(e) => setFilterCategory(e.target.value)}
-            className="px-4 py-2 border border-stone-300 rounded-lg
-                     focus:outline-none focus:border-amber-500 text-stone-700"
-          >
-            <option value="">All Categories</option>
-            <option value="PAINTING">Painting</option>
-            <option value="DRAWING">Drawing</option>
-            <option value="DIGITAL">Digital</option>
-            <option value="MIXED_MEDIA">Mixed Media</option>
-            <option value="SCULPTURE">Sculpture</option>
-            <option value="PHOTOGRAPHY">Photography</option>
-          </select>
-        </div>
-      </div>
-
-      {/* Artworks Table */}
-      <div className="bg-white rounded-xl border border-stone-200 shadow-sm overflow-hidden">
-        {isLoading ? (
-          <div className="p-12 flex justify-center">
-            <Loader size={32} className="animate-spin text-amber-600" />
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-stone-50 border-b border-stone-200">
-                <tr>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
-                    Artwork
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
-                    Category
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
-                    Price
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-stone-200">
-                {filteredArtworks.map((artwork) => (
-                  <tr key={artwork.id} className="hover:bg-stone-50 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-4">
-                        <div className="w-16 h-16 bg-stone-100 rounded overflow-hidden flex-shrink-0">
-                          {artwork.images?.[0] ? (
-                            <img
-                              src={artwork.images[0].url}
-                              alt={artwork.title}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center">
-                              <ImageIcon size={24} className="text-stone-400" />
-                            </div>
-                          )}
-                        </div>
-                        <div>
-                          <p className="font-medium text-stone-900">{artwork.title}</p>
-                          <p className="text-sm text-stone-500">{artwork.medium}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-stone-600 capitalize">
-                      {artwork.category?.toLowerCase().replace('_', ' ')}
-                    </td>
-                    <td className="px-6 py-4 text-stone-900 font-medium">
-                      ${artwork.price?.toLocaleString()}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusBadge(artwork.status)}`}>
-                        {artwork.status?.replace('_', ' ')}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <Link
-                          to={`/artwork/${artwork.id}`}
-                          target="_blank"
-                          className="p-2 hover:bg-stone-100 rounded-lg transition-colors text-stone-600"
-                          title="View"
-                        >
-                          <Eye size={16} />
-                        </Link>
-                        <Link
-                          to={`/admin/artworks/${artwork.id}/edit`}
-                          className="p-2 hover:bg-stone-100 rounded-lg transition-colors text-stone-600"
-                          title="Edit"
-                        >
-                          <Edit size={16} />
-                        </Link>
-                        <button
-                          onClick={() => handleDelete(artwork)}
-                          className="p-2 hover:bg-red-50 rounded-lg transition-colors text-red-600"
-                          title="Delete"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {!isLoading && filteredArtworks.length === 0 && (
-          <div className="p-12 text-center">
-            <ImageIcon size={48} className="mx-auto text-stone-300 mb-4" />
-            <p className="text-stone-500">No artworks found</p>
-          </div>
-        )}
-      </div>
-
-      {/* Delete Modal */}
-      <AnimatePresence>
-        {showDeleteModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
-            onClick={() => setShowDeleteModal(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white rounded-xl p-6 max-w-md w-full shadow-xl"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h3 className="text-lg font-semibold text-stone-900 mb-2">
-                Delete Artwork
-              </h3>
-              <p className="text-stone-600 mb-6">
-                Are you sure you want to delete "{artworkToDelete?.title}"? This action cannot be undone.
-              </p>
-              <div className="flex justify-end gap-3">
-                <button
-                  onClick={() => setShowDeleteModal(false)}
-                  className="px-4 py-2 border border-stone-300 rounded-lg text-stone-700
-                           hover:bg-stone-50 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={confirmDelete}
-                  className="px-4 py-2 bg-red-600 text-white rounded-lg
-                           hover:bg-red-700 transition-colors"
-                >
-                  Delete
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-};
-
-export default Artworks;
+  return <div className="space-y-6">
+    <div className="flex flex-col sm:flex-row justify-between gap-3"><div><h1 className="text-2xl font-serif text-stone-900">Artwork Inventory</h1><p className="text-stone-500">Publishing, availability, pricing and sales performance.</p></div><div className="flex gap-2"><button onClick={exportCsv} className="inline-flex items-center gap-2 border bg-white px-4 py-2.5 rounded-lg text-sm"><Download size={16}/>Export</button><Link to="/admin/artworks/new" className="inline-flex items-center gap-2 bg-stone-900 text-white px-4 py-2.5 rounded-lg text-sm"><Plus size={17}/>Add artwork</Link></div></div>
+    <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">{[['Total',stats.total],['Available',stats.available],['Sold',stats.sold],['Drafts',stats.drafts],['Available value',`$${Number(stats.availableValue).toLocaleString()}`]].map(([name,value])=><div key={name} className="bg-white border rounded-xl p-4"><p className="text-xs text-stone-500">{name}</p><p className="text-2xl font-bold mt-1">{value}</p></div>)}</div>
+    <div className="bg-white border rounded-xl p-4 grid md:grid-cols-5 gap-3"><label className="relative md:col-span-2"><Search size={17} className="absolute left-3 top-3 text-stone-400"/><input value={filters.search} onChange={e=>filter('search',e.target.value)} placeholder="Search title, description or medium" className="w-full pl-9 pr-3 py-2 border rounded-lg"/></label><select value={filters.status} onChange={e=>filter('status',e.target.value)} className="border rounded-lg px-3"><option value="">All statuses</option>{STATUSES.map(item=><option key={item} value={item}>{label(item)}</option>)}</select><select value={filters.category} onChange={e=>filter('category',e.target.value)} className="border rounded-lg px-3"><option value="">All categories</option>{CATEGORIES.map(item=><option key={item} value={item}>{label(item)}</option>)}</select><select value={`${filters.sort}:${filters.order}`} onChange={e=>{const [sort,order]=e.target.value.split(':');setFilters(previous=>({...previous,sort,order,page:1}));}} className="border rounded-lg px-3"><option value="createdAt:desc">Newest</option><option value="updatedAt:desc">Recently updated</option><option value="title:asc">Title</option><option value="price:desc">Price high–low</option><option value="price:asc">Price low–high</option></select></div>
+    {selected.length>0&&<div className="sticky top-3 z-20 bg-stone-900 text-white rounded-xl px-4 py-3 flex flex-wrap items-center gap-3 shadow-lg"><CheckSquare size={17}/><b className="text-sm">{selected.length} selected</b><select onChange={e=>e.target.value&&bulkUpdate({status:e.target.value})} defaultValue="" className="bg-white text-stone-900 rounded px-3 py-1.5 text-sm"><option value="" disabled>Change status…</option>{STATUSES.map(item=><option key={item}>{item}</option>)}</select><button onClick={()=>bulkUpdate({featured:true})} className="text-sm inline-flex gap-1"><Star size={15}/>Feature</button><button onClick={()=>bulkUpdate({featured:false})} className="text-sm">Unfeature</button><button onClick={()=>setSelected([])} className="ml-auto text-sm text-stone-300">Clear</button></div>}
+    <div className="bg-white border rounded-xl overflow-x-auto">{loading?<Loader className="animate-spin m-12 mx-auto text-amber-600"/>:<table className="w-full text-sm"><thead className="bg-stone-50"><tr><th className="px-4 py-3"><input type="checkbox" checked={artworks.length>0&&selected.length===artworks.length} onChange={e=>setSelected(e.target.checked?artworks.map(item=>item.id):[])}/></th>{['Artwork','Category','Price','Status','Sales','Visibility','Actions'].map(item=><th key={item} className="text-left px-4 py-3 whitespace-nowrap">{item}</th>)}</tr></thead><tbody>{artworks.map(artwork=><tr key={artwork.id} className="border-t hover:bg-stone-50"><td className="px-4"><input type="checkbox" checked={selected.includes(artwork.id)} onChange={()=>toggle(artwork.id)}/></td><td className="px-4 py-3"><div className="flex items-center gap-3"><div className="w-14 h-14 bg-stone-100 rounded overflow-hidden">{artwork.images?.[0]?<img src={artwork.images[0].url} alt="" className="w-full h-full object-cover"/>:<ImageIcon className="m-4 text-stone-300"/>}</div><div><b>{artwork.title}</b><p className="text-xs text-stone-500">{artwork.medium||'No medium'} · {artwork.year||'No year'}</p></div></div></td><td className="px-4">{label(artwork.category)}</td><td className="px-4 font-medium"><DollarSign size={13} className="inline"/>{Number(artwork.price).toLocaleString()}</td><td className="px-4"><span className={`px-2 py-1 rounded-full text-xs ${statusStyle[artwork.status]}`}>{label(artwork.status)}</span></td><td className="px-4">{artwork._count?.orderItems||0}</td><td className="px-4">{artwork.featured?<span className="text-amber-700"><Star size={14} className="inline fill-current"/> Featured</span>:<span className="text-stone-400">Standard</span>}</td><td className="px-4"><div className="flex gap-1"><Link to={`/artwork/${artwork.id}`} target="_blank" className="p-2"><Eye size={16}/></Link><Link to={`/admin/artworks/${artwork.id}/edit`} className="p-2"><Edit size={16}/></Link>{artwork._count?.orderItems>0?<button onClick={()=>bulkUpdate.call(null,{})} title="Archive this artwork instead" className="p-2 text-stone-300"><Archive size={16}/></button>:<button onClick={()=>remove(artwork)} className="p-2 text-red-600"><Trash2 size={16}/></button>}</div></td></tr>)}</tbody></table>}</div>
+    {!loading&&!artworks.length&&<div className="text-center py-14 text-stone-500"><ImageIcon className="mx-auto mb-3 text-stone-300"/>No artworks match these filters.</div>}
+    {pagination.pages>1&&<div className="flex justify-center gap-3 items-center"><button disabled={pagination.page<=1} onClick={()=>filter('page',pagination.page-1)} className="border px-3 py-2 rounded disabled:opacity-40">Previous</button><span className="text-sm">Page {pagination.page} of {pagination.pages}</span><button disabled={pagination.page>=pagination.pages} onClick={()=>filter('page',pagination.page+1)} className="border px-3 py-2 rounded disabled:opacity-40">Next</button></div>}
+  </div>;
+}

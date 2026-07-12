@@ -12,10 +12,12 @@ datasource db {
 // ============== ENUMS ==============
 
 enum ArtworkStatus {
+  DRAFT
   AVAILABLE
   SOLD
   RESERVED
   NOT_FOR_SALE
+  ARCHIVED
 }
 
 enum ArtworkCategory {
@@ -133,7 +135,9 @@ model Customer {
   isVerified        Boolean  @default(false)
   verificationToken String?  @unique
   isSuspended       Boolean  @default(false)
+  suspensionReason  String?
   adminNotes        String?  @db.Text
+  adminTags         String[] @default([])
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 

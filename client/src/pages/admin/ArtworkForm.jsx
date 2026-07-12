@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useDropzone } from 'react-dropzone';
-import { ArrowLeft, Upload, X, Save, Loader } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Upload, X, Save, Loader } from 'lucide-react';
 import { artworksAPI } from '../../services/api';
 import toast from 'react-hot-toast';
 
@@ -135,6 +135,16 @@ const ArtworkForm = () => {
 
   const removeImage = (index) => {
     setImages(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const moveImage = (index, direction) => {
+    const destination = index + direction;
+    if (destination < 0 || destination >= images.length) return;
+    setImages(previous => {
+      const next = [...previous];
+      [next[index], next[destination]] = [next[destination], next[index]];
+      return next;
+    });
   };
 
   const handleChange = (e) => {
@@ -333,6 +343,10 @@ const ArtworkForm = () => {
                       Primary
                     </span>
                   )}
+                  <div className="absolute top-2 left-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button type="button" disabled={index === 0} onClick={() => moveImage(index, -1)} className="p-1 bg-white rounded disabled:opacity-40" title="Move left"><ArrowLeft size={14}/></button>
+                    <button type="button" disabled={index === images.length - 1} onClick={() => moveImage(index, 1)} className="p-1 bg-white rounded disabled:opacity-40" title="Move right"><ArrowRight size={14}/></button>
+                  </div>
                   {image.existing && (
                     <span className="absolute bottom-2 right-2 px-2 py-1 bg-stone-600
                                      text-white text-xs rounded">
@@ -518,10 +532,12 @@ const ArtworkForm = () => {
                 className="w-full px-4 py-3 border border-stone-300 rounded-lg
                            focus:outline-none focus:border-amber-500 text-stone-900"
               >
+                <option value="DRAFT">Draft</option>
                 <option value="AVAILABLE">Available</option>
                 <option value="SOLD">Sold</option>
                 <option value="RESERVED">Reserved</option>
                 <option value="NOT_FOR_SALE">Not for Sale</option>
+                <option value="ARCHIVED">Archived</option>
               </select>
             </div>
 
