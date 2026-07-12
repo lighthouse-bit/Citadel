@@ -5,7 +5,7 @@ import {
   TrendingUp, Image as ImageIcon, ShoppingBag,
   Palette, DollarSign, ArrowRight, Eye, Loader,
   RefreshCw, Users, Monitor, Smartphone, Tablet,
-  Globe, BarChart2, Activity,
+  Globe, BarChart2, Activity, AlertCircle, WalletCards,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { dashboardAPI, analyticsAPI } from '../../services/api';
@@ -110,7 +110,7 @@ const Dashboard = () => {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const response = await dashboardAPI.getStats();
+      const response = await dashboardAPI.getStats(analyticsPeriod);
       setData(response.data);
       setLastUpdated(new Date());
     } catch (error) {
@@ -141,6 +141,7 @@ const Dashboard = () => {
 
   // Re-fetch analytics when period changes
   useEffect(() => {
+    fetchData();
     fetchAnalytics(analyticsPeriod);
   }, [analyticsPeriod]);
 
@@ -168,28 +169,28 @@ const Dashboard = () => {
       value: `$${Number(data.stats?.revenue || 0).toLocaleString()}`,
       icon:  DollarSign,
       color: 'bg-green-500',
-      trend: '+12%',
+      trend: `${data.stats?.trends?.revenue >= 0 ? '+' : ''}${data.stats?.trends?.revenue || 0}%`,
     },
     {
       label: 'Artworks',
       value: data.stats?.artworks || 0,
       icon:  ImageIcon,
       color: 'bg-blue-500',
-      trend: '+3',
+      trend: 'All inventory',
     },
     {
       label: 'Orders',
       value: data.stats?.orders || 0,
       icon:  ShoppingBag,
       color: 'bg-purple-500',
-      trend: '+5',
+      trend: `${data.stats?.trends?.orders >= 0 ? '+' : ''}${data.stats?.trends?.orders || 0}%`,
     },
     {
       label: 'Commissions',
       value: data.stats?.commissions || 0,
       icon:  Palette,
       color: 'bg-amber-500',
-      trend: '+2',
+      trend: `${data.queues?.pendingCommissions || 0} pending`,
     },
   ] : [];
 
@@ -272,6 +273,23 @@ const Dashboard = () => {
             <p className="text-stone-500 text-sm font-medium">{stat.label}</p>
           </motion.div>
         ))}
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { label: 'Orders awaiting action', value: data?.queues?.pendingOrders || 0, to: '/admin/orders', icon: AlertCircle, color: 'text-amber-600 bg-amber-50' },
+          { label: 'Orders in progress', value: data?.queues?.processingOrders || 0, to: '/admin/orders', icon: ShoppingBag, color: 'text-purple-600 bg-purple-50' },
+          { label: 'Commissions to review', value: data?.queues?.pendingCommissions || 0, to: '/admin/commissions', icon: Palette, color: 'text-blue-600 bg-blue-50' },
+          { label: 'Outstanding balances', value: data?.queues?.outstandingBalances || 0, to: '/admin/commissions', icon: WalletCards, color: 'text-red-600 bg-red-50' },
+        ].map(item => <Link key={item.label} to={item.to} className="bg-white border border-stone-200 rounded-xl p-4 flex items-center gap-4 hover:border-amber-400"><div className={`p-3 rounded-lg ${item.color}`}><item.icon size={20}/></div><div><p className="text-2xl font-bold">{item.value}</p><p className="text-sm text-stone-500">{item.label}</p></div></Link>)}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 bg-white rounded-xl border border-stone-200 p-6">
+          <div className="flex justify-between mb-5"><div><h3 className="font-semibold">Revenue trend</h3><p className="text-sm text-stone-500">Paid orders in the selected period</p></div><b>${Number(data?.stats?.revenue || 0).toLocaleString()}</b></div>
+          {data?.revenueByDay?.length ? <MiniBarChart data={data.revenueByDay} valueKey="amount" labelKey="date"/> : <p className="text-sm text-stone-400 py-6 text-center">No paid orders in this period.</p>}
+        </div>
+        <div className="bg-white rounded-xl border border-stone-200 p-6"><h3 className="font-semibold mb-4">Top selling artworks</h3><div className="space-y-3">{data?.topSellingArtworks?.map((item,i)=><div key={item.id} className="flex gap-3 text-sm"><span className="text-stone-400">{i+1}</span><span className="flex-1 truncate">{item.title}</span><b>{item.sales} sold</b></div>)}{!data?.topSellingArtworks?.length&&<p className="text-sm text-stone-400">No sales yet.</p>}</div></div>
       </div>
 
       {/* ── Visitor Analytics Section ──────────────────────── */}

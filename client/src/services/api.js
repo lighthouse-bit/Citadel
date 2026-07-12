@@ -104,7 +104,7 @@ export const authAPI = {
 // DASHBOARD API (Admin)
 // ==========================================
 export const dashboardAPI = {
-  getStats: () => api.get('/dashboard/stats'),
+  getStats: (period) => api.get('/dashboard/stats', { params: { period } }),
 };
 
 // ==========================================
