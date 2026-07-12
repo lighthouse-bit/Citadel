@@ -39,7 +39,7 @@ const GoogleAuthButton = ({ onCredential, disabled = false }) => {
   }, [onCredential]);
 
   useEffect(() => {
-    if (!clientId || disabled || !buttonRef.current) return undefined;
+    if (!clientId || !buttonRef.current) return undefined;
 
     let cancelled = false;
 
@@ -64,7 +64,7 @@ const GoogleAuthButton = ({ onCredential, disabled = false }) => {
     return () => {
       cancelled = true;
     };
-  }, [clientId, disabled]);
+  }, [clientId]);
 
   if (!clientId) return null;
 

@@ -1,8 +1,8 @@
 // client/src/hooks/useCommission.js
 import { useMutation } from '@tanstack/react-query';
 import axios from 'axios';
+import { API_URL } from '../config/api';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 export const useCreateCommission = () => {
   return useMutation({

@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
+import { API_URL } from '../../config/api';
 import { commissionsAPI } from '../../services/api';
 
 // ✅ Direct Cloudinary upload — bypasses Vercel 4.5MB limit
@@ -221,7 +222,7 @@ const CommissionDetail = () => {
       // Step 2 — Send to backend using fetch directly
       // ✅ Bypasses any Axios content-type issue
       const token = localStorage.getItem('citadel_token');
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const apiUrl = API_URL;
 
       const res = await fetch(
         `${apiUrl}/commissions/${id}/progress`,

@@ -1,9 +1,9 @@
 import { useEffect, useState, useRef } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import axios from 'axios';
+import { API_URL } from '../config/api';
 import { CheckCircle, XCircle, Loader } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const VerifyEmail = () => {
   const [searchParams] = useSearchParams();
