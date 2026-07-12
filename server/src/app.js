@@ -73,6 +73,8 @@ app.use('/api/settings', require('./routes/settingsRoutes'));
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/shipping', shippingRoutes);
 app.use('/api/tracking', trackingRoutes);
+app.use('/api/customers', require('./routes/customerRoutes'));
+app.use('/api/audit-logs', require('./routes/auditRoutes'));
 
 
 // =========================

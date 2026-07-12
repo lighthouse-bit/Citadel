@@ -8,6 +8,7 @@ router.post('/register', authController.register);
 
 // Login snkfs
 router.post('/login', authController.login);
+router.post('/admin/login', authController.adminLogin);
 
 router.post('/google', authController.googleAuth);
 

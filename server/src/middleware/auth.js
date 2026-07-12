@@ -1,5 +1,9 @@
 // server/src/middleware/auth.js
 const jwt = require('jsonwebtoken');
+const verifyToken = token => {
+  if (!process.env.JWT_SECRET) throw new Error('JWT_SECRET is not configured');
+  return jwt.verify(token, process.env.JWT_SECRET);
+};
 
 exports.authenticateAdmin = (req, res, next) => {
   try {
@@ -15,15 +19,9 @@ exports.authenticateAdmin = (req, res, next) => {
       return res.status(401).json({ error: 'No token provided' });
     }
 
-    // For development/demo - allow demo token
-    if (token === 'demo_token') {
-      req.user = { id: '1', role: 'admin', email: 'admin@citadel.com' };
-      return next();
-    }
-
-    // Verify JWT token
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'citadel-secret-key');
+      const decoded = verifyToken(token);
+      if (decoded.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
       req.user = decoded;
       next();
     } catch (jwtError) {
@@ -46,13 +44,8 @@ exports.authenticateUser = (req, res, next) => {
 
     const token = authHeader.replace('Bearer ', '');
     
-    if (token === 'demo_token') {
-      req.user = { id: '1', role: 'admin', email: 'admin@citadel.com' };
-      return next();
-    }
-
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'citadel-secret-key');
+      const decoded = verifyToken(token);
       req.user = decoded;
     } catch {
       req.user = null;

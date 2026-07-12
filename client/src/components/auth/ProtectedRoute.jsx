@@ -4,7 +4,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { Loader } from 'lucide-react';
 
 const ProtectedRoute = ({ children }) => {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isAdmin, isLoading } = useAuth();
   const location = useLocation();
 
   if (isLoading) {
@@ -18,7 +18,7 @@ const ProtectedRoute = ({ children }) => {
     );
   }
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated || !isAdmin) {
     return <Navigate to="/admin/login" state={{ from: location }} replace />;
   }
 

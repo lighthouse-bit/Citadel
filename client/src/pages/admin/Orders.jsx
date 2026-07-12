@@ -14,13 +14,16 @@ const Orders = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+  const [paymentStatus, setPaymentStatus] = useState('');
   const [lastUpdated, setLastUpdated] = useState(new Date());
 
   const fetchOrders = async () => {
     setIsLoading(true);
     try {
       const response = await ordersAPI.getAll({ 
-        status: filterStatus || undefined 
+        status: filterStatus || undefined,
+        paymentStatus: paymentStatus || undefined,
+        search: searchQuery || undefined,
       });
       setOrders(response.data.orders || response.data);
       setLastUpdated(new Date());
@@ -35,13 +38,13 @@ const Orders = () => {
   // Initial load and filter change
   useEffect(() => {
     fetchOrders();
-  }, [filterStatus]);
+  }, [filterStatus, paymentStatus, searchQuery]);
 
   // Auto-refresh every 8 seconds
   useEffect(() => {
     const interval = setInterval(fetchOrders, 8000);
     return () => clearInterval(interval);
-  }, [filterStatus]);
+  }, [filterStatus, paymentStatus, searchQuery]);
 
   // Client-side search
   const filteredOrders = orders.filter(order => {
@@ -179,6 +182,9 @@ const Orders = () => {
             <option value="DELIVERED">Delivered</option>
             <option value="COMPLETED">Completed</option>
             <option value="CANCELLED">Cancelled</option>
+          </select>
+          <select value={paymentStatus} onChange={e=>setPaymentStatus(e.target.value)} className="px-4 py-2 border border-stone-300 rounded-lg">
+            <option value="">All Payments</option><option value="UNPAID">Unpaid</option><option value="FULLY_PAID">Paid</option><option value="REFUNDED">Refunded</option>
           </select>
         </div>
       </div>

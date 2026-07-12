@@ -88,6 +88,19 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const adminLogin = async (email, password) => {
+    try {
+      const response = await axios.post(`${API_URL}/auth/admin/login`, { email, password });
+      const { token, user } = response.data;
+      localStorage.setItem('citadel_token', token);
+      localStorage.setItem('citadel_user', JSON.stringify(user));
+      setUser(user); setIsAuthenticated(true); setShowVerificationBanner(false);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.response?.data?.error || 'Admin login failed' };
+    }
+  };
+
   const googleAuth = async (credential) => {
     try {
       const response = await axios.post(`${API_URL}/auth/google`, { credential });
@@ -141,6 +154,7 @@ export const AuthProvider = ({ children }) => {
     isVerified: user?.isVerified ?? false,
     showVerificationBanner,
     login,
+    adminLogin,
     register,
     googleAuth,
     logout,

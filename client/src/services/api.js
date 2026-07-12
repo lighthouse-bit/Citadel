@@ -158,3 +158,13 @@ export const shippingAPI = {
   upsertRate:    (data)   => api.post('/shipping/admin/rates', data),
   seedDefaults:  ()       => api.post('/shipping/admin/seed'),
 };
+
+export const customersAPI = {
+  getAll: (params) => api.get('/customers', { params }),
+  getById: (id) => api.get(`/customers/${id}`),
+  update: (id, data) => api.patch(`/customers/${id}`, data),
+};
+
+export const auditAPI = {
+  getAll: (params) => api.get('/audit-logs', { params }),
+};

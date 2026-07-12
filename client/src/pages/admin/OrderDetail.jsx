@@ -726,6 +726,19 @@ const OrderDetail = () => {
               )}
             </div>
           </div>
+
+          <div className="bg-white rounded-xl border border-stone-200 shadow-sm p-6">
+            <h2 className="text-lg font-semibold text-stone-900 mb-4">Activity timeline</h2>
+            <div className="space-y-4">
+              {(order.events || []).map(event => (
+                <div key={event.id} className="border-l-2 border-amber-400 pl-4">
+                  <p className="text-sm font-medium text-stone-900">{event.message}</p>
+                  <p className="text-xs text-stone-400 mt-1">{event.admin?.name || 'System'} · {new Date(event.createdAt).toLocaleString()}</p>
+                </div>
+              ))}
+              {!order.events?.length && <p className="text-sm text-stone-400">No recorded activity yet.</p>}
+            </div>
+          </div>
         </div>
       </div>
     </div>

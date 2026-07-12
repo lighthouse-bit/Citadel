@@ -1,0 +1,10 @@
+ALTER TABLE "Customer" ADD COLUMN "isSuspended" BOOLEAN NOT NULL DEFAULT false, ADD COLUMN "adminNotes" TEXT;
+CREATE TABLE "OrderEvent" ("id" TEXT NOT NULL, "type" TEXT NOT NULL, "message" TEXT NOT NULL, "metadata" JSONB, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "orderId" TEXT NOT NULL, "adminId" TEXT, CONSTRAINT "OrderEvent_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "AuditLog" ("id" TEXT NOT NULL, "action" TEXT NOT NULL, "entity" TEXT NOT NULL, "entityId" TEXT, "metadata" JSONB, "ipAddress" TEXT, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "adminId" TEXT NOT NULL, CONSTRAINT "AuditLog_pkey" PRIMARY KEY ("id"));
+CREATE INDEX "OrderEvent_orderId_createdAt_idx" ON "OrderEvent"("orderId", "createdAt");
+CREATE INDEX "OrderEvent_adminId_idx" ON "OrderEvent"("adminId");
+CREATE INDEX "AuditLog_adminId_createdAt_idx" ON "AuditLog"("adminId", "createdAt");
+CREATE INDEX "AuditLog_entity_entityId_idx" ON "AuditLog"("entity", "entityId");
+ALTER TABLE "OrderEvent" ADD CONSTRAINT "OrderEvent_orderId_fkey" FOREIGN KEY ("orderId") REFERENCES "Order"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "OrderEvent" ADD CONSTRAINT "OrderEvent_adminId_fkey" FOREIGN KEY ("adminId") REFERENCES "Admin"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "AuditLog" ADD CONSTRAINT "AuditLog_adminId_fkey" FOREIGN KEY ("adminId") REFERENCES "Admin"("id") ON DELETE CASCADE ON UPDATE CASCADE;

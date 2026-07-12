@@ -16,6 +16,8 @@ import {
   Check,
   CheckCheck,
   Trash2,
+  Users,
+  ClipboardList,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { notificationsAPI } from '../../services/api';
@@ -132,9 +134,11 @@ const AdminLayout = () => {
     { path: '/admin',             icon: LayoutDashboard, label: 'Dashboard',   exact: true },
     { path: '/admin/artworks',    icon: Image,           label: 'Artworks'                },
     { path: '/admin/orders',      icon: ShoppingBag,     label: 'Orders'                  },
+    { path: '/admin/customers',   icon: Users,           label: 'Customers'               },
     { path: '/admin/commissions', icon: Palette,         label: 'Commissions'             },
     { path: '/admin/shipping',    icon: Truck,           label: 'Shipping'                }, // ✅ Added
     { path: '/admin/settings',    icon: Settings,        label: 'Settings'                },
+    { path: '/admin/audit-log',   icon: ClipboardList,   label: 'Audit Log'               },
   ];
 
   const isActive = (path, exact = false) => {

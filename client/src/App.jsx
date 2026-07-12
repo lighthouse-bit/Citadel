@@ -49,6 +49,8 @@ import CommissionDetail  from './pages/admin/CommissionDetail';
 import Settings          from './pages/admin/Settings';
 import AdminLogin        from './pages/admin/AdminLogin';
 import Shipping from './pages/admin/Shipping';
+import Customers from './pages/admin/Customers';
+import AuditLog from './pages/admin/AuditLog';
 
 
 // Auth Components
@@ -142,6 +144,8 @@ function App() {
                     <Route path="commissions/:id"    element={<CommissionDetail />} />
                     <Route path="settings"           element={<Settings />} />
                     <Route path="shipping" element={<Shipping />} />
+                    <Route path="customers" element={<Customers />} />
+                    <Route path="audit-log" element={<AuditLog />} />
                   </Route>
 
                   {/* ==================== Fallback ==================== */}

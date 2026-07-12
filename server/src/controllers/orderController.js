@@ -6,6 +6,7 @@ const {
   sendOrderDeliveredEmail,
 } = require('../utils/emailService');
 const { registerTracking } = require('../utils/trackingService');
+const { recordAudit } = require('../utils/auditService');
 
 // ─────────────────────────────────────────────────────────
 // Create order (Public/User)
@@ -135,12 +136,22 @@ exports.createOrder = async (req, res) => {
 // ─────────────────────────────────────────────────────────
 exports.getAllOrders = async (req, res) => {
   try {
-    const { status, page = 1, limit = 20, customerEmail } = req.query;
+    const { status, paymentStatus, search, page = 1, limit = 20, customerEmail } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     const where = {};
     if (status)        where.status   = status.toUpperCase();
+    if (paymentStatus) where.paymentStatus = paymentStatus.toUpperCase();
     if (customerEmail) where.customer = { email: customerEmail };
+    if (search) where.OR = [
+      { orderNumber: { contains: search, mode: 'insensitive' } },
+      { trackingNumber: { contains: search, mode: 'insensitive' } },
+      { customer: { is: { OR: [
+        { email: { contains: search, mode: 'insensitive' } },
+        { firstName: { contains: search, mode: 'insensitive' } },
+        { lastName: { contains: search, mode: 'insensitive' } },
+      ] } } },
+    ];
 
     const [orders, total] = await Promise.all([
       prisma.order.findMany({
@@ -191,6 +202,7 @@ exports.getOrderById = async (req, res) => {
           include: { artwork: { include: { images: true } } },
         },
         shippingAddress: true,
+        events: { include: { admin: { select: { name: true } } }, orderBy: { createdAt: 'desc' } },
       },
     });
 
@@ -292,6 +304,17 @@ exports.updateOrderStatus = async (req, res) => {
         shippingAddress: true,
       },
     });
+
+    const changedFields = Object.keys(updateData);
+    if (changedFields.length) {
+      await prisma.orderEvent.create({ data: {
+        orderId: order.id, adminId: req.user.id,
+        type: status ? 'STATUS_CHANGED' : 'ORDER_UPDATED',
+        message: status ? `Status changed to ${status.toUpperCase()}` : `Order details updated: ${changedFields.join(', ')}`,
+        metadata: { changedFields, status: status?.toUpperCase() },
+      }});
+      await recordAudit(req, 'UPDATE_ORDER', 'Order', order.id, { changedFields, status: status?.toUpperCase() });
+    }
 
     // ✅ Register tracking with 17track for live updates
     if (shouldSendShippedEmail && order.trackingNumber && order.carrier) {

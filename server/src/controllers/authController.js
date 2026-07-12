@@ -7,11 +7,15 @@ const { OAuth2Client } = require('google-auth-library');
 
 const DEFAULT_GOOGLE_CLIENT_ID = '1050404875372-dir2v8sobkf4757c129pjl0hgum3dlak.apps.googleusercontent.com';
 const googleClient = new OAuth2Client();
+const jwtSecret = () => {
+  if (!process.env.JWT_SECRET) throw new Error('JWT_SECRET is not configured');
+  return process.env.JWT_SECRET;
+};
 
 const createSession = (user) => ({
   token: jwt.sign(
     { id: user.id, email: user.email, role: 'customer' },
-    process.env.JWT_SECRET || 'citadel-secret-key',
+    jwtSecret(),
     { expiresIn: '7d' }
   ),
   user: {
@@ -78,7 +82,7 @@ exports.register = async (req, res) => {
     // Create a JWT token
     const token = jwt.sign(
       { id: user.id, email: user.email, role: 'customer' },
-      process.env.JWT_SECRET || 'citadel-secret-key',
+      jwtSecret(),
       { expiresIn: '7d' }
     );
 
@@ -107,25 +111,13 @@ exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // --- ADMIN LOGIN LOGIC ---
-    if (email === 'admin@citadel.com' && password === 'admin123') {
-      const token = jwt.sign(
-        { id: 'admin', email, role: 'admin' },
-        process.env.JWT_SECRET || 'citadel-secret-key',
-        { expiresIn: '1d' }
-      );
-      return res.json({
-        token,
-        user: { id: 'admin', name: 'Admin', email, role: 'admin' }
-      });
-    }
-
     // --- CUSTOMER LOGIN LOGIC ---
     const user = await prisma.customer.findUnique({ where: { email } });
     
     if (!user || !user.password) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
+    if (user.isSuspended) return res.status(403).json({ error: 'Account suspended' });
 
     // Check if password matches
     const isMatch = await bcrypt.compare(password, user.password);
@@ -136,7 +128,7 @@ exports.login = async (req, res) => {
     // Create JWT Token
     const token = jwt.sign(
       { id: user.id, email: user.email, role: 'customer' },
-      process.env.JWT_SECRET || 'citadel-secret-key',
+      jwtSecret(),
       { expiresIn: '7d' }
     );
 
@@ -153,6 +145,21 @@ exports.login = async (req, res) => {
   } catch (error) {
     console.error('Login Error:', error);
     res.status(500).json({ error: 'Login failed' });
+  }
+};
+
+exports.adminLogin = async (req, res) => {
+  try {
+    const email = req.body.email?.trim().toLowerCase();
+    const admin = await prisma.admin.findUnique({ where: { email } });
+    if (!admin || !(await bcrypt.compare(req.body.password || '', admin.password))) {
+      return res.status(401).json({ error: 'Invalid admin credentials' });
+    }
+    const token = jwt.sign({ id: admin.id, email: admin.email, role: 'admin' }, jwtSecret(), { expiresIn: '8h' });
+    return res.json({ token, user: { id: admin.id, name: admin.name, email: admin.email, role: 'admin' } });
+  } catch (error) {
+    console.error('Admin login error:', error);
+    return res.status(500).json({ error: 'Admin login failed' });
   }
 };
 
@@ -239,9 +246,9 @@ exports.getProfile = async (req, res) => {
 
     // Handle Admin
     if (role === 'admin') {
-      return res.json({ 
-        user: { id: 'admin', name: 'Admin', email: 'admin@citadel.com', role: 'admin' } 
-      });
+      const admin = await prisma.admin.findUnique({ where: { id } });
+      if (!admin) return res.status(404).json({ error: 'Admin not found' });
+      return res.json({ user: { id: admin.id, name: admin.name, email: admin.email, role: 'admin' } });
     }
 
     // Handle Customer
@@ -252,6 +259,7 @@ exports.getProfile = async (req, res) => {
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
+    if (user.isSuspended) return res.status(403).json({ error: 'Account suspended' });
 
     res.json({
       user: {

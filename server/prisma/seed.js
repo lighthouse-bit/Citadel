@@ -7,17 +7,18 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('Seeding database...');
 
-  // Create admin
-  const hashedPassword = await bcrypt.hash('admin123', 10);
-  await prisma.admin.upsert({
-    where: { email: 'admin@citadel-art.com' },
-    update: {},
-    create: {
-      email: 'admin@citadel-art.com',
-      password: hashedPassword,
-      name: 'Admin',
-    },
-  });
+  // Create/update an admin only when secure deployment credentials are supplied.
+  if (process.env.ADMIN_EMAIL && process.env.ADMIN_PASSWORD) {
+    const email = process.env.ADMIN_EMAIL.trim().toLowerCase();
+    const hashedPassword = await bcrypt.hash(process.env.ADMIN_PASSWORD, 12);
+    await prisma.admin.upsert({
+      where: { email },
+      update: { password: hashedPassword, name: process.env.ADMIN_NAME || 'Administrator' },
+      create: { email, password: hashedPassword, name: process.env.ADMIN_NAME || 'Administrator' },
+    });
+  } else {
+    console.log('Skipping admin seed: set ADMIN_EMAIL and ADMIN_PASSWORD.');
+  }
 
   // Create site settings
   await prisma.siteSettings.upsert({

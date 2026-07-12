@@ -4,6 +4,7 @@ const router = express.Router();
 const prisma = require('../config/database');
 const { authenticateAdmin } = require('../middleware/auth');
 const { deleteFromCloudinary } = require('../services/imageService');
+const { recordAudit } = require('../utils/auditService');
 
 // ── Get all artworks (Public) ────────────────────────────────────────────────
 router.get('/', async (req, res) => {
@@ -191,6 +192,7 @@ router.post('/', authenticateAdmin, async (req, res) => {
         link:    `/admin/artworks/${artwork.id}`,
       },
     }).catch(() => {}); // Don't fail if notification fails
+    await recordAudit(req, 'CREATE_ARTWORK', 'Artwork', artwork.id, { title: artwork.title });
 
     res.status(201).json(artwork);
   } catch (error) {
@@ -286,6 +288,7 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
         images: { orderBy: { order: 'asc' } },
       },
     });
+    await recordAudit(req, 'UPDATE_ARTWORK', 'Artwork', artwork.id, { fields: Object.keys(updateData) });
 
     res.json(artwork);
   } catch (error) {
@@ -317,6 +320,7 @@ router.delete('/:id', authenticateAdmin, async (req, res) => {
 
     // Delete artwork (cascade deletes images from DB)
     await prisma.artwork.delete({ where: { id } });
+    await recordAudit(req, 'DELETE_ARTWORK', 'Artwork', id, { title: artwork.title });
 
     res.json({ message: 'Artwork deleted successfully' });
   } catch (error) {

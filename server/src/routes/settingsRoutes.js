@@ -3,6 +3,7 @@ const express = require('express');
 const router  = express.Router();
 const prisma  = require('../config/database');
 const { authenticateAdmin } = require('../middleware/auth');
+const { recordAudit } = require('../utils/auditService');
 
 const SETTINGS_ID = 'settings'; // Single settings record
 
@@ -60,6 +61,7 @@ router.put('/', authenticateAdmin, async (req, res) => {
       update: data,
       create: { id: SETTINGS_ID, ...data },
     });
+    await recordAudit(req, 'UPDATE_SETTINGS', 'SiteSettings', SETTINGS_ID, { fields: Object.keys(data) });
 
     res.json(settings);
   } catch (error) {

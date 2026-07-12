@@ -8,7 +8,7 @@ import toast from 'react-hot-toast';
 const AdminLogin = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login, isAuthenticated } = useAuth();
+  const { adminLogin, isAuthenticated, isAdmin } = useAuth();
 
   const [formData, setFormData] = useState({
     email: '',
@@ -18,7 +18,7 @@ const AdminLogin = () => {
   const [isLoading, setIsLoading] = useState(false);
 
   // Redirect if already authenticated
-  if (isAuthenticated) {
+  if (isAuthenticated && isAdmin) {
     const from = location.state?.from?.pathname || '/admin';
     navigate(from, { replace: true });
     return null;
@@ -34,27 +34,15 @@ const AdminLogin = () => {
     setIsLoading(true);
 
     try {
-      // Demo login
-      if (formData.email === 'admin@citadel.com' && formData.password === 'admin123') {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        localStorage.setItem('citadel_token', 'demo_token');
-        localStorage.setItem('citadel_user', JSON.stringify({
-          id: '1',
-          name: 'Admin',
-          email: 'admin@citadel.com',
-          role: 'admin'
-        }));
-        
+      const result = await adminLogin(formData.email, formData.password);
+      if (result.success) {
         toast.success('Welcome back!');
-        
         const from = location.state?.from?.pathname || '/admin';
         navigate(from, { replace: true });
-        window.location.reload();
       } else {
-        toast.error('Invalid credentials');
+        toast.error(result.error);
       }
-    } catch (error) {
+    } catch {
       toast.error('Login failed');
     } finally {
       setIsLoading(false);
@@ -98,7 +86,7 @@ const AdminLogin = () => {
                 className="w-full px-4 py-3 border border-stone-300 rounded-lg
                          focus:outline-none focus:border-amber-500 focus:ring-1 
                          focus:ring-amber-500 text-stone-900 transition-colors"
-                placeholder="admin@citadel.com"
+                placeholder="admin@highmarc.com"
               />
             </div>
 

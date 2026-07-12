@@ -132,6 +132,8 @@ model Customer {
   stripeCustomerId  String?  @unique
   isVerified        Boolean  @default(false)
   verificationToken String?  @unique
+  isSuspended       Boolean  @default(false)
+  adminNotes        String?  @db.Text
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -195,6 +197,7 @@ model Order {
   customer        Customer    @relation(fields: [customerId], references: [id])
   shippingAddress Address?    @relation(fields: [shippingAddressId], references: [id])
   items           OrderItem[]
+  events          OrderEvent[]
 
   @@index([customerId])
   @@index([status])
@@ -299,10 +302,41 @@ model Admin {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  auditLogs   AuditLog[]
+  orderEvents OrderEvent[]
+
   // Relations
   notifications Notification[] // ✅ Added reverse relation
 
   @@index([email])
+}
+
+model OrderEvent {
+  id String @id @default(uuid())
+  type String
+  message String
+  metadata Json?
+  createdAt DateTime @default(now())
+  orderId String
+  adminId String?
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  admin Admin? @relation(fields: [adminId], references: [id], onDelete: SetNull)
+  @@index([orderId, createdAt])
+  @@index([adminId])
+}
+
+model AuditLog {
+  id String @id @default(uuid())
+  action String
+  entity String
+  entityId String?
+  metadata Json?
+  ipAddress String?
+  createdAt DateTime @default(now())
+  adminId String
+  admin Admin @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  @@index([adminId, createdAt])
+  @@index([entity, entityId])
 }
 
 
