@@ -51,6 +51,10 @@ import AdminLogin        from './pages/admin/AdminLogin';
 import Shipping from './pages/admin/Shipping';
 import Customers from './pages/admin/Customers';
 import AuditLog from './pages/admin/AuditLog';
+import Marketing from './pages/admin/Marketing';
+import Reports from './pages/admin/Reports';
+import SystemHealth from './pages/admin/SystemHealth';
+import AdminResetPassword from './pages/admin/AdminResetPassword';
 
 
 // Auth Components
@@ -125,6 +129,7 @@ function App() {
 
                   {/* ==================== Admin Routes ==================== */}
                   <Route path="/admin/login" element={<AdminLogin />} />
+                  <Route path="/admin/reset-password" element={<AdminResetPassword />} />
 
                   <Route
                     path="/admin"
@@ -146,6 +151,9 @@ function App() {
                     <Route path="shipping" element={<Shipping />} />
                     <Route path="customers" element={<Customers />} />
                     <Route path="audit-log" element={<AuditLog />} />
+                    <Route path="marketing" element={<Marketing />} />
+                    <Route path="reports" element={<Reports />} />
+                    <Route path="system" element={<SystemHealth />} />
                   </Route>
 
                   {/* ==================== Fallback ==================== */}

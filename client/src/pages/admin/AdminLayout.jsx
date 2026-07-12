@@ -18,6 +18,9 @@ import {
   Trash2,
   Users,
   ClipboardList,
+  Megaphone,
+  LineChart,
+  HeartPulse,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { notificationsAPI } from '../../services/api';
@@ -137,6 +140,9 @@ const AdminLayout = () => {
     { path: '/admin/customers',   icon: Users,           label: 'Customers'               },
     { path: '/admin/commissions', icon: Palette,         label: 'Commissions'             },
     { path: '/admin/shipping',    icon: Truck,           label: 'Shipping'                }, // ✅ Added
+    { path: '/admin/marketing',   icon: Megaphone,       label: 'Marketing'               },
+    { path: '/admin/reports',     icon: LineChart,       label: 'Reports'                 },
+    { path: '/admin/system',      icon: HeartPulse,      label: 'System Health'           },
     { path: '/admin/settings',    icon: Settings,        label: 'Settings'                },
     { path: '/admin/audit-log',   icon: ClipboardList,   label: 'Audit Log'               },
   ];

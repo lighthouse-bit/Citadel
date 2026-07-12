@@ -152,16 +152,29 @@ exports.adminLogin = async (req, res) => {
   try {
     const email = req.body.email?.trim().toLowerCase();
     const admin = await prisma.admin.findUnique({ where: { email } });
-    if (!admin || !(await bcrypt.compare(req.body.password || '', admin.password))) {
+    if (admin?.lockedUntil && admin.lockedUntil > new Date()) return res.status(429).json({ error: 'Account temporarily locked. Try again later or reset your password.' });
+    const valid = admin && await bcrypt.compare(req.body.password || '', admin.password);
+    if (!valid) {
+      if (admin) {
+        const attempts=admin.failedLoginAttempts+1;
+        await prisma.admin.update({where:{id:admin.id},data:{failedLoginAttempts:attempts,lockedUntil:attempts>=5?new Date(Date.now()+15*60000):null}});
+      }
       return res.status(401).json({ error: 'Invalid admin credentials' });
     }
-    const token = jwt.sign({ id: admin.id, email: admin.email, role: 'admin' }, jwtSecret(), { expiresIn: '8h' });
+    await prisma.admin.update({where:{id:admin.id},data:{failedLoginAttempts:0,lockedUntil:null}});
+    const token = jwt.sign({ id: admin.id, email: admin.email, role: 'admin', passwordChangedAt: admin.passwordChangedAt?.getTime() || 0 }, jwtSecret(), { expiresIn: '8h' });
     return res.json({ token, user: { id: admin.id, name: admin.name, email: admin.email, role: 'admin' } });
   } catch (error) {
     console.error('Admin login error:', error);
     return res.status(500).json({ error: 'Admin login failed' });
   }
 };
+
+exports.changeAdminPassword=async(req,res)=>{try{const admin=await prisma.admin.findUnique({where:{id:req.user.id}});if(!admin||!await bcrypt.compare(req.body.currentPassword||'',admin.password))return res.status(401).json({error:'Current password is incorrect'});if(typeof req.body.newPassword!=='string'||req.body.newPassword.length<12)return res.status(400).json({error:'New password must be at least 12 characters'});if(await bcrypt.compare(req.body.newPassword,admin.password))return res.status(400).json({error:'Choose a different password'});await prisma.admin.update({where:{id:admin.id},data:{password:await bcrypt.hash(req.body.newPassword,12),passwordChangedAt:new Date(),failedLoginAttempts:0,lockedUntil:null}});res.json({success:true});}catch(error){console.error(error);res.status(500).json({error:'Password change failed'});}};
+
+exports.requestAdminPasswordReset=async(req,res)=>{try{const email=req.body.email?.trim().toLowerCase();const admin=await prisma.admin.findUnique({where:{email}});if(admin){const raw=crypto.randomBytes(32).toString('hex'),hashed=crypto.createHash('sha256').update(raw).digest('hex');await prisma.admin.update({where:{id:admin.id},data:{passwordResetToken:hashed,passwordResetExpires:new Date(Date.now()+30*60000)}});const nodemailer=require('nodemailer');const mailer=nodemailer.createTransport({host:process.env.EMAIL_HOST,port:Number(process.env.EMAIL_PORT),secure:Number(process.env.EMAIL_PORT)===465,auth:{user:process.env.EMAIL_USER,pass:process.env.EMAIL_PASS}});await mailer.sendMail({from:`"Highmarc" <${process.env.EMAIL_USER}>`,to:admin.email,subject:'Highmarc admin password reset',html:`<p>A password reset was requested for your Highmarc admin account.</p><p><a href="${process.env.CLIENT_URL}/admin/reset-password?token=${raw}">Reset password</a></p><p>This link expires in 30 minutes. If you did not request it, ignore this email.</p>`});}res.json({message:'If the admin account exists, a reset email has been sent.'});}catch(error){console.error(error);res.status(500).json({error:'Password reset request failed'});}};
+
+exports.resetAdminPassword=async(req,res)=>{try{const hashed=crypto.createHash('sha256').update(req.body.token||'').digest('hex');const admin=await prisma.admin.findFirst({where:{passwordResetToken:hashed,passwordResetExpires:{gt:new Date()}}});if(!admin)return res.status(400).json({error:'Reset link is invalid or expired'});if(typeof req.body.password!=='string'||req.body.password.length<12)return res.status(400).json({error:'Password must be at least 12 characters'});await prisma.admin.update({where:{id:admin.id},data:{password:await bcrypt.hash(req.body.password,12),passwordChangedAt:new Date(),passwordResetToken:null,passwordResetExpires:null,failedLoginAttempts:0,lockedUntil:null}});res.json({success:true});}catch(error){res.status(500).json({error:'Password reset failed'});}};
 
 // ==========================================
 // 3. VERIFY EMAIL

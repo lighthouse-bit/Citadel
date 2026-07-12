@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import { Lock, CheckCircle, Loader, ShoppingBag, Truck, Info } from 'lucide-react';
 import { useCart } from '../hooks/useCart';
 import { useAuth } from '../hooks/useAuth';
-import { ordersAPI, paymentsAPI, shippingAPI } from '../services/api';
+import { ordersAPI, paymentsAPI, shippingAPI, marketingAPI } from '../services/api';
 import { trackPurchase } from '../utils/analytics';
 import toast from 'react-hot-toast';
 
@@ -37,6 +37,8 @@ const Checkout = () => {
   const [completedOrder, setCompletedOrder] = useState(null);
   const [isProcessing, setIsProcessing]     = useState(false);
   const [verifying, setVerifying]           = useState(false);
+  const [promoCode, setPromoCode]           = useState('');
+  const [appliedPromotion, setAppliedPromotion] = useState(null);
 
   const [shippingInfo, setShippingInfo]                   = useState(null);
   const [isCalculatingShipping, setIsCalculatingShipping] = useState(false);
@@ -54,7 +56,11 @@ const Checkout = () => {
 
   // ✅ Calculate final total including shipping
   const shippingCost = shippingInfo?.shippingCost || 0;
-  const finalTotal   = cartTotal + shippingCost;
+  const finalTotal   = cartTotal - (appliedPromotion?.discount || 0) + shippingCost;
+  const applyPromotion = async () => {
+    try { const { data } = await marketingAPI.validatePromotion({ code: promoCode, subtotal: cartTotal, artworkIds: cartItems.map(item => item.id) }); setAppliedPromotion(data); toast.success(`${data.code} applied`); }
+    catch (error) { setAppliedPromotion(null); toast.error(error.response?.data?.error || 'Invalid promotion'); }
+  };
 
   // ── Detect Paystack redirect ──────────────────────────────
   useEffect(() => {
@@ -167,6 +173,7 @@ const Checkout = () => {
         shippingCost: shippingCost,
         shippingZone: shippingInfo?.zone || 'Unknown',
         shippingSize: shippingInfo?.size || 'unknown',
+        promotionCode: appliedPromotion?.code || null,
       };
 
       const orderRes = await ordersAPI.create(orderPayload);
@@ -569,11 +576,13 @@ const Checkout = () => {
               )}
 
               {/* Totals */}
+              <div className="flex gap-2 mb-4"><input value={promoCode} onChange={e=>setPromoCode(e.target.value.toUpperCase())} placeholder="Promotion code" className="border rounded-lg px-3 py-2 flex-1 text-sm"/><button type="button" onClick={applyPromotion} className="border rounded-lg px-3 text-sm">Apply</button></div>
               <div className="space-y-3 pt-5 border-t border-stone-100">
                 <div className="flex justify-between text-stone-500 text-sm">
                   <span>Subtotal</span>
                   <span>${cartTotal.toLocaleString()}</span>
                 </div>
+                {appliedPromotion && <div className="flex justify-between text-green-700 text-sm"><span>Discount ({appliedPromotion.code})</span><span>-${appliedPromotion.discount.toLocaleString()}</span></div>}
 
                 {/* ✅ Dynamic Shipping Row */}
                 <div className="flex justify-between text-stone-500 text-sm">

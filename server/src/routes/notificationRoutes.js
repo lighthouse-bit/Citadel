@@ -7,6 +7,7 @@ const { authenticateAdmin } = require('../middleware/auth');
 
 // ✅ Specific routes MUST come before dynamic routes
 router.get('/', authenticateAdmin, notificationController.getNotifications);
+router.post('/', authenticateAdmin, notificationController.createNotification);
 router.patch('/read-all', authenticateAdmin, notificationController.markAllAsRead); // ✅ moved up
 router.patch('/:id/read', authenticateAdmin, notificationController.markAsRead);
 router.delete('/:id', authenticateAdmin, notificationController.deleteNotification);

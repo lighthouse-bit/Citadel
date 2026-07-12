@@ -25,6 +25,7 @@ exports.createOrder = async (req, res) => {
       shippingCost = 0,
       shippingZone  = 'Unknown',
       shippingSize  = 'unknown',
+      promotionCode,
     } = req.body;
 
     let customerId;
@@ -74,7 +75,19 @@ exports.createOrder = async (req, res) => {
     );
     const finalShipping  = parseFloat(shippingCost) || 0;
     const tax            = 0;
-    const total          = subtotal + finalShipping + tax;
+    let discountAmount = 0;
+    let appliedPromotion = null;
+    if (promotionCode) {
+      appliedPromotion = await prisma.promotion.findUnique({ where: { code: promotionCode.trim().toUpperCase() } });
+      const now = new Date();
+      const valid = appliedPromotion && appliedPromotion.isActive && (!appliedPromotion.startsAt || appliedPromotion.startsAt <= now) && (!appliedPromotion.endsAt || appliedPromotion.endsAt >= now) && (!appliedPromotion.usageLimit || appliedPromotion.usageCount < appliedPromotion.usageLimit) && (!appliedPromotion.minimumOrder || subtotal >= Number(appliedPromotion.minimumOrder));
+      const eligible = valid && (!appliedPromotion.artworkIds.length || dbArtworks.some(art => appliedPromotion.artworkIds.includes(art.id))) && (!appliedPromotion.categories.length || dbArtworks.some(art => appliedPromotion.categories.includes(art.category)));
+      if (!eligible) return res.status(400).json({ error: 'Promotion is no longer valid for this order' });
+      discountAmount = appliedPromotion.discountType === 'PERCENTAGE' ? subtotal * Number(appliedPromotion.value) / 100 : Number(appliedPromotion.value);
+      if (appliedPromotion.maximumDiscount) discountAmount = Math.min(discountAmount, Number(appliedPromotion.maximumDiscount));
+      discountAmount = Math.min(discountAmount, subtotal);
+    }
+    const total          = subtotal - discountAmount + finalShipping + tax;
     const orderNumber    = `ORD-${Date.now().toString().slice(-6)}`;
 
     // Create order in transaction
@@ -88,6 +101,8 @@ exports.createOrder = async (req, res) => {
           shippingSize,
           tax,
           total,
+          discountAmount,
+          promotionCode: appliedPromotion?.code || null,
           status:            'PENDING',
           paymentStatus:     'UNPAID',
           customerId,
@@ -108,6 +123,7 @@ exports.createOrder = async (req, res) => {
         where: { id: { in: artworkIds } },
         data:  { status: 'RESERVED' },
       });
+      if (appliedPromotion) await tx.promotion.update({ where: { id: appliedPromotion.id }, data: { usageCount: { increment: 1 } } });
 
       // Notify admin
       await tx.notification.create({

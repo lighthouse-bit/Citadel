@@ -1,8 +1,9 @@
 // server/src/services/emailService.js
 const nodemailer = require('nodemailer');
+const { recordOperationalEvent } = require('./operationalEvents');
 
 const createTransporter = () => {
-  return nodemailer.createTransport({
+  const mailer = nodemailer.createTransport({
     host:   process.env.EMAIL_HOST,
     port:   parseInt(process.env.EMAIL_PORT),
     secure: process.env.EMAIL_PORT == 465,
@@ -11,6 +12,9 @@ const createTransporter = () => {
       pass: process.env.EMAIL_PASS,
     },
   });
+  const send=mailer.sendMail.bind(mailer);
+  mailer.sendMail=async options=>{try{return await send(options);}catch(error){recordOperationalEvent('EMAIL_DELIVERY_FAILURE',error.message,{code:error.code||null,subject:String(options.subject||'').slice(0,120)});throw error;}};
+  return mailer;
 };
 
 // ── Verification Email ────────────────────────────────────────────────────────

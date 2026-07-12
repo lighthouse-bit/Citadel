@@ -107,6 +107,9 @@ export const authAPI = {
   getProfile:         ()      => api.get('/auth/me'),
   verifyEmail:        (token) => api.get('/auth/verify-email', { params: { token } }),
   resendVerification: ()      => api.post('/auth/resend-verification'),
+  requestAdminReset: email => api.post('/auth/admin/forgot-password', { email }),
+  resetAdminPassword: data => api.post('/auth/admin/reset-password', data),
+  changeAdminPassword: data => api.post('/auth/admin/change-password', data),
 };
 
 // ==========================================
@@ -123,6 +126,34 @@ export const notificationsAPI = {
   getAll:        ()   => api.get('/notifications'),
   markAsRead:    (id) => api.patch(`/notifications/${id}/read`),
   markAllAsRead: ()   => api.patch('/notifications/read-all'),
+  create:        (data) => api.post('/notifications', data),
+  delete:        (id) => api.delete(`/notifications/${id}`),
+};
+
+export const marketingAPI = {
+  getPromotions: () => api.get('/marketing/promotions'),
+  createPromotion: data => api.post('/marketing/promotions', data),
+  updatePromotion: (id, data) => api.put(`/marketing/promotions/${id}`, data),
+  deletePromotion: id => api.delete(`/marketing/promotions/${id}`),
+  validatePromotion: data => api.post('/marketing/promotions/validate', data),
+  getTemplates: () => api.get('/marketing/templates'),
+  saveTemplate: data => api.post('/marketing/templates', data),
+  updateTemplate: (id, data) => api.put(`/marketing/templates/${id}`, data),
+  testEmail: data => api.post('/marketing/templates/test', data),
+  getCampaigns: () => api.get('/marketing/campaigns'),
+  createCampaign: data => api.post('/marketing/campaigns', data),
+  sendCampaign: id => api.post(`/marketing/campaigns/${id}/send`),
+};
+
+export const reportsAPI = {
+  getFinancial: params => api.get('/reports/financial', { params }),
+  exportFinancial: params => api.get('/reports/financial/export', { params, responseType: 'blob' }),
+};
+
+export const operationsAPI = {
+  getHealth: () => api.get('/operations/health'),
+  getEvents: resolved => api.get('/operations/events', { params: { resolved } }),
+  resolveEvent: id => api.patch(`/operations/events/${id}/resolve`),
 };
 
 // ==========================================

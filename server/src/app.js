@@ -8,6 +8,9 @@ const app = express();
 const settingsRoutes = require('./routes/settingsRoutes');
 const shippingRoutes = require('./routes/shippingRoutes');
 const trackingRoutes = require('./routes/trackingRoutes');
+const prisma = require('./config/database');
+const { securityHeaders } = require('./middleware/security');
+const { recordOperationalEvent } = require('./utils/operationalEvents');
 
 // =========================
 // CORS CONFIG (FIXED)
@@ -17,6 +20,10 @@ const allowedOrigins = [
   "https://www.highmarc.com",
   "http://localhost:3000"
 ];
+if(process.env.CLIENT_URL)allowedOrigins.push(process.env.CLIENT_URL.replace(/\/$/,''));
+if(process.env.CORS_ORIGINS)allowedOrigins.push(...process.env.CORS_ORIGINS.split(',').map(origin=>origin.trim()).filter(Boolean));
+app.disable('x-powered-by');
+app.use(securityHeaders);
 
 app.use(cors({
   origin: function (origin, callback) {
@@ -51,11 +58,10 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // =========================
 // HEALTH ROUTE
 // =========================
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    message: 'Citadel API is running',
-  });
+app.get('/api/health', async (req, res) => {
+  const started=Date.now();
+  try{await prisma.$queryRaw`SELECT 1`;res.json({status:'ok',database:'connected',latencyMs:Date.now()-started,timestamp:new Date()});}
+  catch(error){recordOperationalEvent('DATABASE_HEALTH_FAILURE',error.message);res.status(503).json({status:'unavailable',database:'disconnected',timestamp:new Date()});}
 });
 
 // =========================
@@ -75,6 +81,9 @@ app.use('/api/shipping', shippingRoutes);
 app.use('/api/tracking', trackingRoutes);
 app.use('/api/customers', require('./routes/customerRoutes'));
 app.use('/api/audit-logs', require('./routes/auditRoutes'));
+app.use('/api/marketing', require('./routes/marketingRoutes'));
+app.use('/api/reports', require('./routes/reportingRoutes'));
+app.use('/api/operations', require('./routes/operationsRoutes'));
 
 
 // =========================
@@ -91,6 +100,7 @@ app.use((req, res) => {
 // =========================
 app.use((err, req, res, next) => {
   console.error('Error:', err);
+  recordOperationalEvent('UNHANDLED_API_ERROR',err.message,{path:req.path,method:req.method,requestId:res.getHeader('X-Request-Id')});
 
   res.status(err.status || 500).json({
     error: err.message || 'Something went wrong!',

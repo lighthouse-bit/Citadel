@@ -4,6 +4,7 @@ import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { Eye, EyeOff, Loader, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import toast from 'react-hot-toast';
+import { authAPI } from '../../services/api';
 
 const AdminLogin = () => {
   const navigate = useNavigate();
@@ -48,6 +49,7 @@ const AdminLogin = () => {
       setIsLoading(false);
     }
   };
+  const forgotPassword=async()=>{const email=window.prompt('Enter your admin email address',formData.email);if(!email)return;try{const{data}=await authAPI.requestAdminReset(email);toast.success(data.message);}catch(error){toast.error(error.response?.data?.error||'Reset request failed');}};
 
   return (
     <div className="min-h-screen bg-stone-900 flex items-center justify-center p-6">
@@ -133,6 +135,7 @@ const AdminLogin = () => {
                 'Sign In'
               )}
             </button>
+            <button type="button" onClick={forgotPassword} className="w-full text-sm text-amber-700 hover:underline">Forgot password?</button>
           </form>
 
           {/* <div className="mt-8 p-4 bg-amber-50 rounded-lg border border-amber-200">

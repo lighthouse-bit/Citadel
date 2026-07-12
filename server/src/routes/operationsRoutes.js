@@ -1,0 +1,1 @@
+const router=require('express').Router();const controller=require('../controllers/operationsController');const{authenticateAdmin}=require('../middleware/auth');router.use(authenticateAdmin);router.get('/health',controller.getHealth);router.get('/events',controller.listEvents);router.patch('/events/:id/resolve',controller.resolveEvent);module.exports=router;

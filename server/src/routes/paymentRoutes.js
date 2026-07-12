@@ -5,6 +5,7 @@ const router = express.Router();
 const prisma = require('../config/database');
 const https = require('https');
 const crypto = require('crypto');
+const { recordOperationalEvent } = require('../utils/operationalEvents');
 
 const {
   sendOrderInvoiceEmail,
@@ -159,7 +160,7 @@ router.get('/callback', async (req, res) => {
 router.post('/webhook', async (req, res) => {
   const hash = req.headers['x-paystack-signature'];
 
-  if (!hash || !PAYSTACK_SECRET) return res.sendStatus(400);
+  if (!hash || !PAYSTACK_SECRET) { recordOperationalEvent('PAYMENT_WEBHOOK_REJECTED','Missing webhook signature or Paystack configuration',{hasSignature:Boolean(hash),configured:Boolean(PAYSTACK_SECRET)},'WARNING'); return res.sendStatus(400); }
 
   let bodyString = '';
   if (Buffer.isBuffer(req.body)) bodyString = req.body.toString();
@@ -171,7 +172,7 @@ router.post('/webhook', async (req, res) => {
     .update(bodyString)
     .digest('hex');
 
-  if (hash !== expectedHash) return res.sendStatus(400);
+  if (hash !== expectedHash) { recordOperationalEvent('PAYMENT_WEBHOOK_REJECTED','Invalid Paystack webhook signature',null,'WARNING'); return res.sendStatus(400); }
 
   try {
     const event = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
@@ -202,6 +203,7 @@ router.post('/webhook', async (req, res) => {
     res.sendStatus(200);
   } catch (err) {
     console.error('Webhook error:', err);
+    recordOperationalEvent('PAYMENT_WEBHOOK_FAILURE',err.message);
     res.sendStatus(200);
   }
 });
