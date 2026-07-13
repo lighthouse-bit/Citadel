@@ -3,10 +3,12 @@ const express = require('express');
 const router  = express.Router();
 const prisma  = require('../config/database');
 const { getTrackingInfo, registerTracking } = require('../utils/trackingService');
+const { authenticateAdmin, authenticateUser } = require('../middleware/auth');
+const jwt = require('jsonwebtoken');
 
 // ── Get live tracking info ───────────────────────────────
 // GET /api/tracking/:orderNumber
-router.get('/:orderNumber', async (req, res) => {
+router.get('/:orderNumber', authenticateUser, async (req, res) => {
   try {
     const { orderNumber } = req.params;
 
@@ -21,6 +23,7 @@ router.get('/:orderNumber', async (req, res) => {
         shippedAt:         true,
         deliveredAt:       true,
         estimatedDelivery: true,
+        customerId:        true,
       },
     });
 
@@ -28,11 +31,22 @@ router.get('/:orderNumber', async (req, res) => {
       return res.status(404).json({ error: 'Order not found' });
     }
 
+    let hasTrackingToken = false;
+    if (req.query.token && process.env.JWT_SECRET) {
+      try {
+        const decoded = jwt.verify(req.query.token, process.env.JWT_SECRET);
+        hasTrackingToken = decoded.purpose === 'tracking' && decoded.orderId === order.id;
+      } catch { hasTrackingToken = false; }
+    }
+    const ownsOrder = req.user?.role === 'admin' || (req.user?.role === 'customer' && req.user.id === order.customerId);
+    if (!ownsOrder && !hasTrackingToken) return res.status(404).json({ error: 'Tracking information not found' });
+    const { customerId, ...publicOrder } = order;
+
     if (!order.trackingNumber || !order.carrier) {
       return res.json({
         hasTracking: false,
         message:     'Tracking not yet available',
-        order,
+        order: publicOrder,
       });
     }
 
@@ -45,7 +59,7 @@ router.get('/:orderNumber', async (req, res) => {
 
       res.json({
         hasTracking: true,
-        order,
+        order: publicOrder,
         tracking:    trackingInfo,
       });
     } catch (trackErr) {
@@ -53,7 +67,7 @@ router.get('/:orderNumber', async (req, res) => {
       console.error('17track API error:', trackErr.message);
       res.json({
         hasTracking: false,
-        order,
+        order: publicOrder,
         message:     'Live tracking unavailable. Showing last known status.',
       });
     }
@@ -66,7 +80,7 @@ router.get('/:orderNumber', async (req, res) => {
 
 // ── Register tracking with 17track (call when shipped) ───
 // POST /api/tracking/register
-router.post('/register', async (req, res) => {
+router.post('/register', authenticateAdmin, async (req, res) => {
   try {
     const { trackingNumber, carrier } = req.body;
 

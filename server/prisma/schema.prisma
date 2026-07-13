@@ -152,14 +152,16 @@ model Customer {
   updatedAt                  DateTime  @updatedAt
 
   // Relations
-  addresses      Address[]
-  commissions    Commission[]
-  orders         Order[]
-  notifications  Notification[] // ✅ Added reverse relation
-  wishlistItems  WishlistItem[]
-  wishlistAlerts WishlistAlert[]
-  cartItems      CartItem[]
-  artworkViews   CustomerArtworkView[]
+  addresses       Address[]
+  commissions     Commission[]
+  orders          Order[]
+  notifications   Notification[] // ✅ Added reverse relation
+  wishlistItems   WishlistItem[]
+  wishlistAlerts  WishlistAlert[]
+  cartItems       CartItem[]
+  artworkViews    CustomerArtworkView[]
+  supportTickets  SupportTicket[]
+  supportMessages SupportMessage[]
 
   @@index([email])
 }
@@ -283,10 +285,11 @@ model Order {
   estimatedDelivery DateTime? // ✅ New
 
   // Relations
-  customer        Customer     @relation(fields: [customerId], references: [id])
-  shippingAddress Address?     @relation(fields: [shippingAddressId], references: [id], onDelete: SetNull)
+  customer        Customer        @relation(fields: [customerId], references: [id])
+  shippingAddress Address?        @relation(fields: [shippingAddressId], references: [id], onDelete: SetNull)
   items           OrderItem[]
   events          OrderEvent[]
+  supportTickets  SupportTicket[]
 
   @@index([customerId])
   @@index([status])
@@ -336,6 +339,7 @@ model Commission {
   referenceImages CommissionImage[]
   notes           CommissionNote[]
   progressImages  CommissionProgress[]
+  supportTickets  SupportTicket[]
 
   @@index([customerId])
   @@index([status])
@@ -400,7 +404,9 @@ model Admin {
   orderEvents OrderEvent[]
 
   // Relations
-  notifications Notification[] // ✅ Added reverse relation
+  notifications          Notification[] // ✅ Added reverse relation
+  assignedSupportTickets SupportTicket[]
+  supportMessages        SupportMessage[]
 
   @@index([email])
 }
@@ -452,6 +458,66 @@ model Notification {
   @@index([customerId])
   @@index([adminId])
   @@index([isRead])
+}
+
+model SupportTicket {
+  id              String    @id @default(uuid())
+  ticketNumber    String    @unique
+  subject         String
+  category        String
+  status          String    @default("OPEN")
+  priority        String    @default("NORMAL")
+  customerId      String
+  orderId         String?
+  commissionId    String?
+  assignedAdminId String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  resolvedAt      DateTime?
+
+  customer      Customer         @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  order         Order?           @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  commission    Commission?      @relation(fields: [commissionId], references: [id], onDelete: SetNull)
+  assignedAdmin Admin?           @relation(fields: [assignedAdminId], references: [id], onDelete: SetNull)
+  messages      SupportMessage[]
+
+  @@index([customerId, updatedAt])
+  @@index([status, priority, updatedAt])
+  @@index([assignedAdminId])
+  @@index([orderId])
+  @@index([commissionId])
+}
+
+model SupportMessage {
+  id         String   @id @default(uuid())
+  body       String   @db.Text
+  authorType String
+  ticketId   String
+  customerId String?
+  adminId    String?
+  createdAt  DateTime @default(now())
+
+  ticket      SupportTicket       @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  customer    Customer?           @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  admin       Admin?              @relation(fields: [adminId], references: [id], onDelete: SetNull)
+  attachments SupportAttachment[]
+
+  @@index([ticketId, createdAt])
+  @@index([customerId])
+  @@index([adminId])
+}
+
+model SupportAttachment {
+  id        String   @id @default(uuid())
+  url       String
+  publicId  String?
+  name      String?
+  messageId String
+  createdAt DateTime @default(now())
+
+  message SupportMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
 }
 
 model Promotion {

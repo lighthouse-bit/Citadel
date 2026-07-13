@@ -1,5 +1,5 @@
 // client/src/pages/OrderTracking.jsx
-import { useState, useEffect } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -7,21 +7,28 @@ import {
   ExternalLink, Loader, ShoppingBag, Search, AlertCircle,
   Mail, Activity, RefreshCw,
 } from 'lucide-react';
-import api from '../services/api';
+import api, { ordersAPI } from '../services/api';
 import toast from 'react-hot-toast';
+import { useAuth } from '../hooks/useAuth';
 
 const OrderTracking = () => {
   const { orderNumber } = useParams();
+  const { isAuthenticated } = useAuth();
   const [order, setOrder]                       = useState(null);
   const [liveTracking, setLiveTracking]         = useState(null);
   const [isLoading, setIsLoading]               = useState(true);
   const [isLoadingTracking, setIsLoadingTracking] = useState(false);
   const [error, setError]                       = useState(null);
   const [searchInput, setSearchInput]           = useState(orderNumber || '');
+  const [emailInput, setEmailInput]             = useState(() => sessionStorage.getItem('citadel_tracking_email') || '');
 
   // ── Fetch order by order number ─────────────────────────
-  const fetchOrder = async (number) => {
+  const fetchOrder = useCallback(async (number, email = '') => {
     if (!number) {
+      setIsLoading(false);
+      return;
+    }
+    if (!isAuthenticated && !email.trim()) {
       setIsLoading(false);
       return;
     }
@@ -29,25 +36,25 @@ const OrderTracking = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await api.get(`/orders/track/${number}`);
+      const response = await ordersAPI.track(number, isAuthenticated ? undefined : email.trim().toLowerCase());
       setOrder(response.data);
     } catch (err) {
       console.error('Order tracking error:', err);
       if (err.response?.status === 404) {
-        setError('Order not found. Please check your order number.');
+        setError('The order number and email did not match our records.');
       } else {
         setError('Could not load order. Please try again.');
       }
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [isAuthenticated]);
 
   // ── Fetch live tracking from 17track ────────────────────
-  const fetchLiveTracking = async (orderNum) => {
+  const fetchLiveTracking = useCallback(async (orderNum, accessToken) => {
     setIsLoadingTracking(true);
     try {
-      const response = await api.get(`/tracking/${orderNum}`);
+      const response = await api.get(`/tracking/${orderNum}`, { params: { token: accessToken || undefined } });
       if (response.data.hasTracking) {
         setLiveTracking(response.data.tracking);
       }
@@ -56,33 +63,35 @@ const OrderTracking = () => {
     } finally {
       setIsLoadingTracking(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    if (orderNumber) {
-      fetchOrder(orderNumber);
+    const savedEmail = sessionStorage.getItem('citadel_tracking_email') || '';
+    if (orderNumber && (isAuthenticated || savedEmail)) {
+      fetchOrder(orderNumber, savedEmail);
     } else {
       setIsLoading(false);
     }
-  }, [orderNumber]);
+  }, [fetchOrder, orderNumber, isAuthenticated]);
 
   // ── Fetch live tracking after order loads ───────────────
   useEffect(() => {
     if (order?.trackingNumber && order?.carrier) {
-      fetchLiveTracking(order.orderNumber);
+      fetchLiveTracking(order.orderNumber, order.trackingAccessToken);
     }
-  }, [order]);
+  }, [fetchLiveTracking, order]);
 
   const handleSearch = (e) => {
     e.preventDefault();
-    if (searchInput.trim()) {
+    if (searchInput.trim() && (isAuthenticated || emailInput.trim())) {
+      if (!isAuthenticated) sessionStorage.setItem('citadel_tracking_email', emailInput.trim().toLowerCase());
       window.location.href = `/track/${searchInput.trim()}`;
     }
   };
 
   const handleRefreshTracking = () => {
     if (order?.orderNumber) {
-      fetchLiveTracking(order.orderNumber);
+      fetchLiveTracking(order.orderNumber, order.trackingAccessToken);
       toast.success('Refreshing tracking...');
     }
   };
@@ -122,7 +131,7 @@ const OrderTracking = () => {
   }
 
   // ── No order number or error — Show search form ─────────
-  if (!orderNumber || error) {
+  if (!order || error) {
     return (
       <div className="min-h-screen pt-24 pb-16 bg-stone-50">
         <div className="max-w-2xl mx-auto px-6">
@@ -140,7 +149,7 @@ const OrderTracking = () => {
               Track Your Order
             </h1>
             <p className="text-stone-600">
-              Enter your order number to see real-time status
+              Enter the details from your confirmation email to see real-time status
             </p>
           </div>
 
@@ -178,8 +187,14 @@ const OrderTracking = () => {
                   Track
                 </button>
               </div>
+              {!isAuthenticated && (
+                <div className="mt-4">
+                  <label htmlFor="tracking-email" className="block text-sm font-medium text-stone-600 mb-2">Checkout Email</label>
+                  <input id="tracking-email" type="email" value={emailInput} onChange={event => setEmailInput(event.target.value)} placeholder="you@example.com" autoComplete="email" required className="w-full px-4 py-3 border border-stone-300 rounded-lg focus:outline-none focus:border-amber-500 text-stone-900" />
+                </div>
+              )}
               <p className="text-xs text-stone-400 mt-2">
-                💡 Your order number is in your confirmation email
+                Your order number and checkout email are in your confirmation message.
               </p>
             </form>
 

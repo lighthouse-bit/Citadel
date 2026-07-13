@@ -175,6 +175,7 @@ export default function Checkout() {
   };
 
   const redirectToPayment = async order => {
+    sessionStorage.setItem('citadel_tracking_email', formData.email.trim().toLowerCase());
     const { data } = await paymentsAPI.createArtworkPayment(order.orderId || order.id, checkoutToken);
     if (data.alreadyPaid) {
       localStorage.removeItem(PENDING_KEY);

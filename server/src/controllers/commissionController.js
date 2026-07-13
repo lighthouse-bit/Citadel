@@ -1,5 +1,6 @@
 // server/src/controllers/commissionController.js
 const prisma = require('../config/database');
+const { createCustomerNotification } = require('../services/customerNotificationService');
 const { recordAudit } = require('../utils/auditService');
 
 const COMMISSION_STATUSES = ['PENDING', 'REVIEWING', 'ACCEPTED', 'IN_PROGRESS', 'REVISION', 'COMPLETED', 'CANCELLED'];
@@ -354,14 +355,21 @@ exports.updateCommissionStatus = async (req, res) => {
       });
     }
 
-    if (nextStatus === 'ACCEPTED') {
-      await prisma.notification.create({
-        data: {
-          type:    'COMMISSION',
-          message: `Commission #${commission.commissionNumber} has been accepted. Please pay your deposit to begin.`,
-          link:    `/commission/payment/${commission.id}`,
-        },
-      }).catch(() => {});
+    if (existing.status !== nextStatus) {
+      const messages = {
+        REVIEWING: `Commission #${commission.commissionNumber} is now under review.`,
+        ACCEPTED: `Commission #${commission.commissionNumber} was accepted. Your deposit is ready for payment.`,
+        IN_PROGRESS: `Work has started on commission #${commission.commissionNumber}.`,
+        REVISION: `Commission #${commission.commissionNumber} has a revision update.`,
+        COMPLETED: `Commission #${commission.commissionNumber} is complete.`,
+        CANCELLED: `Commission #${commission.commissionNumber} was cancelled.`,
+      };
+      await createCustomerNotification({
+        customerId: commission.customerId,
+        type: 'COMMISSION',
+        message: messages[nextStatus] || `Commission #${commission.commissionNumber} was updated.`,
+        link: nextStatus === 'ACCEPTED' || (nextStatus === 'COMPLETED' && commission.paymentStatus === 'DEPOSIT_PAID') ? `/commission/payment/${commission.id}` : '/account',
+      }).catch(error => console.error('Customer commission notification error:', error.message));
     }
 
     await recordAudit(req, existing.status === nextStatus ? 'UPDATE_COMMISSION' : 'UPDATE_COMMISSION_STATUS', 'Commission', id, {
@@ -405,6 +413,12 @@ exports.addProgressImage = async (req, res) => {
         commissionId: id,
       },
     });
+
+    const commission = await prisma.commission.findUnique({ where: { id }, select: { customerId: true, commissionNumber: true } });
+    if (commission) {
+      await createCustomerNotification({ customerId: commission.customerId, type: 'COMMISSION', message: `A new progress update was added to commission #${commission.commissionNumber}.`, link: '/account' })
+        .catch(error => console.error('Commission progress notification error:', error.message));
+    }
 
     await recordAudit(req, 'ADD_COMMISSION_PROGRESS', 'Commission', id, {
       description: description || null,

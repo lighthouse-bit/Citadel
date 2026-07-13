@@ -1,6 +1,6 @@
 // client/src/pages/Account.jsx
 import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import {
   Package,
@@ -27,22 +27,27 @@ import {
   BellRing,
   Save,
   UserRoundCog,
+  MessageCircle,
 } from 'lucide-react';
 import { ordersAPI, commissionsAPI, wishlistAPI } from '../services/api';
 import toast from 'react-hot-toast';
 import { useWishlist } from '../hooks/useWishlist';
 import AccountSettings from '../components/AccountSettings';
+import CustomerSupport from '../components/CustomerSupport';
 
 const Account = () => {
   const { user, logout, isAuthenticated, isLoading: authLoading, isVerified } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { artworks: wishlist, isLoading: wishlistLoading, toggleWishlist } = useWishlist();
 
-  const [activeTab, setActiveTab]   = useState('overview');
+  const [activeTab, setActiveTab]   = useState(searchParams.get('tab') || 'overview');
   const [orders, setOrders]         = useState([]);
   const [commissions, setCommissions] = useState([]);
   const [dataLoading, setDataLoading] = useState(false);
   const [searchOrder, setSearchOrder] = useState('');
+  const [orderQuery, setOrderQuery] = useState('');
+  const [orderFilter, setOrderFilter] = useState('ALL');
   const [savingPreferences, setSavingPreferences] = useState(false);
   const [preferences, setPreferences] = useState({
     wishlistAvailabilityAlerts: false,
@@ -58,6 +63,11 @@ const Account = () => {
     }
   }, [isAuthenticated, authLoading, navigate]);
 
+  useEffect(() => {
+    const requestedTab = searchParams.get('tab');
+    if (requestedTab) setActiveTab(requestedTab);
+  }, [searchParams]);
+
   // Fetch user data
   useEffect(() => {
     const fetchData = async () => {
@@ -65,7 +75,7 @@ const Account = () => {
       setDataLoading(true);
       try {
         const [ordersRes, commissionsRes, preferencesRes] = await Promise.all([
-          ordersAPI.getAll({ customerEmail: user.email }),
+          ordersAPI.getAll(),
           commissionsAPI.getAll({ scope: 'user' }),
           wishlistAPI.getPreferences(),
         ]);
@@ -106,6 +116,18 @@ const Account = () => {
     if (searchOrder.trim()) {
       navigate(`/track/${searchOrder.trim()}`);
     }
+  };
+
+  const filteredOrders = orders.filter(order => {
+    const matchesQuery = !orderQuery.trim() || order.orderNumber.toLowerCase().includes(orderQuery.trim().toLowerCase()) || order.items?.some(item => item.title.toLowerCase().includes(orderQuery.trim().toLowerCase()));
+    const matchesFilter = orderFilter === 'ALL' || (orderFilter === 'ACTIVE' ? ['CONFIRMED', 'PROCESSING', 'SHIPPED'].includes(order.status) : order.status === orderFilter);
+    return matchesQuery && matchesFilter;
+  });
+
+  const orderProgress = status => {
+    if (status === 'CANCELLED') return 0;
+    const positions = { PENDING: 0, CONFIRMED: 1, PROCESSING: 2, SHIPPED: 3, DELIVERED: 4, COMPLETED: 4 };
+    return ((positions[status] || 0) / 4) * 100;
   };
 
   const savePreferences = async () => {
@@ -263,6 +285,13 @@ const Account = () => {
                 onClick={() => setActiveTab('preferences')}
                 icon={<BellRing size={18} />}
                 label="Email Alerts"
+              />
+
+              <NavButton
+                active={activeTab === 'support'}
+                onClick={() => { setActiveTab('support'); navigate('/account?tab=support'); }}
+                icon={<MessageCircle size={18} />}
+                label="Support"
               />
 
               <div className="pt-4">
@@ -574,6 +603,8 @@ const Account = () => {
 
                 {activeTab === 'settings' && <AccountSettings />}
 
+                {activeTab === 'support' && <CustomerSupport orders={orders} commissions={commissions} />}
+
                 {/* ==================== TRACK ORDER TAB ==================== */}
                 {activeTab === 'track' && (
                   <div className="space-y-6">
@@ -656,15 +687,11 @@ const Account = () => {
                 {/* ==================== ORDERS TAB ==================== */}
                 {activeTab === 'orders' && (
                   <div className="space-y-6">
-                    <h1
-                      className="text-3xl text-stone-900"
-                      style={{ fontFamily: "'Playfair Display', serif" }}
-                    >
-                      Order History
-                    </h1>
+                    <div><h1 className="text-3xl text-stone-900" style={{ fontFamily: "'Playfair Display', serif" }}>Order History</h1><p className="text-sm text-stone-500 mt-2">Review purchases, payment status and delivery progress.</p></div>
+                    <div className="bg-white border border-stone-200 rounded-xl p-4 flex flex-col sm:flex-row gap-3"><div className="relative flex-1"><Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400"/><input value={orderQuery} onChange={event => setOrderQuery(event.target.value)} placeholder="Search order number or artwork" className="w-full pl-10 pr-4 py-2.5 border border-stone-200 rounded-lg text-sm focus:outline-none focus:border-amber-500"/></div><select value={orderFilter} onChange={event => setOrderFilter(event.target.value)} className="px-4 py-2.5 border border-stone-200 rounded-lg text-sm bg-white"><option value="ALL">All orders</option><option value="ACTIVE">Active deliveries</option><option value="PENDING">Pending payment</option><option value="SHIPPED">Shipped</option><option value="DELIVERED">Delivered</option><option value="CANCELLED">Cancelled</option></select></div>
 
-                    {orders.length > 0 ? (
-                      orders.map(order => (
+                    {filteredOrders.length > 0 ? (
+                      filteredOrders.map(order => (
                         <div
                           key={order.id}
                           className="bg-white rounded-xl border border-stone-200
@@ -700,6 +727,8 @@ const Account = () => {
                               {order.paymentStatus.replace('_', ' ')}
                             </span>
                           </div>
+
+                          {order.status !== 'CANCELLED' && <div className="px-6 py-4 border-b border-stone-100"><div className="flex justify-between text-[11px] text-stone-500 mb-2"><span>Confirmed</span><span>Processing</span><span>Shipped</span><span>Delivered</span></div><div className="h-1.5 bg-stone-100 rounded-full overflow-hidden"><div className="h-full bg-amber-500 rounded-full transition-all" style={{ width: `${orderProgress(order.status)}%` }}/></div></div>}
 
                           {/* Order Items */}
                           <div className="divide-y divide-stone-50">
@@ -847,8 +876,8 @@ const Account = () => {
                     ) : (
                       <EmptyState
                         icon={<Package size={48} className="text-stone-300" />}
-                        title="No orders yet"
-                        description="When you purchase an artwork, it will appear here."
+                        title={orders.length ? 'No matching orders' : 'No orders yet'}
+                        description={orders.length ? 'Try another search or status filter.' : 'When you purchase an artwork, it will appear here.'}
                         actionLabel="Browse Collection"
                         actionLink="/shop"
                       />

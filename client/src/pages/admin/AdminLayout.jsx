@@ -22,6 +22,7 @@ import {
   LineChart,
   HeartPulse,
   Heart,
+  MessageSquare,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { notificationsAPI } from '../../services/api';
@@ -140,6 +141,7 @@ const AdminLayout = () => {
     { path: '/admin/orders',      icon: ShoppingBag,     label: 'Orders'                  },
     { path: '/admin/customers',   icon: Users,           label: 'Customers'               },
     { path: '/admin/commissions', icon: Palette,         label: 'Commissions'             },
+    { path: '/admin/support',     icon: MessageSquare,   label: 'Support'                 },
     { path: '/admin/shipping',    icon: Truck,           label: 'Shipping'                }, // ✅ Added
     { path: '/admin/marketing',   icon: Megaphone,       label: 'Marketing'               },
     { path: '/admin/wishlist-alerts', icon: Heart,       label: 'Wishlist Alerts'          },

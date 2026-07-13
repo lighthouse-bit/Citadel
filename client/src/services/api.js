@@ -120,6 +120,7 @@ export const ordersAPI = {
   exportCsv: () => api.get('/orders/admin/export', { responseType: 'blob' }),
   resendEmail: (id, type) => api.post(`/orders/${id}/resend-email`, { type }),
   cancel: (id, reason) => api.post(`/orders/${id}/cancel`, { reason }),
+  track: (orderNumber, email) => email ? api.post('/orders/track', { orderNumber, email }) : api.get(`/orders/track/${encodeURIComponent(orderNumber)}`),
 };
 
 // ==========================================
@@ -163,6 +164,29 @@ export const notificationsAPI = {
   markAllAsRead: ()   => api.patch('/notifications/read-all'),
   create:        (data) => api.post('/notifications', data),
   delete:        (id) => api.delete(`/notifications/${id}`),
+};
+
+export const customerNotificationsAPI = {
+  getAll:         (params) => api.get('/customer-notifications', { params }),
+  markAsRead:     (id) => api.patch(`/customer-notifications/${id}/read`),
+  markAllAsRead:  () => api.patch('/customer-notifications/read-all'),
+  delete:         (id) => api.delete(`/customer-notifications/${id}`),
+  clearAll:       () => api.delete('/customer-notifications'),
+};
+
+export const supportAPI = {
+  getTickets:      (params) => api.get('/support', { params }),
+  createTicket:    (data) => api.post('/support', data),
+  getTicket:       (id) => api.get(`/support/${id}`),
+  reply:           (id, data) => api.post(`/support/${id}/messages`, data),
+  close:           (id) => api.patch(`/support/${id}/close`),
+};
+
+export const adminSupportAPI = {
+  getTickets: (params) => api.get('/admin/support', { params }),
+  getTicket:  (id) => api.get(`/admin/support/${id}`),
+  update:     (id, data) => api.patch(`/admin/support/${id}`, data),
+  reply:      (id, data) => api.post(`/admin/support/${id}/messages`, data),
 };
 
 export const marketingAPI = {

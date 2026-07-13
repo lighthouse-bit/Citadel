@@ -6,6 +6,7 @@ import { useCart } from '../../hooks/useCart';
 import { useAuth } from '../../hooks/useAuth';
 import { useSettings } from '../../hooks/useSettings'; 
 import { motion, AnimatePresence } from 'framer-motion';
+import CustomerNotificationCenter from './CustomerNotificationCenter';
 
 const Navbar = ({ onOpenAuth }) => {
   const [isOpen, setIsOpen]     = useState(false);
@@ -138,6 +139,7 @@ const Navbar = ({ onOpenAuth }) => {
 
             {/* Right Icons */}
             <div className="flex items-center space-x-2 border-l pl-6 border-white/20">
+              <CustomerNotificationCenter buttonClassName={`p-2 transition-colors duration-300 ${getTextColor()} ${getHoverColor()}`} />
               <button
                 onClick={handleUserClick}
                 className={`p-2 transition-colors duration-300 focus:outline-none 
@@ -223,6 +225,7 @@ const Navbar = ({ onOpenAuth }) => {
               <div className="w-12 h-px bg-stone-200 my-4" />
 
               <div className="flex items-center space-x-8">
+                <CustomerNotificationCenter mobile buttonClassName="text-stone-600 hover:text-amber-700 flex flex-col items-center gap-1" />
                 <button
                   onClick={() => { setIsOpen(false); handleUserClick(); }}
                   aria-label={isAuthenticated ? 'Open account' : 'Sign in'}

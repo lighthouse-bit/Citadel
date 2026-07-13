@@ -6,7 +6,8 @@ const { authenticateAdmin, authenticateUser } = require('../middleware/auth');
 
 
 // ✅ Public tracking — search by order number
-router.get('/track/:orderNumber', orderController.trackOrder);
+router.post('/track', authenticateUser, orderController.trackOrder);
+router.get('/track/:orderNumber', authenticateUser, orderController.trackOrder);
 
 // Create order (guest or logged-in user)
 router.post('/', authenticateUser, orderController.createOrder);

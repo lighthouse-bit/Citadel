@@ -7,6 +7,7 @@ const https = require('https');
 const crypto = require('crypto');
 const { recordOperationalEvent } = require('../utils/operationalEvents');
 const { verifyPaystackSignature } = require('../utils/paymentSecurity');
+const { createCustomerNotification } = require('../services/customerNotificationService');
 
 const {
   sendOrderInvoiceEmail,
@@ -25,6 +26,24 @@ const removePurchasedItemsFromCart = async orderId => {
     await prisma.cartItem.deleteMany({ where: { customerId: order.customerId, artworkId: { in: order.items.map(item => item.artworkId) } } });
   } catch (error) {
     await recordOperationalEvent('CART_PURCHASE_CLEANUP_FAILURE', error.message, { orderId });
+  }
+};
+
+const notifyOrderPayment = async orderId => {
+  try {
+    const order = await prisma.order.findUnique({ where: { id: orderId }, select: { customerId: true, orderNumber: true } });
+    if (order) await createCustomerNotification({ customerId: order.customerId, type: 'PAYMENT', message: `Payment confirmed for order #${order.orderNumber}.`, link: `/track/${order.orderNumber}`, dedupeMinutes: 60 });
+  } catch (error) {
+    console.error('Order payment notification error:', error.message);
+  }
+};
+
+const notifyCommissionPayment = async commissionId => {
+  try {
+    const commission = await prisma.commission.findUnique({ where: { id: commissionId }, select: { customerId: true, commissionNumber: true } });
+    if (commission) await createCustomerNotification({ customerId: commission.customerId, type: 'PAYMENT', message: `Payment confirmed for commission #${commission.commissionNumber}.`, link: '/account', dedupeMinutes: 60 });
+  } catch (error) {
+    console.error('Commission payment notification error:', error.message);
   }
 };
 
@@ -129,6 +148,7 @@ router.get('/callback', async (req, res) => {
         },
       });
       await removePurchasedItemsFromCart(metadata.orderId);
+      await notifyOrderPayment(metadata.orderId);
 
       // Create notification
       await prisma.notification.create({
@@ -148,6 +168,8 @@ router.get('/callback', async (req, res) => {
           status: 'IN_PROGRESS',
         },
       });
+
+      await notifyCommissionPayment(metadata.commissionId);
 
       await prisma.notification.create({
         data: {
@@ -196,6 +218,7 @@ router.post('/webhook', async (req, res) => {
           },
         });
         await removePurchasedItemsFromCart(metadata.orderId);
+        await notifyOrderPayment(metadata.orderId);
       } else if (metadata.paymentType === 'commission_deposit' && metadata.commissionId) {
         await prisma.commission.update({
           where: { id: metadata.commissionId },
@@ -205,6 +228,7 @@ router.post('/webhook', async (req, res) => {
             status: 'IN_PROGRESS',
           },
         });
+        await notifyCommissionPayment(metadata.commissionId);
       }
     }
 
@@ -362,6 +386,8 @@ router.post('/verify', async (req, res) => {
         },
       });
 
+      await notifyCommissionPayment(commissionId);
+
       try {
         await sendCommissionDepositInvoiceEmail({
           customerEmail: commission.customer.email,
@@ -388,6 +414,7 @@ router.post('/verify', async (req, res) => {
 
       if (order.paymentStatus === 'FULLY_PAID') {
         await removePurchasedItemsFromCart(orderId);
+        await notifyOrderPayment(orderId);
         return res.json({ success: true, type: 'artwork', alreadyVerified: true, order });
       }
 
@@ -405,6 +432,7 @@ router.post('/verify', async (req, res) => {
         },
       });
       await removePurchasedItemsFromCart(orderId);
+      await notifyOrderPayment(orderId);
 
       try {
         await sendOrderInvoiceEmail({

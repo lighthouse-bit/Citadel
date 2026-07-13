@@ -16,12 +16,13 @@ exports.createNotification = async (req, res) => {
 exports.getNotifications = async (req, res) => {
   try {
     const notifications = await prisma.notification.findMany({
+      where: { customerId: null },
       orderBy: { createdAt: 'desc' },
       take: 30,
     });
 
     const unreadCount = await prisma.notification.count({
-      where: { isRead: false }
+      where: { customerId: null, isRead: false }
     });
 
     res.json({ 
@@ -37,10 +38,11 @@ exports.getNotifications = async (req, res) => {
 exports.markAsRead = async (req, res) => {
   try {
     const { id } = req.params;
-    await prisma.notification.update({
-      where: { id },
+    const result = await prisma.notification.updateMany({
+      where: { id, customerId: null },
       data: { isRead: true }
     });
+    if (!result.count) return res.status(404).json({ error: 'Notification not found' });
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Failed to mark as read' });
@@ -50,7 +52,7 @@ exports.markAsRead = async (req, res) => {
 exports.markAllAsRead = async (req, res) => {
   try {
     await prisma.notification.updateMany({
-      where: { isRead: false },
+      where: { customerId: null, isRead: false },
       data: { isRead: true }
     });
     res.json({ success: true });
@@ -62,7 +64,8 @@ exports.markAllAsRead = async (req, res) => {
 exports.deleteNotification = async (req, res) => {
   try {
     const { id } = req.params;
-    await prisma.notification.delete({ where: { id } });
+    const result = await prisma.notification.deleteMany({ where: { id, customerId: null } });
+    if (!result.count) return res.status(404).json({ error: 'Notification not found' });
     await recordAudit(req, 'DELETE_NOTIFICATION', 'Notification', id);
     res.json({ success: true });
   } catch (error) {

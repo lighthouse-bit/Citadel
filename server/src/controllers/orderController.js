@@ -1,5 +1,6 @@
 // server/src/controllers/orderController.js
 const prisma = require('../config/database');
+const { createCustomerNotification } = require('../services/customerNotificationService');
 const {
   sendOrderInvoiceEmail,
   sendOrderShippedEmail,
@@ -9,6 +10,18 @@ const { registerTracking } = require('../utils/trackingService');
 const { recordAudit } = require('../utils/auditService');
 const { calculatePromotionDiscount } = require('../utils/commerceMath');
 const { calculateShipping } = require('../utils/shippingCalculator');
+const jwt = require('jsonwebtoken');
+
+const customerOrderSelect = { id: true, email: true, firstName: true, lastName: true };
+const orderDetailInclude = {
+  customer: { select: customerOrderSelect },
+  items: { include: { artwork: { include: { images: true } } } },
+  shippingAddress: true,
+};
+const sanitizeCustomerOrder = order => {
+  const { internalNotes, stripePaymentIntentId, checkoutToken, ...safeOrder } = order;
+  return safeOrder;
+};
 
 // ─────────────────────────────────────────────────────────
 // Create order (Public/User)
@@ -204,7 +217,7 @@ exports.getAllOrders = async (req, res) => {
     if (req.user?.role !== 'admin') where.customerId = req.user?.id || '__anonymous__';
     if (status)        where.status   = status.toUpperCase();
     if (paymentStatus) where.paymentStatus = paymentStatus.toUpperCase();
-    if (customerEmail) where.customer = { email: customerEmail };
+    if (customerEmail && req.user?.role === 'admin') where.customer = { email: customerEmail };
     if (dateFrom || dateTo) where.createdAt = { ...(dateFrom && { gte: new Date(dateFrom) }), ...(dateTo && { lte: new Date(`${dateTo}T23:59:59.999Z`) }) };
     if (stalled === 'true') { where.updatedAt = { lt: new Date(Date.now() - 3 * 86400000) }; where.status = { in: ['PENDING', 'CONFIRMED', 'PROCESSING'] }; }
     if (search) where.OR = [
@@ -220,13 +233,7 @@ exports.getAllOrders = async (req, res) => {
     const [orders, total] = await Promise.all([
       prisma.order.findMany({
         where,
-        include: {
-          customer: true,
-          items: {
-            include: { artwork: { include: { images: true } } },
-          },
-          shippingAddress: true,
-        },
+        include: orderDetailInclude,
         orderBy: { createdAt: 'desc' },
         skip,
         take: parseInt(limit),
@@ -235,7 +242,7 @@ exports.getAllOrders = async (req, res) => {
     ]);
 
     res.json({
-      orders: orders.map(order => ({ ...order, isStalled: ['PENDING','CONFIRMED','PROCESSING'].includes(order.status) && Date.now() - new Date(order.updatedAt).getTime() > 3 * 86400000 })),
+      orders: orders.map(order => ({ ...(req.user?.role === 'admin' ? order : sanitizeCustomerOrder(order)), isStalled: ['PENDING','CONFIRMED','PROCESSING'].includes(order.status) && Date.now() - new Date(order.updatedAt).getTime() > 3 * 86400000 })),
       pagination: {
         page:  parseInt(page),
         limit: parseInt(limit),
@@ -261,17 +268,26 @@ exports.getOrderById = async (req, res) => {
     const order = await prisma.order.findUnique({
       where: { id },
       include: {
-        customer: true,
-        items: {
-          include: { artwork: { include: { images: true } } },
-        },
-        shippingAddress: true,
+        ...orderDetailInclude,
         events: { include: { admin: { select: { name: true } } }, orderBy: { createdAt: 'desc' } },
       },
     });
 
     if (!order) {
       return res.status(404).json({ error: 'Order not found' });
+    }
+
+    if (!req.user) return res.status(401).json({ error: 'Authentication required' });
+    if (req.user.role !== 'admin' && order.customerId !== req.user.id) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    if (req.user.role !== 'admin') {
+      Object.assign(order, sanitizeCustomerOrder(order));
+      delete order.internalNotes;
+      delete order.checkoutToken;
+      delete order.stripePaymentIntentId;
+      order.events = order.events.map(({ admin, ...event }) => event);
     }
 
     res.json(order);
@@ -288,13 +304,18 @@ exports.getOrderById = async (req, res) => {
 // ─────────────────────────────────────────────────────────
 exports.trackOrder = async (req, res) => {
   try {
-    const { orderNumber } = req.params;
+    const orderNumber = req.params.orderNumber || req.body.orderNumber;
+    const email = String(req.body.email || req.query.email || '').trim().toLowerCase();
+
+    if (!orderNumber) return res.status(400).json({ error: 'Order number is required' });
 
     const order = await prisma.order.findUnique({
       where: { orderNumber },
       include: {
         customer: {
           select: {
+            id: true,
+            email: true,
             firstName: true,
             lastName:  true,
           },
@@ -310,11 +331,25 @@ exports.trackOrder = async (req, res) => {
       return res.status(404).json({ error: 'Order not found' });
     }
 
-    // Don't expose sensitive info
+    const isAdmin = req.user?.role === 'admin';
+    const isOwner = req.user?.role === 'customer' && req.user.id === order.customerId;
+    const emailMatches = email && email === order.customer.email.toLowerCase();
+    if (!isAdmin && !isOwner && !emailMatches) {
+      return res.status(404).json({ error: 'Order number or email did not match' });
+    }
+
+    const trackingAccessToken = !isAdmin && !isOwner && process.env.JWT_SECRET
+      ? jwt.sign({ orderId: order.id, purpose: 'tracking' }, process.env.JWT_SECRET, { expiresIn: '30m' })
+      : null;
     delete order.internalNotes;
     delete order.stripePaymentIntentId;
+    delete order.checkoutToken;
+    delete order.customerId;
+    if (order.shippingAddress) delete order.shippingAddress.customerId;
+    delete order.customer.email;
+    delete order.customer.id;
 
-    res.json(order);
+    res.json({ ...order, trackingAccessToken });
   } catch (error) {
     console.error('Track order error:', error);
     res.status(500).json({ error: 'Failed to track order' });
@@ -413,6 +448,19 @@ exports.updateOrderStatus = async (req, res) => {
 
     // Admin notification
     if (status) {
+      const customerStatusMessages = {
+        CONFIRMED: `Your order #${order.orderNumber} has been confirmed.`,
+        PROCESSING: `Your order #${order.orderNumber} is being prepared.`,
+        SHIPPED: `Your order #${order.orderNumber} is on its way.`,
+        DELIVERED: `Your order #${order.orderNumber} has been delivered.`,
+        CANCELLED: `Your order #${order.orderNumber} was cancelled.`,
+      };
+      const customerMessage = customerStatusMessages[status.toUpperCase()];
+      if (customerMessage) {
+        await createCustomerNotification({ customerId: order.customerId, type: 'ORDER', message: customerMessage, link: `/track/${order.orderNumber}` })
+          .catch(error => console.error('Customer order notification error:', error.message));
+      }
+
       const statusMessages = {
         CONFIRMED:  `✅ Order #${order.orderNumber} confirmed`,
         PROCESSING: `⚙️ Order #${order.orderNumber} is being processed`,
@@ -500,6 +548,9 @@ exports.confirmOrderPayment = async (req, res) => {
         link:    `/admin/orders/${order.id}`,
       },
     }).catch(() => {});
+
+    await createCustomerNotification({ customerId: order.customerId, type: 'PAYMENT', message: `Payment confirmed for order #${order.orderNumber}.`, link: `/track/${order.orderNumber}`, dedupeMinutes: 60 })
+      .catch(error => console.error('Customer payment notification error:', error.message));
 
     // Send invoice email
     if (order.customer?.email) {

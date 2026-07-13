@@ -56,6 +56,7 @@ const Reports = lazy(() => import('./pages/admin/Reports'));
 const SystemHealth = lazy(() => import('./pages/admin/SystemHealth'));
 const AdminResetPassword = lazy(() => import('./pages/admin/AdminResetPassword'));
 const WishlistAlerts = lazy(() => import('./pages/admin/WishlistAlerts'));
+const Support = lazy(() => import('./pages/admin/Support'));
 
 const queryClient = new QueryClient();
 
@@ -151,6 +152,8 @@ function App() {
                       <Route path="audit-log" element={<AuditLog />} />
                       <Route path="marketing" element={<Marketing />} />
                       <Route path="wishlist-alerts" element={<WishlistAlerts />} />
+                      <Route path="support" element={<Support />} />
+                      <Route path="support/:id" element={<Support />} />
                       <Route path="reports" element={<Reports />} />
                       <Route path="system" element={<SystemHealth />} />
                     </Route>
