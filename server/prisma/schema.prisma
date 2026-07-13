@@ -84,6 +84,8 @@ model Artwork {
   orderItems     OrderItem[]
   wishlistItems  WishlistItem[]
   wishlistAlerts WishlistAlert[]
+  cartItems      CartItem[]
+  customerViews  CustomerArtworkView[]
 
   @@index([status])
   @@index([category])
@@ -145,6 +147,7 @@ model Customer {
   newArtworkAlerts           Boolean   @default(false)
   marketingEmails            Boolean   @default(false)
   emailPreferencesUpdatedAt  DateTime?
+  passwordChangedAt          DateTime?
   createdAt                  DateTime  @default(now())
   updatedAt                  DateTime  @updatedAt
 
@@ -155,6 +158,8 @@ model Customer {
   notifications  Notification[] // ✅ Added reverse relation
   wishlistItems  WishlistItem[]
   wishlistAlerts WishlistAlert[]
+  cartItems      CartItem[]
+  artworkViews   CustomerArtworkView[]
 
   @@index([email])
 }
@@ -170,6 +175,35 @@ model WishlistItem {
 
   @@unique([customerId, artworkId])
   @@index([customerId, createdAt])
+  @@index([artworkId])
+}
+
+model CartItem {
+  id         String   @id @default(uuid())
+  customerId String
+  artworkId  String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  artwork  Artwork  @relation(fields: [artworkId], references: [id], onDelete: Cascade)
+
+  @@unique([customerId, artworkId])
+  @@index([customerId, createdAt])
+  @@index([artworkId])
+}
+
+model CustomerArtworkView {
+  id         String   @id @default(uuid())
+  customerId String
+  artworkId  String
+  viewedAt   DateTime @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  artwork  Artwork  @relation(fields: [artworkId], references: [id], onDelete: Cascade)
+
+  @@unique([customerId, artworkId])
+  @@index([customerId, viewedAt])
   @@index([artworkId])
 }
 
@@ -197,7 +231,7 @@ model WishlistAlert {
 }
 
 model Address {
-  id         String  @id @default(uuid())
+  id         String   @id @default(uuid())
   label      String?
   line1      String
   line2      String?
@@ -205,8 +239,10 @@ model Address {
   state      String?
   postalCode String
   country    String
-  isDefault  Boolean @default(false)
+  isDefault  Boolean  @default(false)
   customerId String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   // Relations
   customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
@@ -227,6 +263,7 @@ model Order {
   status                OrderStatus   @default(PENDING)
   paymentStatus         PaymentStatus @default(UNPAID)
   stripePaymentIntentId String?       @unique
+  checkoutToken         String?       @unique
   shippingMethod        String?
   trackingNumber        String?
   shippedAt             DateTime?
@@ -247,7 +284,7 @@ model Order {
 
   // Relations
   customer        Customer     @relation(fields: [customerId], references: [id])
-  shippingAddress Address?     @relation(fields: [shippingAddressId], references: [id])
+  shippingAddress Address?     @relation(fields: [shippingAddressId], references: [id], onDelete: SetNull)
   items           OrderItem[]
   events          OrderEvent[]
 

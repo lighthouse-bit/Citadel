@@ -18,6 +18,16 @@ const { authenticateUser } = require('../middleware/auth');
 const PAYSTACK_SECRET = process.env.PAYSTACK_SECRET_KEY;
 const USD_TO_NGN = 1600;
 
+const removePurchasedItemsFromCart = async orderId => {
+  try {
+    const order = await prisma.order.findUnique({ where: { id: orderId }, select: { customerId: true, items: { select: { artworkId: true } } } });
+    if (!order) return;
+    await prisma.cartItem.deleteMany({ where: { customerId: order.customerId, artworkId: { in: order.items.map(item => item.artworkId) } } });
+  } catch (error) {
+    await recordOperationalEvent('CART_PURCHASE_CLEANUP_FAILURE', error.message, { orderId });
+  }
+};
+
 // ─────────────────────────────────────────────
 // PAYSTACK INIT HELPER
 // ─────────────────────────────────────────────
@@ -118,6 +128,7 @@ router.get('/callback', async (req, res) => {
           status: 'CONFIRMED',
         },
       });
+      await removePurchasedItemsFromCart(metadata.orderId);
 
       // Create notification
       await prisma.notification.create({
@@ -184,6 +195,7 @@ router.post('/webhook', async (req, res) => {
             status: 'CONFIRMED',
           },
         });
+        await removePurchasedItemsFromCart(metadata.orderId);
       } else if (metadata.paymentType === 'commission_deposit' && metadata.commissionId) {
         await prisma.commission.update({
           where: { id: metadata.commissionId },
@@ -209,7 +221,9 @@ router.post('/webhook', async (req, res) => {
 // ─────────────────────────────────────────────
 router.post('/artwork-payment', authenticateUser, async (req, res) => {
   try {
-    const { orderId } = req.body;
+    const { orderId, checkoutToken } = req.body;
+
+    if (!PAYSTACK_SECRET) return res.status(503).json({ error: 'Payment service is not configured' });
 
     const order = await prisma.order.findUnique({
       where: { id: orderId },
@@ -217,6 +231,11 @@ router.post('/artwork-payment', authenticateUser, async (req, res) => {
     });
 
     if (!order) return res.status(404).json({ error: 'Order not found' });
+    const ownsOrder = req.user?.role === 'customer' && req.user.id === order.customerId;
+    const hasCheckoutToken = typeof checkoutToken === 'string' && checkoutToken === order.checkoutToken;
+    if (!ownsOrder && !hasCheckoutToken) return res.status(403).json({ error: 'This checkout session is not authorized' });
+    if (order.paymentStatus === 'FULLY_PAID') return res.json({ alreadyPaid: true, order });
+    if (order.status !== 'PENDING') return res.status(409).json({ error: 'This order is not available for payment' });
 
     const usdAmount = parseFloat(order.total);
     const ngnAmount = usdAmount * USD_TO_NGN;
@@ -230,7 +249,7 @@ router.post('/artwork-payment', authenticateUser, async (req, res) => {
       callback_url: `${process.env.CLIENT_URL}/checkout`,
     });
 
-    if (!paystackData.status) return res.status(500).json(paystackData);
+    if (!paystackData.status || !paystackData.data?.authorization_url) return res.status(502).json({ error: paystackData.message || 'Payment provider could not start the transaction' });
 
     await prisma.order.update({
       where: { id: orderId },
@@ -242,6 +261,7 @@ router.post('/artwork-payment', authenticateUser, async (req, res) => {
       reference: paystackData.data.reference,
       total: usdAmount,
       currency: 'USD',
+      orderNumber: order.orderNumber,
     });
   } catch (err) {
     console.error('ARTWORK PAYMENT ERROR:', err);
@@ -361,13 +381,20 @@ router.post('/verify', async (req, res) => {
       const orderId = metadata.orderId;
       const order = await prisma.order.findUnique({
         where: { id: orderId },
-        include: { customer: true },
+        include: { customer: true, shippingAddress: true, items: true },
       });
 
       if (!order) return res.status(404).json({ success: false, error: 'Order not found' });
 
       if (order.paymentStatus === 'FULLY_PAID') {
-        return res.json({ success: true, type: 'artwork', alreadyVerified: true });
+        await removePurchasedItemsFromCart(orderId);
+        return res.json({ success: true, type: 'artwork', alreadyVerified: true, order });
+      }
+
+      const expectedAmount = Math.round(Number(order.total) * USD_TO_NGN * 100);
+      if (order.stripePaymentIntentId !== reference || Number(paymentData.amount) !== expectedAmount || paymentData.currency !== 'NGN') {
+        await recordOperationalEvent('PAYMENT_VERIFICATION_MISMATCH', 'Paystack payment did not match the order', { orderId, reference, expectedAmount, receivedAmount: paymentData.amount, currency: paymentData.currency }, 'WARNING');
+        return res.status(400).json({ success: false, error: 'Payment details do not match this order' });
       }
 
       const updatedOrder = await prisma.order.update({
@@ -377,6 +404,7 @@ router.post('/verify', async (req, res) => {
           status: 'CONFIRMED',
         },
       });
+      await removePurchasedItemsFromCart(orderId);
 
       try {
         await sendOrderInvoiceEmail({
@@ -390,7 +418,7 @@ router.post('/verify', async (req, res) => {
         console.error('EMAIL ERROR:', emailErr);
       }
 
-      return res.json({ success: true, type: 'artwork', order: updatedOrder });
+      return res.json({ success: true, type: 'artwork', order: { ...order, ...updatedOrder } });
     }
 
     return res.status(400).json({ success: false, error: 'Unknown payment type' });

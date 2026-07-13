@@ -2,12 +2,15 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Filter, Grid, LayoutGrid, ShoppingBag, Search, X, Heart } from 'lucide-react';
+import { Filter, Grid, LayoutGrid, ShoppingBag, Search, X, Heart, SlidersHorizontal } from 'lucide-react';
 import { useCart } from '../hooks/useCart';
 import { artworksAPI } from '../services/api';
 import toast from 'react-hot-toast';
 import SEO from '../components/common/SEO';
 import { useWishlist } from '../hooks/useWishlist';
+import { useAuth } from '../hooks/useAuth';
+import ArtworkRecommendations from '../components/ArtworkRecommendations';
+import { getGuestRecentlyViewed } from '../utils/recentlyViewed';
 
 const ArtworkImage = ({ src, alt, className }) => {
   const FALLBACK = "https://images.unsplash.com/photo-1547891654-e66ed7ebb968?w=800&h=1000&fit=crop";
@@ -23,18 +26,36 @@ const ArtworkImage = ({ src, alt, className }) => {
   );
 };
 
+const filterInputClass = 'w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm focus:outline-none focus:border-amber-500';
+
 const Shop = () => {
   const { addToCart, isInCart } = useCart();
   const { isWishlisted, toggleWishlist } = useWishlist();
+  const { isAuthenticated } = useAuth();
   const [artworks, setArtworks] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [viewMode, setViewMode] = useState('grid');
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [facets, setFacets] = useState({ mediums: [], price: {}, years: {} });
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [recommendations, setRecommendations] = useState([]);
+  const [recentlyViewed, setRecentlyViewed] = useState([]);
   const [filters, setFilters] = useState({
     category: '',
     sort: 'createdAt',
     order: 'desc',
     search: '',
     status: 'AVAILABLE', // KEY DIFFERENCE: Only available works
+    medium: '',
+    minPrice: '',
+    maxPrice: '',
+    minYear: '',
+    maxYear: '',
+    minWidth: '',
+    maxWidth: '',
+    minHeight: '',
+    maxHeight: '',
   });
   const [pagination, setPagination] = useState({
     page: 1,
@@ -58,7 +79,24 @@ const Shop = () => {
     { value: 'price-asc', label: 'Price: Low to High' },
     { value: 'price-desc', label: 'Price: High to Low' },
     { value: 'title-asc', label: 'Title: A-Z' },
+    { value: 'popular-desc', label: 'Most Popular' },
+    { value: 'wishlisted-desc', label: 'Most Wishlisted' },
   ];
+
+  useEffect(() => {
+    Promise.all([artworksAPI.getFacets(), artworksAPI.getRecommendations()]).then(([facetResponse, recommendationResponse]) => {
+      setFacets(facetResponse.data);
+      setRecommendations(recommendationResponse.data.artworks || []);
+    }).catch(() => {});
+    if (isAuthenticated) artworksAPI.getRecentlyViewed().then(response => setRecentlyViewed(response.data || [])).catch(() => setRecentlyViewed(getGuestRecentlyViewed()));
+    else setRecentlyViewed(getGuestRecentlyViewed());
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (filters.search.trim().length < 2) { setSuggestions([]); return undefined; }
+    const timer = setTimeout(() => artworksAPI.getSuggestions(filters.search).then(response => setSuggestions(response.data || [])).catch(() => setSuggestions([])), 180);
+    return () => clearTimeout(timer);
+  }, [filters.search]);
 
   useEffect(() => {
     const fetchArtworks = async () => {
@@ -136,6 +174,11 @@ const Shop = () => {
         </div>
       </section>
 
+      {(recommendations.length > 0 || recentlyViewed.length > 0) && <div className="max-w-7xl mx-auto px-6">
+        <ArtworkRecommendations title={isAuthenticated ? 'Selected for You' : 'Collector Favorites'} subtitle={isAuthenticated ? 'Based on the artwork you view, save and collect.' : 'Popular original works from the collection.'} artworks={recommendations} />
+        <ArtworkRecommendations title="Recently Viewed" subtitle="Continue exploring pieces that caught your attention." artworks={recentlyViewed} />
+      </div>}
+
       {/* Filter Bar */}
       <section className="sticky top-20 z-40 bg-white/95 backdrop-blur-md border-b border-stone-200 shadow-sm">
         <div className="max-w-7xl mx-auto px-6 py-4">
@@ -151,6 +194,8 @@ const Shop = () => {
                   placeholder="Search collection..."
                   value={filters.search}
                   onChange={(e) => handleFilterChange('search', e.target.value)}
+                  onFocus={() => setShowSuggestions(true)}
+                  onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
                   className="w-full sm:w-64 pl-10 pr-4 py-2 bg-stone-50 border border-stone-200 rounded-lg
                            text-sm focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500
                            placeholder-stone-400 text-stone-800"
@@ -163,6 +208,7 @@ const Shop = () => {
                     <X size={14} />
                   </button>
                 )}
+                {showSuggestions && suggestions.length > 0 && <div className="absolute top-full left-0 right-0 sm:w-96 mt-2 bg-white border border-stone-200 rounded-xl shadow-xl overflow-hidden z-50">{suggestions.map(item => <Link key={item.id} to={`/artwork/${item.id}`} className="flex items-center gap-3 p-3 hover:bg-stone-50"><img src={item.images?.[0]?.url} alt="" className="w-10 h-10 rounded object-cover bg-stone-100"/><span className="min-w-0"><b className="text-sm block truncate">{item.title}</b><span className="text-xs text-stone-500">{item.medium || item.category?.toLowerCase().replaceAll('_', ' ')}</span></span></Link>)}</div>}
               </div>
 
               {/* Category */}
@@ -191,6 +237,7 @@ const Shop = () => {
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
               </select>
+              <button onClick={() => setShowAdvanced(previous => !previous)} className={`inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg border text-sm ${showAdvanced ? 'bg-amber-50 border-amber-300 text-amber-800' : 'bg-stone-50 border-stone-200 text-stone-700'}`}><SlidersHorizontal size={16}/> More filters</button>
             </div>
 
             {/* Right: Count & View Toggle */}
@@ -219,6 +266,18 @@ const Shop = () => {
               </div>
             </div>
           </div>
+          {showAdvanced && <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 mt-4 pt-4 border-t border-stone-100">
+            <select value={filters.medium} onChange={event => handleFilterChange('medium', event.target.value)} className={filterInputClass}><option value="">All media</option>{facets.mediums.map(medium => <option key={medium} value={medium}>{medium}</option>)}</select>
+            <input type="number" min="0" placeholder={`Min $${facets.price.min || 0}`} value={filters.minPrice} onChange={event => handleFilterChange('minPrice', event.target.value)} className={filterInputClass}/>
+            <input type="number" min="0" placeholder={`Max $${facets.price.max || ''}`} value={filters.maxPrice} onChange={event => handleFilterChange('maxPrice', event.target.value)} className={filterInputClass}/>
+            <input type="number" placeholder={`From ${facets.years.min || 'year'}`} value={filters.minYear} onChange={event => handleFilterChange('minYear', event.target.value)} className={filterInputClass}/>
+            <input type="number" placeholder={`To ${facets.years.max || 'year'}`} value={filters.maxYear} onChange={event => handleFilterChange('maxYear', event.target.value)} className={filterInputClass}/>
+            <input type="number" min="0" placeholder="Min width" value={filters.minWidth} onChange={event => handleFilterChange('minWidth', event.target.value)} className={filterInputClass}/>
+            <input type="number" min="0" placeholder="Max width" value={filters.maxWidth} onChange={event => handleFilterChange('maxWidth', event.target.value)} className={filterInputClass}/>
+            <input type="number" min="0" placeholder="Min height" value={filters.minHeight} onChange={event => handleFilterChange('minHeight', event.target.value)} className={filterInputClass}/>
+            <input type="number" min="0" placeholder="Max height" value={filters.maxHeight} onChange={event => handleFilterChange('maxHeight', event.target.value)} className={filterInputClass}/>
+            <button onClick={() => { setFilters(previous => ({ ...previous, medium: '', minPrice: '', maxPrice: '', minYear: '', maxYear: '', minWidth: '', maxWidth: '', minHeight: '', maxHeight: '' })); setPagination(previous => ({ ...previous, page: 1 })); }} className="text-sm text-red-600 px-3">Clear details</button>
+          </div>}
         </div>
       </section>
 

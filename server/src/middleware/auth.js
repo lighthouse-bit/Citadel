@@ -38,7 +38,7 @@ exports.authenticateAdmin = async (req, res, next) => {
   }
 };
 
-exports.authenticateUser = (req, res, next) => {
+exports.authenticateUser = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
     
@@ -51,6 +51,13 @@ exports.authenticateUser = (req, res, next) => {
     
     try {
       const decoded = verifyToken(token);
+      if (decoded.role === 'customer') {
+        const customer = await prisma.customer.findUnique({ where: { id: decoded.id }, select: { isSuspended: true, passwordChangedAt: true } });
+        if (!customer || customer.isSuspended || (customer.passwordChangedAt?.getTime() || 0) > (decoded.passwordChangedAt || 0)) {
+          req.user = null;
+          return next();
+        }
+      }
       req.user = decoded;
     } catch {
       req.user = null;
@@ -75,10 +82,11 @@ exports.authenticateCustomer = async (req, res, next) => {
     }
     const customer = await prisma.customer.findUnique({
       where: { id: decoded.id },
-      select: { id: true, isSuspended: true },
+      select: { id: true, isSuspended: true, passwordChangedAt: true },
     });
     if (!customer) return res.status(401).json({ error: 'Customer account no longer exists' });
     if (customer.isSuspended) return res.status(403).json({ error: 'Customer account is suspended' });
+    if ((customer.passwordChangedAt?.getTime() || 0) > (decoded.passwordChangedAt || 0)) return res.status(401).json({ error: 'Session expired after password change' });
     req.user = decoded;
     return next();
   } catch {

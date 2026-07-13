@@ -2,7 +2,8 @@
 const express = require('express');
 const router = express.Router();
 const prisma = require('../config/database');
-const { authenticateAdmin, authenticateUser } = require('../middleware/auth');
+const { authenticateAdmin, authenticateCustomer, authenticateUser } = require('../middleware/auth');
+const discoveryController = require('../controllers/discoveryController');
 const { deleteFromCloudinary } = require('../services/imageService');
 const { recordAudit } = require('../utils/auditService');
 const { previewWishlistAlertAudience, sendSimilarArtworkAlerts, sendWishlistChangeAlerts } = require('../services/wishlistAlertService');
@@ -19,6 +20,15 @@ router.get('/', authenticateUser, async (req, res) => {
       sort     = 'createdAt',
       order    = 'desc',
       search,
+      medium,
+      minPrice,
+      maxPrice,
+      minYear,
+      maxYear,
+      minWidth,
+      maxWidth,
+      minHeight,
+      maxHeight,
     } = req.query;
 
     const safePage = Math.max(parseInt(page, 10) || 1, 1);
@@ -31,13 +41,37 @@ router.get('/', authenticateUser, async (req, res) => {
     else if (status) where.status = { equals: status.toUpperCase(), notIn: ['DRAFT', 'ARCHIVED'] };
     else if (req.user?.role !== 'admin') where.status = { notIn: ['DRAFT', 'ARCHIVED'] };
     if (featured === 'true') where.featured = true;
+    if (medium) where.medium = { contains: String(medium).slice(0, 100), mode: 'insensitive' };
+
+    const numericRange = (minimum, maximum) => ({
+      ...(Number.isFinite(Number(minimum)) && minimum !== '' && { gte: Number(minimum) }),
+      ...(Number.isFinite(Number(maximum)) && maximum !== '' && { lte: Number(maximum) }),
+    });
+    const priceRange = numericRange(minPrice, maxPrice);
+    const yearRange = numericRange(minYear, maxYear);
+    const widthRange = numericRange(minWidth, maxWidth);
+    const heightRange = numericRange(minHeight, maxHeight);
+    if (Object.keys(priceRange).length) where.price = priceRange;
+    if (Object.keys(yearRange).length) where.year = yearRange;
+    if (Object.keys(widthRange).length) where.width = widthRange;
+    if (Object.keys(heightRange).length) where.height = heightRange;
 
     if (search) {
+      const safeSearch = String(search).trim().slice(0, 100);
       where.OR = [
-        { title:       { contains: search, mode: 'insensitive' } },
-        { description: { contains: search, mode: 'insensitive' } },
+        { title:       { contains: safeSearch, mode: 'insensitive' } },
+        { description: { contains: safeSearch, mode: 'insensitive' } },
+        { medium: { contains: safeSearch, mode: 'insensitive' } },
+        { tags: { some: { tag: { name: { contains: safeSearch, mode: 'insensitive' } } } } },
       ];
     }
+
+    const direction = order === 'asc' ? 'asc' : 'desc';
+    const orderBy = sort === 'popular'
+      ? [{ wishlistItems: { _count: 'desc' } }, { orderItems: { _count: 'desc' } }, { createdAt: 'desc' }]
+      : sort === 'wishlisted'
+        ? [{ wishlistItems: { _count: 'desc' } }, { createdAt: 'desc' }]
+        : { [['createdAt', 'price', 'title', 'updatedAt', 'year'].includes(sort) ? sort : 'createdAt']: direction };
 
     const [artworks, total] = await Promise.all([
       prisma.artwork.findMany({
@@ -47,7 +81,7 @@ router.get('/', authenticateUser, async (req, res) => {
           tags: { include: { tag: true } },
           _count: { select: { orderItems: true, wishlistItems: true } },
         },
-        orderBy: { [['createdAt', 'price', 'title', 'updatedAt'].includes(sort) ? sort : 'createdAt']: order === 'asc' ? 'asc' : 'desc' },
+        orderBy,
         skip,
         take: safeLimit,
       }),
@@ -93,6 +127,13 @@ router.get('/featured', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch featured artworks' });
   }
 });
+
+router.get('/facets', discoveryController.getFacets);
+router.get('/suggestions', discoveryController.getSuggestions);
+router.get('/recommendations', authenticateUser, discoveryController.getRecommendations);
+router.get('/recently-viewed', authenticateCustomer, discoveryController.getRecentlyViewed);
+router.get('/:id/related', discoveryController.getRelated);
+router.post('/:id/view', authenticateUser, discoveryController.recordView);
 
 router.get('/admin/stats', authenticateAdmin, async (req, res) => {
   try {
@@ -173,6 +214,8 @@ router.get('/:id', async (req, res) => {
       where:   { id },
       include: {
         images: { orderBy: { order: 'asc' } },
+        tags: { include: { tag: true } },
+        _count: { select: { orderItems: true, wishlistItems: true } },
       },
     });
 

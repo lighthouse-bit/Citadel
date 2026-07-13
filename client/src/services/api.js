@@ -45,6 +45,12 @@ export const artworksAPI = {
   exportCsv: (params) => api.get('/artworks/admin/export', { params, responseType: 'blob' }),
   getHistory: (id) => api.get(`/artworks/admin/${id}/history`),
   getAlertAudience: (id, params) => api.get(`/artworks/admin/${id}/alert-audience`, { params }),
+  getFacets: () => api.get('/artworks/facets'),
+  getSuggestions: q => api.get('/artworks/suggestions', { params: { q } }),
+  getRecommendations: () => api.get('/artworks/recommendations'),
+  getRecentlyViewed: () => api.get('/artworks/recently-viewed'),
+  getRelated: id => api.get(`/artworks/${id}/related`),
+  recordView: id => api.post(`/artworks/${id}/view`),
 };
 
 export const wishlistAPI = {
@@ -55,6 +61,24 @@ export const wishlistAPI = {
   updatePreferences: data => api.patch('/wishlist/preferences', data),
   unsubscribe: token => api.post(`/wishlist/unsubscribe/${encodeURIComponent(token)}`),
   getAlertPerformance: () => api.get('/wishlist/admin/performance'),
+};
+
+export const accountAPI = {
+  getProfile: () => api.get('/account/profile'),
+  updateProfile: data => api.patch('/account/profile', data),
+  changePassword: data => api.post('/account/password', data),
+  createAddress: data => api.post('/account/addresses', data),
+  updateAddress: (id, data) => api.put(`/account/addresses/${id}`, data),
+  setDefaultAddress: id => api.patch(`/account/addresses/${id}/default`),
+  deleteAddress: id => api.delete(`/account/addresses/${id}`),
+};
+
+export const cartAPI = {
+  get: () => api.get('/cart'),
+  merge: artworkIds => api.post('/cart/merge', { artworkIds }),
+  add: artworkId => api.post(`/cart/${artworkId}`),
+  remove: artworkId => api.delete(`/cart/${artworkId}`),
+  clear: () => api.delete('/cart'),
 };
 
 // ==========================================
@@ -102,7 +126,7 @@ export const ordersAPI = {
 // PAYMENTS API
 // ==========================================
 export const paymentsAPI = {
-  createArtworkPayment:    (orderId)      => api.post('/payments/artwork-payment',    { orderId }),
+  createArtworkPayment:    (orderId, checkoutToken) => api.post('/payments/artwork-payment', { orderId, checkoutToken }),
   createCommissionDeposit: (commissionId) => api.post('/payments/commission-deposit', { commissionId }),
   createCommissionBalance: (commissionId) => api.post('/payments/commission-balance', { commissionId }),
   // ✅ New — verify after Paystack redirect

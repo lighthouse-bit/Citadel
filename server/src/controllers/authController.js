@@ -14,7 +14,7 @@ const jwtSecret = () => {
 
 const createSession = (user) => ({
   token: jwt.sign(
-    { id: user.id, email: user.email, role: 'customer' },
+    { id: user.id, email: user.email, role: 'customer', passwordChangedAt: user.passwordChangedAt?.getTime?.() || 0 },
     jwtSecret(),
     { expiresIn: '7d' }
   ),
@@ -22,6 +22,9 @@ const createSession = (user) => ({
     id: user.id,
     name: `${user.firstName} ${user.lastName}`.trim(),
     email: user.email,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    phone: user.phone || null,
     isVerified: user.isVerified,
     role: 'customer'
   }
@@ -79,25 +82,9 @@ exports.register = async (req, res) => {
       console.error('❌ Email failed:', emailError.message);
     }
 
-    // Create a JWT token
-    const token = jwt.sign(
-      { id: user.id, email: user.email, role: 'customer' },
-      jwtSecret(),
-      { expiresIn: '7d' }
-    );
-
     console.log('🎉 Registration complete for:', email);
 
-    res.status(201).json({
-      token,
-      user: {
-        id: user.id,
-        name: `${user.firstName} ${user.lastName}`,
-        email: user.email,
-        isVerified: user.isVerified,
-        role: 'customer'
-      }
-    });
+    res.status(201).json(createSession(user));
   } catch (error) {
     console.error('❌ Registration Error:', error);
     res.status(500).json({ error: 'Registration failed' });
@@ -125,23 +112,7 @@ exports.login = async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    // Create JWT Token
-    const token = jwt.sign(
-      { id: user.id, email: user.email, role: 'customer' },
-      jwtSecret(),
-      { expiresIn: '7d' }
-    );
-
-    res.json({
-      token,
-      user: {
-        id: user.id,
-        name: `${user.firstName} ${user.lastName}`,
-        email: user.email,
-        isVerified: user.isVerified,
-        role: 'customer'
-      }
-    });
+    res.json(createSession(user));
   } catch (error) {
     console.error('Login Error:', error);
     res.status(500).json({ error: 'Login failed' });
@@ -255,6 +226,7 @@ exports.verifyEmail = async (req, res) => {
 // ==========================================
 exports.getProfile = async (req, res) => {
   try {
+    if (!req.user) return res.status(401).json({ error: 'Authentication required' });
     const { id, role } = req.user; // Set by authenticateUser middleware
 
     // Handle Admin
@@ -279,6 +251,9 @@ exports.getProfile = async (req, res) => {
         id: user.id,
         name: `${user.firstName} ${user.lastName}`,
         email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        phone: user.phone || null,
         isVerified: user.isVerified,
         role: 'customer'
       }
@@ -346,8 +321,8 @@ exports.googleAuth = async (req, res) => {
 
     const email = payload.email.toLowerCase();
     const users = await prisma.$queryRaw`
-      SELECT id, email, "firstName", "lastName", password,
-             "isVerified", "googleId"
+      SELECT id, email, "firstName", "lastName", phone, password,
+             "isVerified", "googleId", "passwordChangedAt"
       FROM "Customer"
       WHERE "googleId" = ${payload.sub} OR email = ${email}
       LIMIT 1

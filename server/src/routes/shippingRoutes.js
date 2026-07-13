@@ -3,50 +3,10 @@ const express = require('express');
 const router  = express.Router();
 const prisma  = require('../config/database');
 const { authenticateAdmin } = require('../middleware/auth');
-
-const FREE_SHIPPING_THRESHOLD = 1000; // USD
+const { calculateShipping } = require('../utils/shippingCalculator');
 
 // ── Country to Zone Mapping ──────────────────────────────────────
-const COUNTRY_ZONES = {
-  // Nigeria zone
-  NG: 'Nigeria',
-
-  // Africa zone
-  GH: 'Africa', KE: 'Africa', ZA: 'Africa', EG: 'Africa', ET: 'Africa',
-  TZ: 'Africa', UG: 'Africa', RW: 'Africa', SN: 'Africa', CI: 'Africa',
-  MA: 'Africa', DZ: 'Africa', AO: 'Africa', CM: 'Africa', BW: 'Africa',
-};
-
-// Map country name (full text) to zone
-const getZoneByCountry = (country) => {
-  if (!country) return 'International';
-
-  const upper = country.trim().toUpperCase();
-
-  // Direct matches
-  if (upper === 'NIGERIA' || upper === 'NG') return 'Nigeria';
-
-  const africanCountries = [
-    'GHANA', 'KENYA', 'SOUTH AFRICA', 'EGYPT', 'ETHIOPIA',
-    'TANZANIA', 'UGANDA', 'RWANDA', 'SENEGAL', 'IVORY COAST',
-    'MOROCCO', 'ALGERIA', 'ANGOLA', 'CAMEROON', 'BOTSWANA',
-    'TUNISIA', 'LIBYA', 'SUDAN', 'ZIMBABWE', 'ZAMBIA',
-    'MOZAMBIQUE', 'NAMIBIA', 'BENIN', 'TOGO', 'NIGER',
-  ];
-
-  if (africanCountries.includes(upper)) return 'Africa';
-  return 'International';
-};
-
 // ── Determine artwork size category ─────────────────────────────
-const getArtworkSize = (width, height) => {
-  const maxDim = Math.max(parseFloat(width) || 0, parseFloat(height) || 0);
-  if (maxDim <= 12) return 'small';
-  if (maxDim <= 24) return 'medium';
-  if (maxDim <= 36) return 'large';
-  return 'xlarge';
-};
-
 // ─────────────────────────────────────────────────────────
 // GET all shipping zones with rates (Public — used at checkout)
 // ─────────────────────────────────────────────────────────
@@ -72,79 +32,10 @@ router.get('/zones', async (req, res) => {
 router.post('/calculate', async (req, res) => {
   try {
     const { country, items = [] } = req.body;
-
-    if (!items.length) {
-      return res.json({
-        shippingCost:    0,
-        zone:            'Unknown',
-        isFreeShipping:  false,
-        message:         'No items in cart',
-      });
-    }
-
-    // Calculate subtotal
-    const subtotal = items.reduce(
-      (sum, item) => sum + parseFloat(item.price || 0),
-      0
-    );
-
-    // ✅ Free shipping above threshold
-    if (subtotal >= FREE_SHIPPING_THRESHOLD) {
-      return res.json({
-        shippingCost:    0,
-        zone:            getZoneByCountry(country),
-        isFreeShipping:  true,
-        message:         `Free shipping on orders over $${FREE_SHIPPING_THRESHOLD}`,
-      });
-    }
-
-    // Determine zone
-    const zoneName = getZoneByCountry(country);
-
-    // Get zone + rates from DB
-    const zone = await prisma.shippingZone.findFirst({
-      where:   { name: zoneName, isActive: true },
-      include: { rates: true },
-    });
-
-    if (!zone || !zone.rates.length) {
-      return res.status(400).json({
-        error: `Shipping not available to ${country}. Please contact us.`,
-      });
-    }
-
-    const rate = zone.rates[0];
-
-    // ✅ Find the LARGEST item and use its size for shipping
-    let largestSize = 'small';
-    items.forEach(item => {
-      const size = getArtworkSize(item.width, item.height);
-      const order = { small: 1, medium: 2, large: 3, xlarge: 4 };
-      if (order[size] > order[largestSize]) largestSize = size;
-    });
-
-    // Get the rate for that size
-    const sizeRates = {
-      small:  parseFloat(rate.smallRate),
-      medium: parseFloat(rate.mediumRate),
-      large:  parseFloat(rate.largeRate),
-      xlarge: parseFloat(rate.xlargeRate),
-    };
-
-    const shippingCost = sizeRates[largestSize];
-
-    res.json({
-      shippingCost,
-      zone:           zoneName,
-      size:           largestSize,
-      estimatedDays:  rate.estimatedDays,
-      isFreeShipping: false,
-      message:        `Shipping to ${zoneName} (${largestSize})`,
-    });
-
+    return res.json(await calculateShipping(prisma, country, items));
   } catch (error) {
     console.error('Shipping calc error:', error);
-    res.status(500).json({ error: 'Failed to calculate shipping' });
+    res.status(error.statusCode || 500).json({ error: error.statusCode ? error.message : 'Failed to calculate shipping' });
   }
 });
 

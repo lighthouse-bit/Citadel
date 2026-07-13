@@ -20,6 +20,9 @@ import SEO from '../components/common/SEO';
 import WallPlacement from '../components/WallPlacement';
 import { trackArtworkView, trackEvent } from '../utils/analytics';
 import { useWishlist } from '../hooks/useWishlist';
+import { useAuth } from '../hooks/useAuth';
+import ArtworkRecommendations from '../components/ArtworkRecommendations';
+import { recordGuestArtworkView } from '../utils/recentlyViewed';
 
 // Reusable Image Component
 const ArtworkImage = ({ src, alt, className = "" }) => {
@@ -40,9 +43,11 @@ const ArtworkDetail = () => {
   const { id } = useParams();
   const { addToCart, isInCart } = useCart();
   const { isWishlisted, toggleWishlist } = useWishlist();
+  const { isAuthenticated } = useAuth();
   
   const [artwork, setArtwork] = useState(null);
   const [relatedWorks, setRelatedWorks] = useState([]);
+  const [recentlyViewed, setRecentlyViewed] = useState([]);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -55,8 +60,8 @@ const ArtworkDetail = () => {
         
         if (response.data) {
           setArtwork(response.data);
-          const relatedRes = await artworksAPI.getFeatured();
-          setRelatedWorks(relatedRes.data.filter(w => w.id !== id).slice(0, 3));
+          const relatedRes = await artworksAPI.getRelated(id);
+          setRelatedWorks(relatedRes.data.filter(w => w.id !== id).slice(0, 6));
         }
       } catch (error) {
         console.error("Error fetching artwork:", error);
@@ -72,8 +77,13 @@ const ArtworkDetail = () => {
   }, [id]);
 
   useEffect(() => {
-    if (artwork) trackArtworkView(artwork);
-  }, [artwork]);
+    if (!artwork) return;
+    trackArtworkView(artwork);
+    const guestHistory = recordGuestArtworkView(artwork).filter(item => item.id !== artwork.id);
+    artworksAPI.recordView(artwork.id).catch(() => {});
+    if (isAuthenticated) artworksAPI.getRecentlyViewed().then(response => setRecentlyViewed((response.data || []).filter(item => item.id !== artwork.id))).catch(() => setRecentlyViewed(guestHistory));
+    else setRecentlyViewed(guestHistory);
+  }, [artwork, isAuthenticated]);
 
   const handleAddToCart = () => {
     if (artwork) addToCart(artwork);
@@ -383,12 +393,13 @@ const ArtworkDetail = () => {
                       <h3 className="text-lg font-medium text-stone-900 mb-1 group-hover:text-amber-700 transition-colors">
                         {work.title}
                       </h3>
-                      <p className="text-stone-500">${work.price.toLocaleString()}</p>
+                      <p className="text-stone-500">${Number(work.price).toLocaleString()}</p>
                     </Link>
                   ))}
                 </div>
               </div>
             )}
+            <ArtworkRecommendations title="Recently Viewed" subtitle="Return to artwork you explored earlier." artworks={recentlyViewed} />
           </div>
         </section>
       </div>

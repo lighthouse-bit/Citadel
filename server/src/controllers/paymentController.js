@@ -238,6 +238,10 @@ async function handlePaymentSuccess(paymentIntent) {
       data: { status: 'SOLD' }
     });
 
+    await prisma.cartItem.deleteMany({
+      where: { customerId: order.customerId, artworkId: { in: artworkIds } },
+    }).catch(error => console.error('Cart purchase cleanup failed:', error));
+
     // 3. Create notification
     await prisma.notification.create({
       data: {

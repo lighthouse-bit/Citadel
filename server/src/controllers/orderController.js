@@ -8,6 +8,7 @@ const {
 const { registerTracking } = require('../utils/trackingService');
 const { recordAudit } = require('../utils/auditService');
 const { calculatePromotionDiscount } = require('../utils/commerceMath');
+const { calculateShipping } = require('../utils/shippingCalculator');
 
 // ─────────────────────────────────────────────────────────
 // Create order (Public/User)
@@ -23,11 +24,18 @@ exports.createOrder = async (req, res) => {
       email,
       items,
       shippingAddress,
-      shippingCost = 0,
-      shippingZone  = 'Unknown',
-      shippingSize  = 'unknown',
+      shippingAddressId,
       promotionCode,
+      checkoutToken,
     } = req.body;
+
+    const normalizedCheckoutToken = typeof checkoutToken === 'string' && checkoutToken.length >= 16 && checkoutToken.length <= 100
+      ? checkoutToken
+      : null;
+    if (!normalizedCheckoutToken) return res.status(400).json({ error: 'A valid checkout session is required' });
+    if (!Array.isArray(items) || items.length === 0 || items.some(item => !item?.id)) {
+      return res.status(400).json({ error: 'Your checkout does not contain any valid artwork' });
+    }
 
     let customerId;
 
@@ -46,13 +54,42 @@ exports.createOrder = async (req, res) => {
       customerId = customer.id;
     }
 
-    // Save shipping address
-    const address = await prisma.address.create({
-      data: {
-        ...shippingAddress,
-        customerId,
-      },
+    const existingOrder = await prisma.order.findUnique({
+      where: { checkoutToken: normalizedCheckoutToken },
+      include: { items: true, shippingAddress: true },
     });
+    if (existingOrder) {
+      if (existingOrder.customerId !== customerId) return res.status(409).json({ error: 'This checkout session belongs to another customer' });
+      const requestedIds = items.map(item => item.id).sort().join(',');
+      const existingIds = existingOrder.items.map(item => item.artworkId).sort().join(',');
+      if (requestedIds !== existingIds) return res.status(409).json({ error: 'Your cart changed after this checkout started. Start a new checkout session.' });
+      return res.status(200).json(existingOrder);
+    }
+
+    let address;
+    if (shippingAddressId && loggedInUser) {
+      address = await prisma.address.findFirst({ where: { id: shippingAddressId, customerId } });
+      if (!address) return res.status(400).json({ error: 'Saved delivery address was not found' });
+    } else {
+      if (!shippingAddress?.line1 || !shippingAddress?.city || !shippingAddress?.postalCode || !shippingAddress?.country) {
+        return res.status(400).json({ error: 'A complete delivery address is required' });
+      }
+      const normalizedAddress = {
+        line1: shippingAddress.line1.trim(),
+        line2: shippingAddress.line2?.trim() || null,
+        city: shippingAddress.city.trim(),
+        state: shippingAddress.state?.trim() || null,
+        postalCode: shippingAddress.postalCode.trim(),
+        country: shippingAddress.country.trim(),
+      };
+      const existingAddress = loggedInUser ? await prisma.address.findFirst({
+        where: { customerId, line1: normalizedAddress.line1, city: normalizedAddress.city, postalCode: normalizedAddress.postalCode, country: normalizedAddress.country },
+      }) : null;
+      const addressCount = loggedInUser && !existingAddress ? await prisma.address.count({ where: { customerId } }) : 0;
+      address = existingAddress || await prisma.address.create({
+        data: { ...normalizedAddress, customerId, isDefault: Boolean(loggedInUser && addressCount === 0) },
+      });
+    }
 
     // Verify artworks are available
     const artworkIds = items.map(item => item.id);
@@ -74,7 +111,8 @@ exports.createOrder = async (req, res) => {
       (sum, art) => sum + Number(art.price),
       0
     );
-    const finalShipping  = parseFloat(shippingCost) || 0;
+    const shippingQuote = await calculateShipping(prisma, address.country, dbArtworks);
+    const finalShipping = shippingQuote.shippingCost;
     const tax            = 0;
     let discountAmount = 0;
     let appliedPromotion = null;
@@ -91,17 +129,27 @@ exports.createOrder = async (req, res) => {
 
     // Create order in transaction
     const order = await prisma.$transaction(async (tx) => {
+      const reservation = await tx.artwork.updateMany({
+        where: { id: { in: artworkIds }, status: 'AVAILABLE' },
+        data: { status: 'RESERVED' },
+      });
+      if (reservation.count !== artworkIds.length) {
+        const conflict = new Error('One or more items are no longer available.');
+        conflict.code = 'ARTWORK_UNAVAILABLE';
+        throw conflict;
+      }
       const newOrder = await tx.order.create({
         data: {
           orderNumber,
           subtotal,
           shippingCost:      finalShipping,
-          shippingZone,
-          shippingSize,
+          shippingZone:      shippingQuote.zone,
+          shippingSize:      shippingQuote.size,
           tax,
           total,
           discountAmount,
           promotionCode: appliedPromotion?.code || null,
+          checkoutToken: normalizedCheckoutToken,
           status:            'PENDING',
           paymentStatus:     'UNPAID',
           customerId,
@@ -117,18 +165,13 @@ exports.createOrder = async (req, res) => {
         include: { items: true },
       });
 
-      // Reserve artworks
-      await tx.artwork.updateMany({
-        where: { id: { in: artworkIds } },
-        data:  { status: 'RESERVED' },
-      });
       if (appliedPromotion) await tx.promotion.update({ where: { id: appliedPromotion.id }, data: { usageCount: { increment: 1 } } });
 
       // Notify admin
       await tx.notification.create({
         data: {
           type:    'ORDER',
-          message: `🛍️ New Order #${newOrder.orderNumber} — $${Number(newOrder.total).toLocaleString()} (${shippingZone})`,
+          message: `🛍️ New Order #${newOrder.orderNumber} — $${Number(newOrder.total).toLocaleString()} (${shippingQuote.zone})`,
           link:    `/admin/orders/${newOrder.id}`,
           isRead:  false,
         },
@@ -141,6 +184,9 @@ exports.createOrder = async (req, res) => {
 
   } catch (error) {
     console.error('Error creating order:', error);
+    if (error.code === 'ARTWORK_UNAVAILABLE') return res.status(409).json({ error: error.message });
+    if (error.code === 'P2002' && String(error.meta?.target).toLowerCase().includes('checkouttoken')) return res.status(409).json({ error: 'This checkout is already being processed. Please retry.' });
+    if (error.statusCode === 400) return res.status(400).json({ error: error.message });
     res.status(500).json({ error: 'Failed to create order' });
   }
 };

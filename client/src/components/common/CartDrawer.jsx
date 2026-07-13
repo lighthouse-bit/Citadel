@@ -1,8 +1,9 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Trash2, ShoppingBag, ArrowRight } from 'lucide-react';
+import { X, Trash2, ShoppingBag, ArrowRight, AlertTriangle, Loader } from 'lucide-react';
 import { useCart } from '../../hooks/useCart';
+import { artworksAPI } from '../../services/api';
 
 // Helper image component
 const CartImage = ({ src, alt }) => {
@@ -20,7 +21,8 @@ const CartImage = ({ src, alt }) => {
 };
 
 const CartDrawer = () => {
-  const { isCartOpen, closeCart, cartItems, removeFromCart, cartTotal } = useCart();
+  const { isCartOpen, closeCart, cartItems, removeFromCart, cartTotal, unavailableCount, isSyncing, addToCart } = useCart();
+  const [recommendations, setRecommendations] = useState([]);
   const navigate = useNavigate();
   const drawerRef = useRef(null);
   const previousFocusRef = useRef(null);
@@ -48,6 +50,14 @@ const CartDrawer = () => {
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [closeCart, isCartOpen]);
+
+  useEffect(() => {
+    if (!isCartOpen || !cartItems.length) return;
+    artworksAPI.getRecommendations().then(response => {
+      const cartIds = new Set(cartItems.map(item => item.id));
+      setRecommendations((response.data.artworks || []).filter(item => !cartIds.has(item.id)).slice(0, 2));
+    }).catch(() => setRecommendations([]));
+  }, [cartItems, isCartOpen]);
 
   const handleCheckout = () => {
     closeCart();
@@ -95,6 +105,8 @@ const CartDrawer = () => {
 
             {/* Cart Items */}
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {isSyncing && <div className="flex items-center gap-2 bg-blue-50 text-blue-700 rounded-lg px-4 py-3 text-sm"><Loader size={16} className="animate-spin"/> Synchronizing your cart…</div>}
+              {unavailableCount > 0 && <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-3 text-sm"><AlertTriangle size={17} className="mt-0.5 flex-shrink-0"/><span>Remove unavailable artwork before proceeding to checkout.</span></div>}
               {cartItems.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-center space-y-4">
                   <div className="w-16 h-16 bg-stone-200 rounded-full flex items-center justify-center">
@@ -116,7 +128,7 @@ const CartDrawer = () => {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, height: 0 }}
-                    className="flex gap-4 bg-white p-4 rounded-lg border border-stone-200 shadow-sm"
+                    className={`flex gap-4 bg-white p-4 rounded-lg border shadow-sm ${item.isAvailable === false ? 'border-amber-300 opacity-75' : 'border-stone-200'}`}
                   >
                     <div className="w-20 h-20 bg-stone-200 rounded-md overflow-hidden flex-shrink-0">
                       <CartImage 
@@ -128,9 +140,10 @@ const CartDrawer = () => {
                       <div>
                         <h3 className="font-serif text-stone-900 line-clamp-1">{item.title}</h3>
                         <p className="text-xs text-stone-500 uppercase tracking-wide mt-1">{item.medium}</p>
+                        {item.isAvailable === false && <p className="text-xs text-amber-700 font-semibold mt-1">No longer available</p>}
                       </div>
                       <div className="flex items-center justify-between mt-2">
-                        <p className="text-stone-900 font-medium">${item.price.toLocaleString()}</p>
+                        <p className="text-stone-900 font-medium">${Number(item.price).toLocaleString()}</p>
                         <button
                           onClick={() => removeFromCart(item.id)}
                           aria-label={`Remove ${item.title} from cart`}
@@ -143,6 +156,7 @@ const CartDrawer = () => {
                   </motion.div>
                 ))
               )}
+              {recommendations.length > 0 && <div className="border-t border-stone-200 pt-5"><h3 className="font-serif text-stone-900 mb-3">You may also like</h3><div className="space-y-3">{recommendations.map(item => <div key={item.id} className="flex items-center gap-3 bg-white border rounded-lg p-2"><img src={item.images?.[0]?.url} alt={item.title} className="w-14 h-14 object-cover rounded"/><div className="min-w-0 flex-1"><p className="text-sm font-medium truncate">{item.title}</p><p className="text-xs text-stone-500">${Number(item.price).toLocaleString()}</p></div><button onClick={() => addToCart(item)} className="text-xs text-amber-700 font-medium px-2">Add</button></div>)}</div></div>}
             </div>
 
             {/* Footer */}
@@ -165,7 +179,8 @@ const CartDrawer = () => {
                 
                 <button
                   onClick={handleCheckout}
-                  className="w-full btn-luxury-gold flex items-center justify-center gap-2"
+                  disabled={unavailableCount > 0 || isSyncing}
+                  className="w-full btn-luxury-gold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Proceed to Checkout <ArrowRight size={16} />
                 </button>

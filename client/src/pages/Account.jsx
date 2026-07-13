@@ -26,10 +26,12 @@ import {
   Trash2,
   BellRing,
   Save,
+  UserRoundCog,
 } from 'lucide-react';
 import { ordersAPI, commissionsAPI, wishlistAPI } from '../services/api';
 import toast from 'react-hot-toast';
 import { useWishlist } from '../hooks/useWishlist';
+import AccountSettings from '../components/AccountSettings';
 
 const Account = () => {
   const { user, logout, isAuthenticated, isLoading: authLoading, isVerified } = useAuth();
@@ -247,6 +249,13 @@ const Account = () => {
                 onClick={() => setActiveTab('track')}
                 icon={<MapPin size={18} />}
                 label="Track Order"
+              />
+
+              <NavButton
+                active={activeTab === 'settings'}
+                onClick={() => setActiveTab('settings')}
+                icon={<UserRoundCog size={18} />}
+                label="Profile & Addresses"
               />
 
               <NavButton
@@ -562,6 +571,8 @@ const Account = () => {
                     </div>
                   </div>
                 )}
+
+                {activeTab === 'settings' && <AccountSettings />}
 
                 {/* ==================== TRACK ORDER TAB ==================== */}
                 {activeTab === 'track' && (

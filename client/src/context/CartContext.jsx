@@ -1,126 +1,152 @@
-// client/src/context/CartContext.jsx
-import { createContext, useContext, useReducer, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../hooks/useAuth';
+import { cartAPI } from '../services/api';
 import { trackAddToCart } from '../utils/analytics';
 
 const CartContext = createContext();
+const STORAGE_KEY = 'citadel_cart';
 
-const cartReducer = (state, action) => {
-  switch (action.type) {
-    case 'ADD_ITEM': {
-      const existingItem = state.items.find(item => item.id === action.payload.id);
-      if (existingItem) {
-        toast.error('This artwork is already in your cart');
-        return state;
-      }
-      toast.success('Added to your collection');
-      return { ...state, items: [...state.items, action.payload] };
-    }
-
-    case 'REMOVE_ITEM':
-      return { ...state, items: state.items.filter(item => item.id !== action.payload) };
-
-    case 'CLEAR_CART':
-      return { ...state, items: [] };
-
-    case 'LOAD_CART':
-      return { ...state, items: action.payload };
-
-    default:
-      return state;
+const loadGuestCart = () => {
+  const params = new URLSearchParams(window.location.search);
+  if (params.has('reference') || params.has('trxref')) {
+    localStorage.removeItem(STORAGE_KEY);
+    sessionStorage.removeItem(STORAGE_KEY);
+    return [];
+  }
+  try {
+    const value = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    return Array.isArray(value) ? value.filter(item => item?.id).slice(0, 20).map(item => ({ ...item, isAvailable: item.status === 'AVAILABLE' && item.isAvailable !== false })) : [];
+  } catch {
+    localStorage.removeItem(STORAGE_KEY);
+    return [];
   }
 };
 
 export const CartProvider = ({ children }) => {
-  const [state, dispatch] = useReducer(cartReducer, { items: [] });
+  const [items, setItems] = useState(loadGuestCart);
   const [isCartOpen, setIsCartOpen] = useState(false);
-  const { user } = useAuth();
+  const [isSyncing, setIsSyncing] = useState(false);
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const previousCustomerId = useRef(null);
+  const isCustomer = isAuthenticated && user?.role === 'customer';
 
-  // ✅ Load cart from localStorage — BUT clear it if returning from Paystack
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const hasPaystackReference = urlParams.has('reference') || urlParams.has('trxref');
-
-    if (hasPaystackReference) {
-      // ✅ Coming back from Paystack — clear cart immediately
-      console.log('🧹 Detected Paystack redirect — clearing cart');
-      localStorage.removeItem('citadel_cart');
-      sessionStorage.removeItem('citadel_cart');
-      dispatch({ type: 'CLEAR_CART' });
-      return;
-    }
-
-    // Normal cart load
-    const savedCart = localStorage.getItem('citadel_cart');
-    if (savedCart) {
-      try {
-        dispatch({ type: 'LOAD_CART', payload: JSON.parse(savedCart) });
-      } catch (e) {
-        console.error('Cart parse error', e);
-      }
+  const synchronize = useCallback(async customerId => {
+    setIsSyncing(true);
+    try {
+      const guestItems = loadGuestCart();
+      const { data } = await cartAPI.merge(guestItems.map(item => item.id));
+      setItems(data.items || []);
+      localStorage.removeItem(STORAGE_KEY);
+      if (data.unavailableCount) toast(`${data.unavailableCount} cart item${data.unavailableCount === 1 ? ' is' : 's are'} no longer available`, { icon: '!' });
+      previousCustomerId.current = customerId;
+    } catch {
+      toast.error('Your cart could not be synchronized');
+    } finally {
+      setIsSyncing(false);
     }
   }, []);
 
-  // Save cart to localStorage whenever it changes
   useEffect(() => {
-    if (state.items.length > 0) {
-      localStorage.setItem('citadel_cart', JSON.stringify(state.items));
-    } else {
-      localStorage.removeItem('citadel_cart');
-    }
-  }, [state.items]);
-
-  const addToCart = (item) => {
-    if (!user) {
-      toast.error('Please sign in to add items to your cart', {
-        duration: 5000,
-      });
+    if (authLoading) return;
+    if (isCustomer) {
+      if (previousCustomerId.current !== user.id) synchronize(user.id);
       return;
     }
+    if (previousCustomerId.current) {
+      previousCustomerId.current = null;
+      localStorage.removeItem(STORAGE_KEY);
+      setItems([]);
+    }
+  }, [authLoading, isCustomer, synchronize, user?.id]);
 
-    trackAddToCart(item);
+  useEffect(() => {
+    if (authLoading || isCustomer) return;
+    if (items.length) localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+    else localStorage.removeItem(STORAGE_KEY);
+  }, [authLoading, isCustomer, items]);
 
-    dispatch({ type: 'ADD_ITEM', payload: item });
+  const addToCart = useCallback(async item => {
+    if (item.status !== 'AVAILABLE') return toast.error('This artwork is not available');
+    if (items.some(existing => existing.id === item.id)) return toast.error('This artwork is already in your cart');
+    if (items.length >= 20) return toast.error('Your cart can contain up to 20 artworks');
+    if (isSyncing) return toast('Please wait while your cart synchronizes');
+
+    const optimistic = { ...item, isAvailable: true };
+    setItems(previous => [...previous, optimistic]);
     setIsCartOpen(true);
-  };
+    trackAddToCart(item);
+    toast.success(isCustomer ? 'Added to your collection' : 'Added to your guest cart');
 
-  const removeFromCart = (id) => {
-    dispatch({ type: 'REMOVE_ITEM', payload: id });
-  };
+    if (isCustomer) {
+      try {
+        const { data } = await cartAPI.add(item.id);
+        setItems(previous => previous.map(existing => existing.id === item.id ? data : existing));
+      } catch (error) {
+        setItems(previous => previous.filter(existing => existing.id !== item.id));
+        toast.error(error.response?.data?.error || 'Could not save this cart item');
+      }
+    }
+  }, [isCustomer, isSyncing, items]);
 
-  // ✅ Strong clear cart — wipes everything
-  const clearCart = () => {
-    dispatch({ type: 'CLEAR_CART' });
-    localStorage.removeItem('citadel_cart');
-    sessionStorage.removeItem('citadel_cart');
-  };
+  const removeFromCart = useCallback(async id => {
+    const removed = items.find(item => item.id === id);
+    setItems(previous => previous.filter(item => item.id !== id));
+    if (isCustomer) {
+      try { await cartAPI.remove(id); }
+      catch (error) {
+        if (removed) setItems(previous => [...previous, removed]);
+        toast.error(error.response?.data?.error || 'Could not remove this cart item');
+      }
+    }
+  }, [isCustomer, items]);
 
-  const openCart  = () => setIsCartOpen(true);
-  const closeCart = () => setIsCartOpen(false);
+  const clearCart = useCallback(async () => {
+    const previous = items;
+    setItems([]);
+    localStorage.removeItem(STORAGE_KEY);
+    sessionStorage.removeItem(STORAGE_KEY);
+    if (isCustomer) {
+      try { await cartAPI.clear(); }
+      catch {
+        setItems(previous);
+        toast.error('Could not clear your synchronized cart');
+      }
+    }
+  }, [isCustomer, items]);
 
-  const cartTotal = state.items.reduce(
-    (total, item) => total + parseFloat(item.price || 0),
-    0
-  );
+  const refreshCart = useCallback(async () => {
+    if (!isCustomer) return;
+    try {
+      const { data } = await cartAPI.get();
+      setItems(data.items || []);
+    } catch { toast.error('Could not refresh your cart'); }
+  }, [isCustomer]);
 
-  return (
-    <CartContext.Provider
-      value={{
-        cartItems: state.items,
-        cartTotal,
-        isCartOpen,
-        openCart,
-        closeCart,
-        addToCart,
-        removeFromCart,
-        clearCart,
-        isInCart: (id) => state.items.some(item => item.id === id),
-      }}
-    >
-      {children}
-    </CartContext.Provider>
-  );
+  const openCart = useCallback(() => {
+    setIsCartOpen(true);
+    if (isCustomer) refreshCart();
+  }, [isCustomer, refreshCart]);
+  const closeCart = useCallback(() => setIsCartOpen(false), []);
+
+  const cartTotal = useMemo(() => items.reduce((total, item) => total + (item.isAvailable === false ? 0 : Number(item.price || 0)), 0), [items]);
+  const unavailableCount = useMemo(() => items.filter(item => item.isAvailable === false).length, [items]);
+  const value = useMemo(() => ({
+    cartItems: items,
+    cartTotal,
+    unavailableCount,
+    isSyncing,
+    isCartOpen,
+    openCart,
+    closeCart,
+    addToCart,
+    removeFromCart,
+    clearCart,
+    refreshCart,
+    isInCart: id => items.some(item => item.id === id),
+  }), [addToCart, cartTotal, clearCart, closeCart, isCartOpen, isSyncing, items, openCart, refreshCart, removeFromCart, unavailableCount]);
+
+  return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 };
 
 export const useCart = () => useContext(CartContext);
