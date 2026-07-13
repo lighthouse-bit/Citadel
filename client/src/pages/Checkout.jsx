@@ -6,7 +6,7 @@ import { Lock, CheckCircle, Loader, ShoppingBag, Truck, Info } from 'lucide-reac
 import { useCart } from '../hooks/useCart';
 import { useAuth } from '../hooks/useAuth';
 import { ordersAPI, paymentsAPI, shippingAPI, marketingAPI } from '../services/api';
-import { trackPurchase } from '../utils/analytics';
+import { trackEvent, trackPurchase } from '../utils/analytics';
 import toast from 'react-hot-toast';
 import { checkoutTotal } from '../utils/checkoutTotals';
 
@@ -179,6 +179,12 @@ const Checkout = () => {
 
       const orderRes = await ordersAPI.create(orderPayload);
       const order    = orderRes.data;
+      trackEvent('begin_checkout', {
+        value: finalTotal,
+        currency: 'USD',
+        item_count: cartItems.length,
+        promotion_code: appliedPromotion?.code || undefined,
+      });
 
       // Step 2: Initialize Paystack payment
       const paymentRes = await paymentsAPI.createArtworkPayment(order.id);

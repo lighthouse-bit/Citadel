@@ -160,11 +160,13 @@ const AdminLayout = () => {
         <div
           className="fixed inset-0 bg-black/50 z-40 lg:hidden"
           onClick={() => setMobileMenuOpen(false)}
+          aria-hidden="true"
         />
       )}
 
       {/* ── Sidebar ──────────────────────────────────────── */}
       <aside
+        aria-label="Admin navigation"
         className={`fixed top-0 left-0 h-full bg-stone-900 text-white z-50
                    transition-all duration-300 ease-in-out
                    ${sidebarOpen ? 'w-64' : 'w-20'}
@@ -182,6 +184,8 @@ const AdminLayout = () => {
           )}
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
+            aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+            aria-expanded={sidebarOpen}
             className="p-2 hover:bg-stone-800 rounded-lg transition-colors hidden lg:block"
           >
             <ChevronRight
@@ -191,6 +195,7 @@ const AdminLayout = () => {
           </button>
           <button
             onClick={() => setMobileMenuOpen(false)}
+            aria-label="Close admin menu"
             className="p-2 hover:bg-stone-800 rounded-lg transition-colors lg:hidden"
           >
             <X size={20} />
@@ -204,6 +209,7 @@ const AdminLayout = () => {
               key={item.path}
               to={item.path}
               onClick={() => setMobileMenuOpen(false)}
+              aria-current={isActive(item.path, item.exact) ? 'page' : undefined}
               className={`flex items-center gap-3 px-4 py-3 rounded-lg
                           transition-all duration-200 ${
                 isActive(item.path, item.exact)
@@ -247,6 +253,8 @@ const AdminLayout = () => {
           <div className="flex items-center gap-4">
             <button
               onClick={() => setMobileMenuOpen(true)}
+              aria-label="Open admin menu"
+              aria-expanded={mobileMenuOpen}
               className="p-2 hover:bg-stone-100 rounded-lg transition-colors lg:hidden"
             >
               <Menu size={24} />
@@ -267,6 +275,9 @@ const AdminLayout = () => {
                 }}
                 className="relative p-2 hover:bg-stone-100 rounded-lg transition-colors
                            text-stone-600 hover:text-amber-600"
+                aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ''}`}
+                aria-expanded={showNotifications}
+                aria-controls="admin-notifications"
               >
                 <Bell size={20} />
 
@@ -283,6 +294,7 @@ const AdminLayout = () => {
               <AnimatePresence>
                 {showNotifications && (
                   <motion.div
+                    id="admin-notifications"
                     initial={{ opacity: 0, y: 8,  scale: 0.96 }}
                     animate={{ opacity: 1, y: 0,  scale: 1    }}
                     exit={{    opacity: 0, y: 8,  scale: 0.96 }}
@@ -321,7 +333,15 @@ const AdminLayout = () => {
                           <div
                             key={notif.id}
                             onClick={() => handleMarkAsRead(notif.id, notif.link)}
-                            className={`flex items-start gap-3 p-4 cursor-pointer
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault();
+                                handleMarkAsRead(notif.id, notif.link);
+                              }
+                            }}
+                            role="button"
+                            tabIndex="0"
+                            className={`w-full text-left flex items-start gap-3 p-4 cursor-pointer
                                         transition-colors group ${
                               !notif.isRead
                                 ? 'bg-amber-50 hover:bg-amber-100'
@@ -417,7 +437,7 @@ const AdminLayout = () => {
         </header>
 
         {/* Page Content */}
-        <main className="p-6">
+        <main id="admin-main-content" className="p-4 sm:p-6">
           <Outlet />
         </main>
       </div>

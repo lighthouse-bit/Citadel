@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "node --test test/*.test.js",
-    "lint:ci": "eslint src/pages/admin/Marketing.jsx src/pages/admin/Reports.jsx src/pages/admin/SystemHealth.jsx src/pages/admin/AdminResetPassword.jsx src/services/api.js src/utils/checkoutTotals.js"
+    "lint:ci": "eslint . --max-warnings=20"
   },
   "dependencies": {
     "@google/model-viewer": "^4.2.0",

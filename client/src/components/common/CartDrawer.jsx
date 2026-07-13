@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Trash2, ShoppingBag, ArrowRight } from 'lucide-react';
@@ -11,6 +11,8 @@ const CartImage = ({ src, alt }) => {
     <img
       src={src || fallback}
       alt={alt}
+      loading="lazy"
+      decoding="async"
       className="w-full h-full object-cover"
       onError={(e) => e.target.src = fallback}
     />
@@ -20,16 +22,32 @@ const CartImage = ({ src, alt }) => {
 const CartDrawer = () => {
   const { isCartOpen, closeCart, cartItems, removeFromCart, cartTotal } = useCart();
   const navigate = useNavigate();
+  const drawerRef = useRef(null);
+  const previousFocusRef = useRef(null);
 
   // Prevent background scrolling when cart is open
   useEffect(() => {
     if (isCartOpen) {
+      previousFocusRef.current = document.activeElement;
       document.body.style.overflow = 'hidden';
+      drawerRef.current?.focus();
     } else {
       document.body.style.overflow = 'unset';
     }
-    return () => { document.body.style.overflow = 'unset'; };
+    return () => {
+      document.body.style.overflow = 'unset';
+      previousFocusRef.current?.focus?.();
+    };
   }, [isCartOpen]);
+
+  useEffect(() => {
+    if (!isCartOpen) return undefined;
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') closeCart();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [closeCart, isCartOpen]);
 
   const handleCheckout = () => {
     closeCart();
@@ -46,11 +64,17 @@ const CartDrawer = () => {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={closeCart}
+            aria-hidden="true"
             className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60]"
           />
 
           {/* Drawer */}
           <motion.div
+            ref={drawerRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="cart-drawer-title"
+            tabIndex="-1"
             initial={{ x: '100%' }}
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
@@ -59,9 +83,10 @@ const CartDrawer = () => {
           >
             {/* Header */}
             <div className="flex items-center justify-between p-6 border-b border-stone-200 bg-white">
-              <h2 className="text-xl font-serif text-stone-900">Your Collection ({cartItems.length})</h2>
+              <h2 id="cart-drawer-title" className="text-xl font-serif text-stone-900">Your Collection ({cartItems.length})</h2>
               <button 
                 onClick={closeCart}
+                aria-label="Close cart"
                 className="p-2 text-stone-400 hover:text-stone-900 transition-colors"
               >
                 <X size={24} />
@@ -108,6 +133,7 @@ const CartDrawer = () => {
                         <p className="text-stone-900 font-medium">${item.price.toLocaleString()}</p>
                         <button
                           onClick={() => removeFromCart(item.id)}
+                          aria-label={`Remove ${item.title} from cart`}
                           className="text-stone-400 hover:text-red-500 transition-colors text-sm flex items-center gap-1"
                         >
                           <Trash2 size={14} /> Remove

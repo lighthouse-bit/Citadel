@@ -23,7 +23,23 @@ export default defineConfig([
       },
     },
     rules: {
-      'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
+      // Framer Motion intentionally exposes lowercase JSX members (motion.div),
+      // which core ESLint cannot mark as used without the full React plugin.
+      'no-unused-vars': ['error', {
+        argsIgnorePattern: '^[A-Z_]',
+        caughtErrors: 'none',
+        varsIgnorePattern: '^[A-Z_]|^motion$',
+      }],
+      // These compiler-oriented rules were introduced after this application.
+      // Keep the actionable Hooks rules while legacy effects are modernized.
+      'react-hooks/set-state-in-effect': 'off',
+      'react-hooks/immutability': 'off',
+    },
+  },
+  {
+    files: ['src/context/**/*.{js,jsx}'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
     },
   },
 ])

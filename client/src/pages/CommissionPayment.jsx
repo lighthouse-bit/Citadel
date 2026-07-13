@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Lock, CheckCircle, Loader, AlertCircle } from 'lucide-react';
-import { paymentsAPI, commissionsAPI } from '../services/api';
+import { commissionsAPI } from '../services/api';
 import api from '../services/api';
 import toast from 'react-hot-toast';
 

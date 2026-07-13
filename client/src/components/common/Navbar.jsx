@@ -63,6 +63,7 @@ const Navbar = ({ onOpenAuth }) => {
 
   return (
     <nav
+      aria-label="Primary navigation"
       className={`fixed w-full z-50 transition-all duration-500 ${
         scrolled
           ? 'bg-white/95 backdrop-blur-md shadow-sm py-4'
@@ -75,7 +76,7 @@ const Navbar = ({ onOpenAuth }) => {
         <div className="flex justify-between items-center">
 
           {/* ── Logo ─────────────────────────────────────── */}
-          <Link to="/" className="relative group z-50">
+          <Link to="/" className="relative group z-50" aria-label={`${settings.siteName} home`}>
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -114,6 +115,7 @@ const Navbar = ({ onOpenAuth }) => {
                 >
                   <Link
                     to={link.path}
+                    aria-current={location.pathname === link.path ? 'page' : undefined}
                     className={`relative text-xs tracking-widest uppercase 
                                 transition-colors duration-300 ${
                       location.pathname === link.path
@@ -166,6 +168,9 @@ const Navbar = ({ onOpenAuth }) => {
           {/* ── Mobile Menu Button ────────────────────────── */}
           <button
             onClick={() => setIsOpen(!isOpen)}
+            aria-label={isOpen ? 'Close navigation menu' : 'Open navigation menu'}
+            aria-expanded={isOpen}
+            aria-controls="mobile-navigation"
             className={`md:hidden z-50 p-2 transition-colors duration-300 ${
               isOpen ? 'text-stone-900' : getTextColor()
             }`}
@@ -182,6 +187,7 @@ const Navbar = ({ onOpenAuth }) => {
       <AnimatePresence>
         {isOpen && (
           <motion.div
+            id="mobile-navigation"
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
@@ -201,6 +207,7 @@ const Navbar = ({ onOpenAuth }) => {
                   key={link.path}
                   to={link.path}
                   onClick={() => setIsOpen(false)}
+                  aria-current={location.pathname === link.path ? 'page' : undefined}
                   className={`block text-sm tracking-widest uppercase transition-colors 
                               duration-300 ${
                     location.pathname === link.path
@@ -218,6 +225,7 @@ const Navbar = ({ onOpenAuth }) => {
               <div className="flex items-center space-x-8">
                 <button
                   onClick={() => { setIsOpen(false); handleUserClick(); }}
+                  aria-label={isAuthenticated ? 'Open account' : 'Sign in'}
                   className="text-stone-600 hover:text-amber-700 flex flex-col items-center gap-1"
                 >
                   <User size={24} strokeWidth={1.5} />
@@ -228,6 +236,7 @@ const Navbar = ({ onOpenAuth }) => {
 
                 <button
                   onClick={() => { setIsOpen(false); openCart(); }}
+                  aria-label={`Open cart with ${cartItems.length} item${cartItems.length === 1 ? '' : 's'}`}
                   className="text-stone-600 hover:text-amber-700 flex flex-col items-center gap-1 relative"
                 >
                   <div className="relative">

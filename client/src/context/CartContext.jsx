@@ -8,7 +8,7 @@ const CartContext = createContext();
 
 const cartReducer = (state, action) => {
   switch (action.type) {
-    case 'ADD_ITEM':
+    case 'ADD_ITEM': {
       const existingItem = state.items.find(item => item.id === action.payload.id);
       if (existingItem) {
         toast.error('This artwork is already in your cart');
@@ -16,6 +16,7 @@ const cartReducer = (state, action) => {
       }
       toast.success('Added to your collection');
       return { ...state, items: [...state.items, action.payload] };
+    }
 
     case 'REMOVE_ITEM':
       return { ...state, items: state.items.filter(item => item.id !== action.payload) };

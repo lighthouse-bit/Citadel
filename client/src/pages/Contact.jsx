@@ -9,6 +9,7 @@ import { useSettings } from '../hooks/useSettings';
 import { contactAPI } from '../services/api';
 import toast from 'react-hot-toast';
 import SEO from '../components/common/SEO';
+import { trackEvent } from '../utils/analytics';
 
 const Contact = () => {
   const { settings }                  = useSettings();
@@ -32,6 +33,7 @@ const Contact = () => {
     try {
       // ✅ Actually sends the email now
       await contactAPI.send(formData);
+      trackEvent('generate_lead', { lead_source: 'contact_form', subject: formData.subject });
       toast.success("Message sent! We'll get back to you within 24-48 hours.");
       setFormData({ name: '', email: '', subject: '', message: '' });
     } catch (error) {

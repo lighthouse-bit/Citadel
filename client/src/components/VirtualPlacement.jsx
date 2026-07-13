@@ -1,5 +1,5 @@
 // src/components/VirtualPlacement.jsx
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import '@google/model-viewer';
 
 const VirtualPlacement = ({ artwork }) => {
@@ -12,7 +12,7 @@ const VirtualPlacement = ({ artwork }) => {
     if (modelViewerRef.current) {
       try {
         await modelViewerRef.current.activateAR();
-      } catch (error) {
+      } catch {
         alert("AR is not supported on this device. Try on mobile.");
       }
     }

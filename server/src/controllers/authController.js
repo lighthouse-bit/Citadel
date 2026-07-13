@@ -353,6 +353,7 @@ exports.googleAuth = async (req, res) => {
       LIMIT 1
     `;
     let user = users[0];
+    let isNewUser = false;
 
     if (user) {
       if (user.googleId && user.googleId !== payload.sub) {
@@ -373,6 +374,7 @@ exports.googleAuth = async (req, res) => {
       `;
       user = { ...user, googleId: payload.sub };
     } else {
+      isNewUser = true;
       const firstName = payload.given_name || payload.name?.split(' ')[0] || 'Google';
       const lastName = payload.family_name || payload.name?.split(' ').slice(1).join(' ') || 'User';
       const verificationToken = crypto.randomBytes(32).toString('hex');
@@ -401,7 +403,7 @@ exports.googleAuth = async (req, res) => {
       }
     }
 
-    return res.json(createSession(user));
+    return res.json({ ...createSession(user), isNewUser });
   } catch (error) {
     console.error('Google authentication error:', {
       message: error.message,

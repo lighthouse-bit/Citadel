@@ -1,4 +1,10 @@
 User-agent: *
 Allow: /
+Disallow: /admin/
+Disallow: /account
+Disallow: /checkout
+Disallow: /verify-email
+Disallow: /track
+Disallow: /commission/payment/
 
 Sitemap: https://highmarc.com/sitemap.xml

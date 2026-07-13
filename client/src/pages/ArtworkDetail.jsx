@@ -1,8 +1,7 @@
 // client/src/pages/ArtworkDetail.jsx
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { trackEvent } from '../utils/analytics';
 import { 
   ShoppingBag, 
   ChevronLeft, 
@@ -19,6 +18,7 @@ import { artworksAPI } from '../services/api';
 import toast from 'react-hot-toast';
 import SEO from '../components/common/SEO';
 import WallPlacement from '../components/WallPlacement';
+import { trackArtworkView, trackEvent } from '../utils/analytics';
 
 // Reusable Image Component
 const ArtworkImage = ({ src, alt, className = "" }) => {
@@ -37,7 +37,6 @@ const ArtworkImage = ({ src, alt, className = "" }) => {
 
 const ArtworkDetail = () => {
   const { id } = useParams();
-  const navigate = useNavigate();
   const { addToCart, isInCart } = useCart();
   
   const [artwork, setArtwork] = useState(null);
@@ -71,19 +70,28 @@ const ArtworkDetail = () => {
     window.scrollTo(0, 0);
   }, [id]);
 
+  useEffect(() => {
+    if (artwork) trackArtworkView(artwork);
+  }, [artwork]);
+
   const handleAddToCart = () => {
     if (artwork) addToCart(artwork);
   };
 
-  const handleShare = () => {
+  const handleShare = async () => {
+    trackEvent('share', { method: navigator.share ? 'native' : 'clipboard', content_type: 'artwork', item_id: artwork.id });
     if (navigator.share) {
-      navigator.share({
-        title: artwork.title,
-        text: `Check out "${artwork.title}" at Citadel Art`,
-        url: window.location.href,
-      });
+      try {
+        await navigator.share({
+          title: artwork.title,
+          text: `Discover “${artwork.title}” at Highmarc Art Atelier`,
+          url: window.location.href,
+        });
+      } catch {
+        // Closing the native share sheet is not an application error.
+      }
     } else {
-      navigator.clipboard.writeText(window.location.href);
+      await navigator.clipboard.writeText(window.location.href);
       toast.success('Link copied to clipboard!');
     }
   };
@@ -118,6 +126,41 @@ const ArtworkDetail = () => {
   }
 
   const currentImage = artwork.images?.[selectedImageIndex]?.url;
+  const artworkUrl = `https://highmarc.com/artwork/${artwork.id}`;
+  const artworkImages = artwork.images?.map((image) => image.url || image).filter(Boolean) || [];
+  const availability = artwork.status === 'AVAILABLE'
+    ? 'https://schema.org/InStock'
+    : 'https://schema.org/SoldOut';
+  const structuredData = [
+    {
+      '@context': 'https://schema.org',
+      '@type': 'Product',
+      name: artwork.title,
+      description: artwork.description || `Original artwork by Highmarc: ${artwork.title}.`,
+      image: artworkImages,
+      sku: artwork.id,
+      category: artwork.category || 'Fine Art',
+      material: artwork.medium,
+      brand: { '@type': 'Brand', name: 'Highmarc' },
+      offers: artwork.price ? {
+        '@type': 'Offer',
+        url: artworkUrl,
+        priceCurrency: 'USD',
+        price: Number(artwork.price).toFixed(2),
+        availability,
+        itemCondition: 'https://schema.org/NewCondition',
+      } : undefined,
+    },
+    {
+      '@context': 'https://schema.org',
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://highmarc.com/' },
+        { '@type': 'ListItem', position: 2, name: 'Gallery', item: 'https://highmarc.com/gallery' },
+        { '@type': 'ListItem', position: 3, name: artwork.title, item: artworkUrl },
+      ],
+    },
+  ];
 
   return (
     <>
@@ -125,16 +168,18 @@ const ArtworkDetail = () => {
         title={artwork.title}
         description={artwork.description?.substring(0, 160)}
         keywords={`${artwork.title}, ${artwork.category?.toLowerCase()}, fine art, buy artwork`}
-        image={artwork.images?.[0]?.url}
+        image={artworkImages[0]}
+        imageAlt={`${artwork.title}${artwork.medium ? ` — ${artwork.medium}` : ''}`}
         url={`/artwork/${artwork.id}`}
         type="product"
+        structuredData={structuredData}
       />
 
       <div className="pt-20 min-h-screen bg-stone-50">
         {/* Breadcrumb */}
         <div className="bg-white border-b border-stone-200 py-4">
           <div className="max-w-7xl mx-auto px-6">
-            <nav className="flex items-center gap-2 text-sm">
+            <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-sm">
               <Link to="/" className="text-stone-500 hover:text-amber-600 transition-colors">Home</Link>
               <span className="text-stone-300">/</span>
               <Link to="/gallery" className="text-stone-500 hover:text-amber-600 transition-colors">Gallery</Link>

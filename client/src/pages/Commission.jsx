@@ -9,6 +9,7 @@ import { commissionsAPI } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import { useSettings } from '../hooks/useSettings';
 import SEO from '../components/common/SEO';
+import { trackCommissionSubmit } from '../utils/analytics';
 
 // ✅ Direct Cloudinary upload — bypasses Vercel 4.5MB limit
 const uploadToCloudinary = async (file) => {
@@ -164,6 +165,7 @@ const Commission = () => {
       };
 
       await commissionsAPI.create(submitData);
+      trackCommissionSubmit(submitData);
 
       toast.success('Commission request submitted successfully!');
 

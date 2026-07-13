@@ -1,5 +1,5 @@
 // src/components/WallPlacement.jsx
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef } from 'react';
 import { Upload, RotateCw, Maximize2, X } from 'lucide-react';
 
 const WallPlacement = ({ artwork }) => {
@@ -8,7 +8,6 @@ const WallPlacement = ({ artwork }) => {
   const [artRotation, setArtRotation] = useState(0);
   const [artPosition, setArtPosition] = useState({ x: 50, y: 40 });
   const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
   const fileInputRef = useRef(null);
   const containerRef = useRef(null);
@@ -24,12 +23,8 @@ const WallPlacement = ({ artwork }) => {
     }
   };
 
-  const handleMouseDown = (e) => {
+  const handleMouseDown = () => {
     setIsDragging(true);
-    setDragStart({
-      x: e.clientX - artPosition.x,
-      y: e.clientY - artPosition.y,
-    });
   };
 
   const handleMouseMove = (e) => {

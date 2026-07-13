@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { API_URL } from '../config/api';
+import { trackEvent } from '../utils/analytics';
 
 const AuthContext = createContext();
 
@@ -61,6 +62,7 @@ export const AuthProvider = ({ children }) => {
       }
       
       toast.success(`Welcome back, ${user.name.split(' ')[0]}!`);
+      trackEvent('login', { method: 'email' });
       return { success: true };
     } catch (error) {
       const message = error.response?.data?.error || 'Login failed';
@@ -78,6 +80,7 @@ export const AuthProvider = ({ children }) => {
       setUser(user);
       setIsAuthenticated(true);
       setShowVerificationBanner(true); // Always show after registration
+      trackEvent('sign_up', { method: 'email', needs_verification: true });
       
       // Don't show the generic success toast - the modal will show the verification message
       return { success: true, needsVerification: true };
@@ -104,7 +107,7 @@ export const AuthProvider = ({ children }) => {
   const googleAuth = async (credential) => {
     try {
       const response = await axios.post(`${API_URL}/auth/google`, { credential });
-      const { token, user } = response.data;
+      const { token, user, isNewUser } = response.data;
 
       localStorage.setItem('citadel_token', token);
       localStorage.setItem('citadel_user', JSON.stringify(user));
@@ -112,6 +115,10 @@ export const AuthProvider = ({ children }) => {
       setIsAuthenticated(true);
       setShowVerificationBanner(user.isVerified === false);
       toast.success(`Welcome, ${user.name.split(' ')[0]}!`);
+      trackEvent(isNewUser ? 'sign_up' : 'login', {
+        method: 'google',
+        needs_verification: user.isVerified === false,
+      });
       return {
         success: true,
         needsVerification: user.isVerified === false,
