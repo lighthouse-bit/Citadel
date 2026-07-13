@@ -44,12 +44,17 @@ export const artworksAPI = {
   bulkUpdate: (artworkIds, data) => api.patch('/artworks/admin/bulk', { artworkIds, ...data }),
   exportCsv: (params) => api.get('/artworks/admin/export', { params, responseType: 'blob' }),
   getHistory: (id) => api.get(`/artworks/admin/${id}/history`),
+  getAlertAudience: (id, params) => api.get(`/artworks/admin/${id}/alert-audience`, { params }),
 };
 
 export const wishlistAPI = {
   getAll: () => api.get('/wishlist'),
   add: artworkId => api.post(`/wishlist/${artworkId}`),
   remove: artworkId => api.delete(`/wishlist/${artworkId}`),
+  getPreferences: () => api.get('/wishlist/preferences'),
+  updatePreferences: data => api.patch('/wishlist/preferences', data),
+  unsubscribe: token => api.post(`/wishlist/unsubscribe/${encodeURIComponent(token)}`),
+  getAlertPerformance: () => api.get('/wishlist/admin/performance'),
 };
 
 // ==========================================

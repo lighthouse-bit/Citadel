@@ -5,6 +5,7 @@ const prisma = require('../config/database');
 const { authenticateAdmin, authenticateUser } = require('../middleware/auth');
 const { deleteFromCloudinary } = require('../services/imageService');
 const { recordAudit } = require('../utils/auditService');
+const { previewWishlistAlertAudience, sendSimilarArtworkAlerts, sendWishlistChangeAlerts } = require('../services/wishlistAlertService');
 
 // ── Get all artworks (Public) ────────────────────────────────────────────────
 router.get('/', authenticateUser, async (req, res) => {
@@ -44,7 +45,7 @@ router.get('/', authenticateUser, async (req, res) => {
         include: {
           images: { orderBy: [{ isPrimary: 'desc' }, { order: 'asc' }] },
           tags: { include: { tag: true } },
-          _count: { select: { orderItems: true } },
+          _count: { select: { orderItems: true, wishlistItems: true } },
         },
         orderBy: { [['createdAt', 'price', 'title', 'updatedAt'].includes(sort) ? sort : 'createdAt']: order === 'asc' ? 'asc' : 'desc' },
         skip,
@@ -127,9 +128,12 @@ router.patch('/admin/bulk', authenticateAdmin, async (req, res) => {
     if (status !== undefined) data.status = status.toUpperCase();
     if (featured !== undefined) data.featured = Boolean(featured);
     if (!Object.keys(data).length) return res.status(400).json({ error: 'No bulk change supplied' });
+    const previousArtworks = await prisma.artwork.findMany({ where: { id: { in: artworkIds } }, include: { images: { orderBy: { order: 'asc' }, take: 1 } } });
     const result = await prisma.artwork.updateMany({ where: { id: { in: artworkIds } }, data });
+    const updatedArtworks = await prisma.artwork.findMany({ where: { id: { in: artworkIds } }, include: { images: { orderBy: { order: 'asc' }, take: 1 } } });
+    const alertSummaries = await Promise.all(updatedArtworks.map(artwork => sendWishlistChangeAlerts({ previous: previousArtworks.find(item => item.id === artwork.id), artwork })));
     await recordAudit(req, 'BULK_UPDATE_ARTWORKS', 'Artwork', null, { artworkIds, ...data });
-    res.json({ updated: result.count });
+    res.json({ updated: result.count, alerts: alertSummaries.reduce((sum, summary) => sum + summary.sent, 0) });
   } catch (error) { console.error(error); res.status(500).json({ error: 'Failed to update artworks' }); }
 });
 
@@ -142,6 +146,22 @@ router.get('/admin/:id/history', authenticateAdmin, async (req, res) => {
     });
     res.json(logs);
   } catch (error) { console.error(error); res.status(500).json({ error: 'Failed to load artwork history' }); }
+});
+
+router.get('/admin/:id/alert-audience', authenticateAdmin, async (req, res) => {
+  try {
+    const previous = await prisma.artwork.findUnique({ where: { id: req.params.id }, select: { id: true, price: true, status: true } });
+    if (!previous) return res.status(404).json({ error: 'Artwork not found' });
+    const proposed = {
+      ...previous,
+      price: req.query.price !== undefined ? Number(req.query.price) : previous.price,
+      status: req.query.status ? String(req.query.status).toUpperCase() : previous.status,
+    };
+    res.json(await previewWishlistAlertAudience({ artworkId: previous.id, previous, proposed }));
+  } catch (error) {
+    console.error('Failed to preview wishlist alert audience:', error);
+    res.status(500).json({ error: 'Failed to preview alert audience' });
+  }
 });
 
 // ── Get single artwork by ID (Public) ───────────────────────────────────────
@@ -250,8 +270,9 @@ router.post('/', authenticateAdmin, async (req, res) => {
       },
     }).catch(() => {}); // Don't fail if notification fails
     await recordAudit(req, 'CREATE_ARTWORK', 'Artwork', artwork.id, { title: artwork.title });
+    const alertSummary = await sendSimilarArtworkAlerts(artwork);
 
-    res.status(201).json(artwork);
+    res.status(201).json({ ...artwork, alertSummary });
   } catch (error) {
     console.error('Error creating artwork:', error);
     res.status(500).json({ error: 'Failed to create artwork', details: error.message });
@@ -361,8 +382,9 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
       priceChange: updateData.price !== undefined && Number(existingArtwork.price) !== Number(updateData.price) ? { from: Number(existingArtwork.price), to: Number(updateData.price) } : undefined,
       statusChange: updateData.status && existingArtwork.status !== updateData.status ? { from: existingArtwork.status, to: updateData.status } : undefined,
     });
+    const alertSummary = await sendWishlistChangeAlerts({ previous: existingArtwork, artwork });
 
-    res.json(artwork);
+    res.json({ ...artwork, alertSummary });
   } catch (error) {
     console.error('Error updating artwork:', error);
     res.status(500).json({ error: 'Failed to update artwork' });

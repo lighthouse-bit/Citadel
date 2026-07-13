@@ -79,10 +79,11 @@ model Artwork {
   updatedAt    DateTime        @updatedAt
 
   // Relations
-  images        ArtworkImage[]
-  tags          ArtworkTag[]
-  orderItems    OrderItem[]
-  wishlistItems WishlistItem[]
+  images         ArtworkImage[]
+  tags           ArtworkTag[]
+  orderItems     OrderItem[]
+  wishlistItems  WishlistItem[]
+  wishlistAlerts WishlistAlert[]
 
   @@index([status])
   @@index([category])
@@ -125,29 +126,35 @@ model ArtworkTag {
 }
 
 model Customer {
-  id                String   @id @default(uuid())
-  email             String   @unique
-  firstName         String
-  lastName          String
-  phone             String?
-  password          String?
-  googleId          String?  @unique
-  stripeCustomerId  String?  @unique
-  isVerified        Boolean  @default(false)
-  verificationToken String?  @unique
-  isSuspended       Boolean  @default(false)
-  suspensionReason  String?
-  adminNotes        String?  @db.Text
-  adminTags         String[] @default([])
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id                         String    @id @default(uuid())
+  email                      String    @unique
+  firstName                  String
+  lastName                   String
+  phone                      String?
+  password                   String?
+  googleId                   String?   @unique
+  stripeCustomerId           String?   @unique
+  isVerified                 Boolean   @default(false)
+  verificationToken          String?   @unique
+  isSuspended                Boolean   @default(false)
+  suspensionReason           String?
+  adminNotes                 String?   @db.Text
+  adminTags                  String[]  @default([])
+  wishlistAvailabilityAlerts Boolean   @default(false)
+  wishlistPriceAlerts        Boolean   @default(false)
+  newArtworkAlerts           Boolean   @default(false)
+  marketingEmails            Boolean   @default(false)
+  emailPreferencesUpdatedAt  DateTime?
+  createdAt                  DateTime  @default(now())
+  updatedAt                  DateTime  @updatedAt
 
   // Relations
-  addresses     Address[]
-  commissions   Commission[]
-  orders        Order[]
-  notifications Notification[] // ✅ Added reverse relation
-  wishlistItems WishlistItem[]
+  addresses      Address[]
+  commissions    Commission[]
+  orders         Order[]
+  notifications  Notification[] // ✅ Added reverse relation
+  wishlistItems  WishlistItem[]
+  wishlistAlerts WishlistAlert[]
 
   @@index([email])
 }
@@ -164,6 +171,29 @@ model WishlistItem {
   @@unique([customerId, artworkId])
   @@index([customerId, createdAt])
   @@index([artworkId])
+}
+
+model WishlistAlert {
+  id         String    @id @default(uuid())
+  customerId String
+  artworkId  String
+  type       String
+  oldValue   String?
+  newValue   String?
+  status     String    @default("PENDING")
+  error      String?
+  messageId  String?
+  createdAt  DateTime  @default(now())
+  sentAt     DateTime?
+  openedAt   DateTime?
+  clickedAt  DateTime?
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  artwork  Artwork  @relation(fields: [artworkId], references: [id], onDelete: Cascade)
+
+  @@index([customerId, createdAt])
+  @@index([artworkId, type, createdAt])
+  @@index([status, createdAt])
 }
 
 model Address {

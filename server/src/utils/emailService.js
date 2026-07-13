@@ -1144,6 +1144,32 @@ const sendOrderDeliveredEmail = async ({
 };
 
 // ── Exports ───────────────────────────────────────────────────────────────────
+const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, character => ({
+  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;',
+}[character]));
+
+const sendWishlistAlertEmail = async ({ customer, artwork, type, oldValue, newValue, alertId, trackingToken, unsubscribeToken }) => {
+  const transporter = createTransporter();
+  const apiUrl = (process.env.PUBLIC_API_URL || 'https://citadel-blond.vercel.app/api').replace(/\/$/, '');
+  const clientUrl = (process.env.CLIENT_URL || 'https://highmarc.com').replace(/\/$/, '');
+  const clickUrl = `${apiUrl}/wishlist/alerts/${alertId}/click?token=${encodeURIComponent(trackingToken)}`;
+  const openUrl = `${apiUrl}/wishlist/alerts/${alertId}/open.gif?token=${encodeURIComponent(trackingToken)}`;
+  const unsubscribeUrl = `${clientUrl}/unsubscribe?token=${encodeURIComponent(unsubscribeToken)}`;
+  const imageUrl = artwork.images?.[0]?.url;
+  const typeCopy = {
+    AVAILABILITY: { subject: `${artwork.title} is available again`, heading: 'A saved artwork is available', detail: 'The artwork you saved has returned to the available collection.' },
+    PRICE_CHANGE: { subject: `Price update for ${artwork.title}`, heading: 'A saved artwork has a new price', detail: `The price changed from $${Number(oldValue).toLocaleString()} to $${Number(newValue).toLocaleString()}.` },
+    NEW_ARTWORK: { subject: `New artwork you may love: ${artwork.title}`, heading: 'A new piece has joined the collection', detail: 'This new artwork is similar to pieces you have saved.' },
+  }[type];
+
+  return transporter.sendMail({
+    from: `"Highmarc Art Atelier" <${process.env.EMAIL_USER}>`,
+    to: customer.email,
+    subject: typeCopy.subject,
+    html: `<!doctype html><html><body style="margin:0;background:#f5f5f4;font-family:Arial,sans-serif;color:#292524"><div style="max-width:600px;margin:32px auto;background:#fff;border:1px solid #e7e5e4"><div style="background:#1c1917;padding:32px;text-align:center;color:#fff"><h1 style="margin:0;letter-spacing:4px;font-family:Georgia,serif">HIGHMARC</h1></div>${imageUrl ? `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(artwork.title)}" style="width:100%;max-height:420px;object-fit:cover">` : ''}<div style="padding:36px"><p style="color:#b45309;text-transform:uppercase;letter-spacing:2px;font-size:11px">Wishlist update</p><h2 style="font-family:Georgia,serif;font-weight:400;font-size:28px">${escapeHtml(typeCopy.heading)}</h2><p>Hi ${escapeHtml(customer.firstName)},</p><p style="color:#57534e;line-height:1.7">${escapeHtml(typeCopy.detail)}</p><h3 style="font-family:Georgia,serif;font-size:22px">${escapeHtml(artwork.title)}</h3><p style="text-align:center;margin:32px 0"><a href="${clickUrl}" style="display:inline-block;background:#1c1917;color:#fff;padding:14px 28px;text-decoration:none;border-radius:6px">View artwork</a></p><p style="font-size:12px;color:#a8a29e;text-align:center">You received this because you enabled wishlist alerts. <a href="${unsubscribeUrl}" style="color:#78716c">Manage or unsubscribe</a>.</p></div></div><img src="${openUrl}" alt="" width="1" height="1" style="display:none"></body></html>`,
+  });
+};
+
 module.exports = {
   sendVerificationEmail,
   sendCommissionConfirmationEmail,
@@ -1154,4 +1180,5 @@ module.exports = {
   sendCommissionBalanceInvoiceEmail,
   sendOrderShippedEmail,
   sendOrderDeliveredEmail,
+  sendWishlistAlertEmail,
 };

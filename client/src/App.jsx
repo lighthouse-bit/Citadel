@@ -36,6 +36,7 @@ const VerifyEmail = lazy(() => import('./pages/VerifyEmail'));
 const CommissionPayment = lazy(() => import('./pages/CommissionPayment'));
 const OrderTracking = lazy(() => import('./pages/OrderTracking'));
 const NotFound = lazy(() => import('./pages/NotFound'));
+const Unsubscribe = lazy(() => import('./pages/Unsubscribe'));
 
 const AdminLayout = lazy(() => import('./pages/admin/AdminLayout'));
 const Dashboard = lazy(() => import('./pages/admin/Dashboard'));
@@ -54,6 +55,7 @@ const Marketing = lazy(() => import('./pages/admin/Marketing'));
 const Reports = lazy(() => import('./pages/admin/Reports'));
 const SystemHealth = lazy(() => import('./pages/admin/SystemHealth'));
 const AdminResetPassword = lazy(() => import('./pages/admin/AdminResetPassword'));
+const WishlistAlerts = lazy(() => import('./pages/admin/WishlistAlerts'));
 
 const queryClient = new QueryClient();
 
@@ -128,6 +130,7 @@ function App() {
                     <Route path="/track" element={publicPage(OrderTracking)} />
                     <Route path="/track/:orderNumber" element={publicPage(OrderTracking)} />
                     <Route path="/verify-email" element={publicPage(VerifyEmail)} />
+                    <Route path="/unsubscribe" element={publicPage(Unsubscribe)} />
                     <Route path="/account" element={publicPage(Account)} />
                     <Route path="/commission/payment/:id" element={publicPage(CommissionPayment)} />
 
@@ -147,6 +150,7 @@ function App() {
                       <Route path="customers" element={<Customers />} />
                       <Route path="audit-log" element={<AuditLog />} />
                       <Route path="marketing" element={<Marketing />} />
+                      <Route path="wishlist-alerts" element={<WishlistAlerts />} />
                       <Route path="reports" element={<Reports />} />
                       <Route path="system" element={<SystemHealth />} />
                     </Route>

@@ -59,6 +59,7 @@ const ArtworkForm = () => {
   const [isSaving, setIsSaving]     = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [images, setImages]         = useState([]);
+  const [alertAudience, setAlertAudience] = useState({ total: 0, byType: {} });
   const [formData, setFormData]     = useState({
     title:       '',
     description: '',
@@ -136,6 +137,19 @@ const ArtworkForm = () => {
   const removeImage = (index) => {
     setImages(prev => prev.filter((_, i) => i !== index));
   };
+
+  useEffect(() => {
+    if (!isEditing || !formData.price) return undefined;
+    const timer = window.setTimeout(async () => {
+      try {
+        const { data } = await artworksAPI.getAlertAudience(id, { price: formData.price, status: formData.status });
+        setAlertAudience(data);
+      } catch {
+        setAlertAudience({ total: 0, byType: {} });
+      }
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [formData.price, formData.status, id, isEditing]);
 
   const moveImage = (index, direction) => {
     const destination = index + direction;
@@ -226,8 +240,9 @@ const ArtworkForm = () => {
 
       // ── Step 3: Save to your backend / database ───────────────────────
       if (isEditing) {
-        await artworksAPI.update(id, submitData);
-        toast.success('Artwork updated successfully!');
+        const { data } = await artworksAPI.update(id, submitData);
+        const delivered = data.alertSummary?.sent || 0;
+        toast.success(delivered ? `Artwork updated; ${delivered} wishlist alert${delivered === 1 ? '' : 's'} delivered` : 'Artwork updated successfully!');
       } else {
         await artworksAPI.create(submitData);
         toast.success('Artwork created successfully!');
@@ -279,6 +294,13 @@ const ArtworkForm = () => {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-8">
+
+        {isEditing && alertAudience.total > 0 && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-900">
+            <b>{alertAudience.total} opted-in customer{alertAudience.total === 1 ? '' : 's'}</b> will receive an email if you save these price or availability changes.
+            <span className="block text-xs text-amber-700 mt-1">Availability: {alertAudience.byType?.AVAILABILITY || 0} · Price: {alertAudience.byType?.PRICE_CHANGE || 0}</span>
+          </div>
+        )}
 
         {/* ── Images ──────────────────────────────────────────────────── */}
         <div className="bg-white rounded-xl border border-stone-200 shadow-sm p-6">

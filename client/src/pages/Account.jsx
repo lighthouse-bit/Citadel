@@ -24,8 +24,10 @@ import {
   ShoppingBag,
   Heart,
   Trash2,
+  BellRing,
+  Save,
 } from 'lucide-react';
-import { ordersAPI, commissionsAPI } from '../services/api';
+import { ordersAPI, commissionsAPI, wishlistAPI } from '../services/api';
 import toast from 'react-hot-toast';
 import { useWishlist } from '../hooks/useWishlist';
 
@@ -39,6 +41,13 @@ const Account = () => {
   const [commissions, setCommissions] = useState([]);
   const [dataLoading, setDataLoading] = useState(false);
   const [searchOrder, setSearchOrder] = useState('');
+  const [savingPreferences, setSavingPreferences] = useState(false);
+  const [preferences, setPreferences] = useState({
+    wishlistAvailabilityAlerts: false,
+    wishlistPriceAlerts: false,
+    newArtworkAlerts: false,
+    marketingEmails: false,
+  });
 
   // Redirect if not logged in
   useEffect(() => {
@@ -53,13 +62,15 @@ const Account = () => {
       if (!user) return;
       setDataLoading(true);
       try {
-        const [ordersRes, commissionsRes] = await Promise.all([
+        const [ordersRes, commissionsRes, preferencesRes] = await Promise.all([
           ordersAPI.getAll({ customerEmail: user.email }),
           commissionsAPI.getAll({ scope: 'user' }),
+          wishlistAPI.getPreferences(),
         ]);
 
         setOrders(ordersRes.data?.orders || []);
         setCommissions(commissionsRes.data?.commissions || []);
+        setPreferences(previous => ({ ...previous, ...preferencesRes.data }));
       } catch (error) {
         console.error('Error fetching data:', error);
         toast.error('Failed to load your data');
@@ -92,6 +103,19 @@ const Account = () => {
     e.preventDefault();
     if (searchOrder.trim()) {
       navigate(`/track/${searchOrder.trim()}`);
+    }
+  };
+
+  const savePreferences = async () => {
+    try {
+      setSavingPreferences(true);
+      const { data } = await wishlistAPI.updatePreferences(preferences);
+      setPreferences(previous => ({ ...previous, ...data }));
+      toast.success('Email preferences saved');
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to save email preferences');
+    } finally {
+      setSavingPreferences(false);
     }
   };
 
@@ -223,6 +247,13 @@ const Account = () => {
                 onClick={() => setActiveTab('track')}
                 icon={<MapPin size={18} />}
                 label="Track Order"
+              />
+
+              <NavButton
+                active={activeTab === 'preferences'}
+                onClick={() => setActiveTab('preferences')}
+                icon={<BellRing size={18} />}
+                label="Email Alerts"
               />
 
               <div className="pt-4">
@@ -501,6 +532,34 @@ const Account = () => {
                         actionLink="/gallery"
                       />
                     )}
+                  </div>
+                )}
+
+                {activeTab === 'preferences' && (
+                  <div className="space-y-6">
+                    <div>
+                      <h1 className="text-3xl text-stone-900" style={{ fontFamily: "'Playfair Display', serif" }}>Email Alerts</h1>
+                      <p className="text-stone-500 text-sm mt-2">Choose the optional updates you want to receive. Order and account-security emails are unaffected.</p>
+                    </div>
+                    <div className="bg-white border border-stone-200 rounded-xl divide-y divide-stone-100 shadow-sm">
+                      {[
+                        ['wishlistAvailabilityAlerts', 'Availability alerts', 'Email me when a saved artwork becomes available again.'],
+                        ['wishlistPriceAlerts', 'Price-change alerts', 'Email me when the price of a saved artwork changes.'],
+                        ['newArtworkAlerts', 'Similar new artwork', 'Email me when a newly published piece resembles artwork I saved.'],
+                        ['marketingEmails', 'Studio news and offers', 'Occasional collection news, exhibitions and promotions.'],
+                      ].map(([key, title, description]) => (
+                        <label key={key} className="flex gap-4 items-start p-5 cursor-pointer hover:bg-stone-50">
+                          <input type="checkbox" checked={Boolean(preferences[key])} onChange={event => setPreferences(previous => ({ ...previous, [key]: event.target.checked }))} className="mt-1 h-4 w-4 accent-amber-600" />
+                          <span><span className="block font-medium text-stone-900">{title}</span><span className="block text-sm text-stone-500 mt-1">{description}</span></span>
+                        </label>
+                      ))}
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <p className="text-xs text-stone-400">You can change these choices at any time or unsubscribe from an alert email.</p>
+                      <button onClick={savePreferences} disabled={savingPreferences} className="inline-flex items-center justify-center gap-2 bg-stone-900 text-white px-5 py-3 rounded-lg disabled:opacity-50">
+                        {savingPreferences ? <Loader size={16} className="animate-spin" /> : <Save size={16} />} Save preferences
+                      </button>
+                    </div>
                   </div>
                 )}
 
