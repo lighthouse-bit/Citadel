@@ -19,6 +19,7 @@ import toast from 'react-hot-toast';
 import SEO from '../components/common/SEO';
 import WallPlacement from '../components/WallPlacement';
 import { trackArtworkView, trackEvent } from '../utils/analytics';
+import { useWishlist } from '../hooks/useWishlist';
 
 // Reusable Image Component
 const ArtworkImage = ({ src, alt, className = "" }) => {
@@ -38,13 +39,13 @@ const ArtworkImage = ({ src, alt, className = "" }) => {
 const ArtworkDetail = () => {
   const { id } = useParams();
   const { addToCart, isInCart } = useCart();
+  const { isWishlisted, toggleWishlist } = useWishlist();
   
   const [artwork, setArtwork] = useState(null);
   const [relatedWorks, setRelatedWorks] = useState([]);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [isFavorited, setIsFavorited] = useState(false);
 
   useEffect(() => {
     const fetchArtworkData = async () => {
@@ -126,6 +127,7 @@ const ArtworkDetail = () => {
   }
 
   const currentImage = artwork.images?.[selectedImageIndex]?.url;
+  const isFavorited = isWishlisted(artwork.id);
   const artworkUrl = `https://highmarc.com/artwork/${artwork.id}`;
   const artworkImages = artwork.images?.map((image) => image.url || image).filter(Boolean) || [];
   const availability = artwork.status === 'AVAILABLE'
@@ -267,7 +269,9 @@ const ArtworkDetail = () => {
                     
                     <div className="flex gap-3">
                       <button
-                        onClick={() => setIsFavorited(!isFavorited)}
+                        onClick={() => toggleWishlist(artwork)}
+                        aria-label={isFavorited ? `Remove ${artwork.title} from wishlist` : `Save ${artwork.title} to wishlist`}
+                        aria-pressed={isFavorited}
                         className={`p-3 rounded-full border transition-all ${
                           isFavorited ? 'border-red-200 bg-red-50 text-red-500' : 'border-stone-200 hover:border-stone-300 text-stone-400'
                         }`}
@@ -276,6 +280,7 @@ const ArtworkDetail = () => {
                       </button>
                       <button
                         onClick={handleShare}
+                        aria-label={`Share ${artwork.title}`}
                         className="p-3 rounded-full border border-stone-200 hover:border-stone-300 text-stone-400 transition-all"
                       >
                         <Share2 size={20} />

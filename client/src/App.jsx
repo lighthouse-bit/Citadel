@@ -11,6 +11,7 @@ import { CartProvider } from './context/CartContext';
 import { AuthProvider } from './context/AuthContext';
 import { SettingsProvider } from './context/SettingsContext';
 import { ArtworksProvider } from './context/ArtworksContext';
+import { WishlistProvider } from './context/WishlistContext';
 import VerificationBanner from './components/auth/VerificationBanner';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import Navbar from './components/common/Navbar';
@@ -81,6 +82,12 @@ const RouteLoader = () => (
 const PublicLayout = ({ children }) => {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
 
+  useEffect(() => {
+    const openAuth = () => setIsAuthOpen(true);
+    window.addEventListener('citadel:open-auth', openAuth);
+    return () => window.removeEventListener('citadel:open-auth', openAuth);
+  }, []);
+
   return (
     <>
       <a href="#main-content" className="skip-link">Skip to main content</a>
@@ -102,6 +109,7 @@ function App() {
       <SettingsProvider>
         <ArtworksProvider>
           <AuthProvider>
+            <WishlistProvider>
             <CartProvider>
               <Router>
                 <RouteTracker />
@@ -163,6 +171,7 @@ function App() {
                 />
               </Router>
             </CartProvider>
+            </WishlistProvider>
           </AuthProvider>
         </ArtworksProvider>
       </SettingsProvider>

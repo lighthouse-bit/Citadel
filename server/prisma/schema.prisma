@@ -79,9 +79,10 @@ model Artwork {
   updatedAt    DateTime        @updatedAt
 
   // Relations
-  images     ArtworkImage[]
-  tags       ArtworkTag[]
-  orderItems OrderItem[]
+  images        ArtworkImage[]
+  tags          ArtworkTag[]
+  orderItems    OrderItem[]
+  wishlistItems WishlistItem[]
 
   @@index([status])
   @@index([category])
@@ -146,8 +147,23 @@ model Customer {
   commissions   Commission[]
   orders        Order[]
   notifications Notification[] // ✅ Added reverse relation
+  wishlistItems WishlistItem[]
 
   @@index([email])
+}
+
+model WishlistItem {
+  id         String   @id @default(uuid())
+  customerId String
+  artworkId  String
+  createdAt  DateTime @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  artwork  Artwork  @relation(fields: [artworkId], references: [id], onDelete: Cascade)
+
+  @@unique([customerId, artworkId])
+  @@index([customerId, createdAt])
+  @@index([artworkId])
 }
 
 model Address {
@@ -191,17 +207,17 @@ model Order {
   updatedAt             DateTime      @updatedAt
   customerId            String
   shippingAddressId     String?
-   // ✅ Add shipping tracking fields
-  shippingZone      String?    // "Nigeria", "Africa", "International"
-  shippingSize      String?    // "small", "medium", "large", "xlarge"
-  carrier           String?    // "DHL", "FedEx", "GIG", etc.
-  
-  trackingUrl       String?    // ✅ New
-  estimatedDelivery DateTime?  // ✅ New
+  // ✅ Add shipping tracking fields
+  shippingZone          String? // "Nigeria", "Africa", "International"
+  shippingSize          String? // "small", "medium", "large", "xlarge"
+  carrier               String? // "DHL", "FedEx", "GIG", etc.
+
+  trackingUrl       String? // ✅ New
+  estimatedDelivery DateTime? // ✅ New
 
   // Relations
-  customer        Customer    @relation(fields: [customerId], references: [id])
-  shippingAddress Address?    @relation(fields: [shippingAddressId], references: [id])
+  customer        Customer     @relation(fields: [customerId], references: [id])
+  shippingAddress Address?     @relation(fields: [shippingAddressId], references: [id])
   items           OrderItem[]
   events          OrderEvent[]
 
@@ -300,18 +316,18 @@ model CommissionNote {
 }
 
 model Admin {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  password  String
-  name      String
-  role      String   @default("admin")
-  failedLoginAttempts Int @default(0)
-  lockedUntil DateTime?
-  passwordResetToken String? @unique
+  id                   String    @id @default(uuid())
+  email                String    @unique
+  password             String
+  name                 String
+  role                 String    @default("admin")
+  failedLoginAttempts  Int       @default(0)
+  lockedUntil          DateTime?
+  passwordResetToken   String?   @unique
   passwordResetExpires DateTime?
-  passwordChangedAt DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  passwordChangedAt    DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   auditLogs   AuditLog[]
   orderEvents OrderEvent[]
@@ -323,34 +339,34 @@ model Admin {
 }
 
 model OrderEvent {
-  id String @id @default(uuid())
-  type String
-  message String
-  metadata Json?
+  id        String   @id @default(uuid())
+  type      String
+  message   String
+  metadata  Json?
   createdAt DateTime @default(now())
-  orderId String
-  adminId String?
-  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  admin Admin? @relation(fields: [adminId], references: [id], onDelete: SetNull)
+  orderId   String
+  adminId   String?
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  admin     Admin?   @relation(fields: [adminId], references: [id], onDelete: SetNull)
+
   @@index([orderId, createdAt])
   @@index([adminId])
 }
 
 model AuditLog {
-  id String @id @default(uuid())
-  action String
-  entity String
-  entityId String?
-  metadata Json?
+  id        String   @id @default(uuid())
+  action    String
+  entity    String
+  entityId  String?
+  metadata  Json?
   ipAddress String?
   createdAt DateTime @default(now())
-  adminId String
-  admin Admin @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  adminId   String
+  admin     Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
   @@index([adminId, createdAt])
   @@index([entity, entityId])
 }
-
-
 
 model Notification {
   id         String   @id @default(uuid())
@@ -372,22 +388,23 @@ model Notification {
 }
 
 model Promotion {
-  id             String   @id @default(uuid())
-  code           String   @unique
-  name           String
-  discountType   String
-  value          Decimal  @db.Decimal(10, 2)
-  minimumOrder   Decimal? @db.Decimal(10, 2)
-  maximumDiscount Decimal? @db.Decimal(10, 2)
-  usageLimit     Int?
-  usageCount     Int      @default(0)
-  startsAt       DateTime?
-  endsAt         DateTime?
-  isActive       Boolean  @default(true)
-  categories     String[] @default([])
-  artworkIds     String[] @default([])
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id              String    @id @default(uuid())
+  code            String    @unique
+  name            String
+  discountType    String
+  value           Decimal   @db.Decimal(10, 2)
+  minimumOrder    Decimal?  @db.Decimal(10, 2)
+  maximumDiscount Decimal?  @db.Decimal(10, 2)
+  usageLimit      Int?
+  usageCount      Int       @default(0)
+  startsAt        DateTime?
+  endsAt          DateTime?
+  isActive        Boolean   @default(true)
+  categories      String[]  @default([])
+  artworkIds      String[]  @default([])
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
   @@index([isActive, startsAt, endsAt])
 }
 
@@ -401,77 +418,79 @@ model EmailTemplate {
 }
 
 model EmailCampaign {
-  id             String   @id @default(uuid())
+  id             String    @id @default(uuid())
   name           String
   subject        String
-  htmlBody       String   @db.Text
-  segment        String   @default("VERIFIED")
-  status         String   @default("DRAFT")
-  recipientCount Int      @default(0)
-  deliveredCount Int      @default(0)
-  failedCount    Int      @default(0)
+  htmlBody       String    @db.Text
+  segment        String    @default("VERIFIED")
+  status         String    @default("DRAFT")
+  recipientCount Int       @default(0)
+  deliveredCount Int       @default(0)
+  failedCount    Int       @default(0)
   sentAt         DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
   @@index([status, createdAt])
 }
 
 model OperationalEvent {
-  id        String   @id @default(uuid())
-  type      String
-  severity  String   @default("ERROR")
-  message   String
-  metadata  Json?
-  resolved  Boolean  @default(false)
-  createdAt DateTime @default(now())
+  id         String    @id @default(uuid())
+  type       String
+  severity   String    @default("ERROR")
+  message    String
+  metadata   Json?
+  resolved   Boolean   @default(false)
+  createdAt  DateTime  @default(now())
   resolvedAt DateTime?
+
   @@index([resolved, severity, createdAt])
   @@index([type, createdAt])
 }
 
 model SiteSettings {
-  id                          String   @id @default("settings")
-  siteName                    String   @default("Highmarc")
-  siteTagline                 String?  @default("Fine Art Atelier")
-  artistName                  String?
-  artistBio                   String?  @db.Text
-  contactEmail                String?
-  phone                       String?
-  address                     String?
+  id           String  @id @default("settings")
+  siteName     String  @default("Highmarc")
+  siteTagline  String? @default("Fine Art Atelier")
+  artistName   String?
+  artistBio    String? @db.Text
+  contactEmail String?
+  phone        String?
+  address      String?
 
   // Payment
-  currency                    String?  @default("USD")
-  enableTax                   Boolean  @default(false)
-  taxRate                     Float?   @default(7.5)
+  currency  String? @default("USD")
+  enableTax Boolean @default(false)
+  taxRate   Float?  @default(7.5)
 
   // Shipping
-  freeShippingThreshold       Float?   @default(500)
-  shippingFee                 Float?   @default(0)
-  internationalShipping       Boolean  @default(true)
+  freeShippingThreshold Float?  @default(500)
+  shippingFee           Float?  @default(0)
+  internationalShipping Boolean @default(true)
 
   // Commissions
-  commissionOpen              Boolean  @default(true)
-  commissionDepositPercentage Int?     @default(70)
+  commissionOpen              Boolean @default(true)
+  commissionDepositPercentage Int?    @default(70)
   commissionWaitTime          String?
-  minimumCommissionPrice      Float?   @default(500)
+  minimumCommissionPrice      Float?  @default(500)
 
   // Social
-  socialInstagram             String?
-  socialTwitter               String?
-  socialFacebook              String?
+  socialInstagram String?
+  socialTwitter   String?
+  socialFacebook  String?
 
   // SEO
-  metaDescription             String?  @db.Text
-  heroTitle                   String?
-  heroSubtitle                String?
-  aboutPageContent            String?  @db.Text
+  metaDescription  String? @db.Text
+  heroTitle        String?
+  heroSubtitle     String?
+  aboutPageContent String? @db.Text
 
   // Policies
-  shippingInfo                String?  @db.Text
-  returnPolicy                String?  @db.Text
+  shippingInfo String? @db.Text
+  returnPolicy String? @db.Text
 
   // ✅ FIX — Add default to avoid migration error
-  updatedAt                   DateTime @default(now()) @updatedAt
+  updatedAt DateTime @default(now()) @updatedAt
 }
 
 model PageView {
@@ -483,7 +502,7 @@ model PageView {
   ip        String?
   country   String?
   city      String?
-  device    String?  // mobile, tablet, desktop
+  device    String? // mobile, tablet, desktop
   browser   String?
   sessionId String?
   createdAt DateTime @default(now())
@@ -499,8 +518,8 @@ model PageView {
 
 model AnalyticsEvent {
   id        String   @id @default(uuid())
-  event     String   // 'view_artwork', 'add_to_cart', 'purchase', 'commission_submit'
-  data      Json?    // flexible metadata
+  event     String // 'view_artwork', 'add_to_cart', 'purchase', 'commission_submit'
+  data      Json? // flexible metadata
   sessionId String?
   ip        String?
   createdAt DateTime @default(now())
@@ -511,36 +530,36 @@ model AnalyticsEvent {
 
 // ── Shipping Zones ──────────────────────────────────────
 model ShippingZone {
-  id          String         @id @default(uuid())
-  name        String         // "Nigeria", "Africa", "International"
-  countries   String[]       // Country codes like ["NG"], ["GH", "KE"], etc.
-  isActive    Boolean        @default(true)
-  displayOrder Int           @default(0)
+  id           String   @id @default(uuid())
+  name         String // "Nigeria", "Africa", "International"
+  countries    String[] // Country codes like ["NG"], ["GH", "KE"], etc.
+  isActive     Boolean  @default(true)
+  displayOrder Int      @default(0)
 
-  rates       ShippingRate[]
+  rates ShippingRate[]
 
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 }
 
 // ── Shipping Rates per Zone ─────────────────────────────
 model ShippingRate {
-  id            String   @id @default(uuid())
-  zoneId        String
+  id     String @id @default(uuid())
+  zoneId String
 
   // Size-based pricing (USD)
-  smallRate     Decimal  @default(0) @db.Decimal(10, 2)  // ≤ 12 inches
-  mediumRate    Decimal  @default(0) @db.Decimal(10, 2)  // 12-24 inches
-  largeRate     Decimal  @default(0) @db.Decimal(10, 2)  // 24-36 inches
-  xlargeRate    Decimal  @default(0) @db.Decimal(10, 2)  // 36+ inches
+  smallRate  Decimal @default(0) @db.Decimal(10, 2) // ≤ 12 inches
+  mediumRate Decimal @default(0) @db.Decimal(10, 2) // 12-24 inches
+  largeRate  Decimal @default(0) @db.Decimal(10, 2) // 24-36 inches
+  xlargeRate Decimal @default(0) @db.Decimal(10, 2) // 36+ inches
 
-  estimatedDays String?  // "5-7 business days"
-  isActive      Boolean  @default(true)
+  estimatedDays String? // "5-7 business days"
+  isActive      Boolean @default(true)
 
-  zone          ShippingZone @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  zone ShippingZone @relation(fields: [zoneId], references: [id], onDelete: Cascade)
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 
   @@unique([zoneId])
   @@index([zoneId])

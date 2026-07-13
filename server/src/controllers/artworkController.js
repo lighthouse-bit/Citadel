@@ -46,6 +46,7 @@ exports.getAllArtworks = async (req, res) => {
         include: {
           images: { orderBy: { order: 'asc' } },
           tags:   { include: { tag: true } },
+          _count: { select: { orderItems: true, wishlistItems: true } },
         },
         orderBy: { [sort]: order },
         skip,
@@ -79,6 +80,7 @@ exports.getArtworkById = async (req, res) => {
       include: {
         images: { orderBy: { order: 'asc' } },
         tags:   { include: { tag: true } },
+        _count: { select: { orderItems: true, wishlistItems: true } },
       },
     });
 

@@ -62,3 +62,26 @@ exports.authenticateUser = (req, res, next) => {
     next();
   }
 };
+
+exports.authenticateCustomer = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Customer authentication required' });
+    }
+    const decoded = verifyToken(authHeader.slice(7));
+    if (decoded.role !== 'customer') {
+      return res.status(403).json({ error: 'Customer access required' });
+    }
+    const customer = await prisma.customer.findUnique({
+      where: { id: decoded.id },
+      select: { id: true, isSuspended: true },
+    });
+    if (!customer) return res.status(401).json({ error: 'Customer account no longer exists' });
+    if (customer.isSuspended) return res.status(403).json({ error: 'Customer account is suspended' });
+    req.user = decoded;
+    return next();
+  } catch {
+    return res.status(401).json({ error: 'Invalid or expired customer session' });
+  }
+};

@@ -80,6 +80,7 @@ app.use('/api/analytics', analyticsRoutes);
 app.use('/api/shipping', shippingRoutes);
 app.use('/api/tracking', trackingRoutes);
 app.use('/api/customers', require('./routes/customerRoutes'));
+app.use('/api/wishlist', require('./routes/wishlistRoutes'));
 app.use('/api/audit-logs', require('./routes/auditRoutes'));
 app.use('/api/marketing', require('./routes/marketingRoutes'));
 app.use('/api/reports', require('./routes/reportingRoutes'));

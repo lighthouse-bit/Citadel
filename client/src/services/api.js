@@ -46,6 +46,12 @@ export const artworksAPI = {
   getHistory: (id) => api.get(`/artworks/admin/${id}/history`),
 };
 
+export const wishlistAPI = {
+  getAll: () => api.get('/wishlist'),
+  add: artworkId => api.post(`/wishlist/${artworkId}`),
+  remove: artworkId => api.delete(`/wishlist/${artworkId}`),
+};
+
 // ==========================================
 // COMMISSIONS API
 // ==========================================

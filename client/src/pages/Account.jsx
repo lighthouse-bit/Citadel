@@ -22,13 +22,17 @@ import {
   Globe,
   TrendingUp,
   ShoppingBag,
+  Heart,
+  Trash2,
 } from 'lucide-react';
 import { ordersAPI, commissionsAPI } from '../services/api';
 import toast from 'react-hot-toast';
+import { useWishlist } from '../hooks/useWishlist';
 
 const Account = () => {
   const { user, logout, isAuthenticated, isLoading: authLoading, isVerified } = useAuth();
   const navigate = useNavigate();
+  const { artworks: wishlist, isLoading: wishlistLoading, toggleWishlist } = useWishlist();
 
   const [activeTab, setActiveTab]   = useState('overview');
   const [orders, setOrders]         = useState([]);
@@ -204,6 +208,14 @@ const Account = () => {
                 icon={<Palette size={18} />}
                 label="Commissions"
                 count={commissions.length}
+              />
+
+              <NavButton
+                active={activeTab === 'wishlist'}
+                onClick={() => setActiveTab('wishlist')}
+                icon={<Heart size={18} />}
+                label="Wishlist"
+                count={wishlist.length}
               />
 
               <NavButton
@@ -433,6 +445,62 @@ const Account = () => {
                         description="Get help with anything"
                       />
                     </div>
+                  </div>
+                )}
+
+                {activeTab === 'wishlist' && (
+                  <div className="space-y-6">
+                    <div>
+                      <h1 className="text-3xl text-stone-900" style={{ fontFamily: "'Playfair Display', serif" }}>
+                        Saved Artworks
+                      </h1>
+                      <p className="text-stone-500 text-sm mt-2">
+                        Your personal collection of pieces to revisit.
+                      </p>
+                    </div>
+
+                    {wishlistLoading ? (
+                      <div className="flex justify-center py-16"><Loader size={30} className="animate-spin text-amber-600" /></div>
+                    ) : wishlist.length ? (
+                      <div className="grid sm:grid-cols-2 gap-5">
+                        {wishlist.map(artwork => (
+                          <article key={artwork.id} className="bg-white border border-stone-200 rounded-xl overflow-hidden shadow-sm group">
+                            <Link to={`/artwork/${artwork.id}`} className="block aspect-[4/3] bg-stone-100 overflow-hidden">
+                              {artwork.images?.[0]?.url ? (
+                                <img src={artwork.images[0].url} alt={artwork.title} loading="lazy" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                              ) : (
+                                <div className="w-full h-full grid place-items-center text-stone-300"><Image size={32} /></div>
+                              )}
+                            </Link>
+                            <div className="p-4">
+                              <div className="flex justify-between gap-4">
+                                <div className="min-w-0">
+                                  <Link to={`/artwork/${artwork.id}`} className="font-serif text-lg text-stone-900 hover:text-amber-700 line-clamp-1">{artwork.title}</Link>
+                                  <p className="text-xs text-stone-500 mt-1 uppercase tracking-wide">{artwork.medium || artwork.category?.replace('_', ' ')}</p>
+                                </div>
+                                <p className="font-semibold text-stone-900 whitespace-nowrap">${Number(artwork.price).toLocaleString()}</p>
+                              </div>
+                              <div className="mt-4 pt-4 border-t border-stone-100 flex items-center justify-between">
+                                <span className={`text-xs font-medium ${artwork.status === 'AVAILABLE' ? 'text-green-700' : 'text-stone-500'}`}>
+                                  {artwork.status?.replace('_', ' ')}
+                                </span>
+                                <button onClick={() => toggleWishlist(artwork)} className="inline-flex items-center gap-1.5 text-xs text-stone-500 hover:text-red-600" aria-label={`Remove ${artwork.title} from wishlist`}>
+                                  <Trash2 size={14} /> Remove
+                                </button>
+                              </div>
+                            </div>
+                          </article>
+                        ))}
+                      </div>
+                    ) : (
+                      <EmptyState
+                        icon={<Heart size={48} className="text-stone-300" />}
+                        title="Your wishlist is empty"
+                        description="Save artwork from the gallery or shop and it will appear here."
+                        actionLabel="Explore the Gallery"
+                        actionLink="/gallery"
+                      />
+                    )}
                   </div>
                 )}
 

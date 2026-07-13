@@ -2,11 +2,12 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Filter, Grid, LayoutGrid, ShoppingBag, Search, X } from 'lucide-react';
+import { Filter, Grid, LayoutGrid, ShoppingBag, Search, X, Heart } from 'lucide-react';
 import { useCart } from '../hooks/useCart';
 import { artworksAPI } from '../services/api';
 import toast from 'react-hot-toast';
 import SEO from '../components/common/SEO';
+import { useWishlist } from '../hooks/useWishlist';
 
 const ArtworkImage = ({ src, alt, className }) => {
   const FALLBACK = "https://images.unsplash.com/photo-1547891654-e66ed7ebb968?w=800&h=1000&fit=crop";
@@ -24,6 +25,7 @@ const ArtworkImage = ({ src, alt, className }) => {
 
 const Shop = () => {
   const { addToCart, isInCart } = useCart();
+  const { isWishlisted, toggleWishlist } = useWishlist();
   const [artworks, setArtworks] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [viewMode, setViewMode] = useState('grid');
@@ -252,8 +254,19 @@ const Shop = () => {
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0, scale: 0.95 }}
                       transition={{ duration: 0.3, delay: index * 0.05 }}
-                      className="group"
+                      className="group relative"
                     >
+                      <button
+                        type="button"
+                        onClick={() => toggleWishlist(artwork)}
+                        aria-label={isWishlisted(artwork.id) ? `Remove ${artwork.title} from wishlist` : `Save ${artwork.title} to wishlist`}
+                        aria-pressed={isWishlisted(artwork.id)}
+                        className={`absolute top-3 right-3 z-20 p-2.5 rounded-full shadow-md backdrop-blur transition-colors ${
+                          isWishlisted(artwork.id) ? 'bg-red-50 text-red-500' : 'bg-white/90 text-stone-500 hover:text-red-500'
+                        }`}
+                      >
+                        <Heart size={17} fill={isWishlisted(artwork.id) ? 'currentColor' : 'none'} />
+                      </button>
                       {/* Image */}
                       <Link to={`/artwork/${artwork.id}`} className="block relative mb-4">
                         <div className={`relative overflow-hidden bg-stone-200 rounded-lg shadow-sm 
