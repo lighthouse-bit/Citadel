@@ -140,7 +140,7 @@ const WallPlacement = ({ artwork }) => {
           <div
             role="img"
             aria-label={`${artwork.title} positioned on your wall`}
-            className={`absolute border-[3px] border-white bg-white shadow-2xl ${
+            className={`absolute p-[3px] ring-1 ring-black/70 ${
               isDragging ? 'cursor-grabbing' : 'cursor-grab'
             }`}
             style={{
@@ -149,18 +149,22 @@ const WallPlacement = ({ artwork }) => {
               transform: `translate(-50%, -50%) rotate(${artRotation}deg) scale(${artScale})`,
               width: 'clamp(140px, 42%, 280px)',
               touchAction: 'none',
+              background: 'linear-gradient(135deg, #393633 0%, #0c0b0a 28%, #24211f 62%, #050505 100%)',
+              boxShadow: '0 18px 38px rgba(0, 0, 0, 0.38), 0 4px 10px rgba(0, 0, 0, 0.28), inset 0 0 0 1px rgba(255, 255, 255, 0.12)',
             }}
             onPointerDown={startDragging}
             onPointerMove={updatePosition}
             onPointerUp={stopDragging}
             onPointerCancel={stopDragging}
           >
-            <img
-              src={artwork.images?.[0]?.url}
-              alt=""
-              draggable="false"
-              className="block h-auto w-full"
-            />
+            <div className="border border-black/80 bg-black">
+              <img
+                src={artwork.images?.[0]?.url}
+                alt=""
+                draggable="false"
+                className="block h-auto w-full"
+              />
+            </div>
           </div>
         )}
       </div>
