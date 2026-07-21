@@ -77,7 +77,7 @@ const Navbar = ({ onOpenAuth }) => {
         <div className="flex justify-between items-center">
 
           {/* ── Logo ─────────────────────────────────────── */}
-          <Link to="/" className="relative group z-50" aria-label={`${settings.siteName} home`}>
+          <Link to="/" className="relative block group z-50" aria-label={`${settings.siteName} home`}>
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -85,14 +85,15 @@ const Navbar = ({ onOpenAuth }) => {
             >
               {/* ✅ Now reads from settings */}
               <h1
-                className={`font-serif text-2xl md:text-3xl tracking-wider 
+                className={`font-serif text-2xl md:text-3xl leading-none tracking-wider
                             transition-colors duration-300 ${getTextColor()}`}
                 style={{ fontFamily: "'Playfair Display', serif" }}
               >
                 {settings.siteName}
               </h1>
               <span
-                className={`absolute -bottom-3 left-0 text-[9px] tracking-widest 
+                className={`block mt-1.5 md:mt-0 md:absolute md:-bottom-3 md:left-0
+                            text-[9px] leading-none tracking-widest whitespace-nowrap
                             transition-colors duration-300 ${
                   scrolled || !isHomePage ? 'text-amber-700' : 'text-amber-200'
                 }`}
