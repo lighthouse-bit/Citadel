@@ -11,20 +11,7 @@ import { useWishlist } from '../hooks/useWishlist';
 import { useAuth } from '../hooks/useAuth';
 import ArtworkRecommendations from '../components/ArtworkRecommendations';
 import { getGuestRecentlyViewed } from '../utils/recentlyViewed';
-
-const ArtworkImage = ({ src, alt, className }) => {
-  const FALLBACK = "https://images.unsplash.com/photo-1547891654-e66ed7ebb968?w=800&h=1000&fit=crop";
-  const [imgSrc, setImgSrc] = useState(src || FALLBACK);
-  return (
-    <img
-      src={imgSrc}
-      alt={alt}
-      className={className}
-      onError={() => setImgSrc(FALLBACK)}
-      loading="lazy"
-    />
-  );
-};
+import ArtworkImage from '../components/common/ArtworkImage';
 
 const filterInputClass = 'w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm focus:outline-none focus:border-amber-500';
 
@@ -335,6 +322,11 @@ const Shop = () => {
                             src={artwork.images?.[0]?.url}
                             alt={artwork.title}
                             className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                            sizes={viewMode === 'grid'
+                              ? '(max-width: 767px) calc(100vw - 3rem), (max-width: 1023px) calc(50vw - 3rem), 400px'
+                              : '(max-width: 767px) calc(100vw - 3rem), 600px'}
+                            loading={index < 3 ? 'eager' : 'lazy'}
+                            fetchPriority={index === 0 ? 'high' : 'auto'}
                           />
                           
                           {/* Hover Overlay */}

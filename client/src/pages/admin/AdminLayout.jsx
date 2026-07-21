@@ -135,21 +135,43 @@ const AdminLayout = () => {
   };
 
   // ✅ Menu items with Shipping added
-  const menuItems = [
-    { path: '/admin',             icon: LayoutDashboard, label: 'Dashboard',   exact: true },
-    { path: '/admin/artworks',    icon: Image,           label: 'Artworks'                },
-    { path: '/admin/orders',      icon: ShoppingBag,     label: 'Orders'                  },
-    { path: '/admin/customers',   icon: Users,           label: 'Customers'               },
-    { path: '/admin/commissions', icon: Palette,         label: 'Commissions'             },
-    { path: '/admin/support',     icon: MessageSquare,   label: 'Support'                 },
-    { path: '/admin/shipping',    icon: Truck,           label: 'Shipping'                }, // ✅ Added
-    { path: '/admin/marketing',   icon: Megaphone,       label: 'Marketing'               },
-    { path: '/admin/wishlist-alerts', icon: Heart,       label: 'Wishlist Alerts'          },
-    { path: '/admin/reports',     icon: LineChart,       label: 'Reports'                 },
-    { path: '/admin/system',      icon: HeartPulse,      label: 'System Health'           },
-    { path: '/admin/settings',    icon: Settings,        label: 'Settings'                },
-    { path: '/admin/audit-log',   icon: ClipboardList,   label: 'Audit Log'               },
+  const menuSections = [
+    {
+      label: 'Overview',
+      items: [
+        { path: '/admin', icon: LayoutDashboard, label: 'Dashboard', exact: true },
+      ],
+    },
+    {
+      label: 'Management',
+      items: [
+        { path: '/admin/artworks', icon: Image, label: 'Artworks' },
+        { path: '/admin/orders', icon: ShoppingBag, label: 'Orders' },
+        { path: '/admin/customers', icon: Users, label: 'Customers' },
+        { path: '/admin/commissions', icon: Palette, label: 'Commissions' },
+        { path: '/admin/support', icon: MessageSquare, label: 'Support' },
+        { path: '/admin/shipping', icon: Truck, label: 'Shipping' },
+      ],
+    },
+    {
+      label: 'Growth & insights',
+      items: [
+        { path: '/admin/marketing', icon: Megaphone, label: 'Marketing' },
+        { path: '/admin/wishlist-alerts', icon: Heart, label: 'Wishlist Alerts' },
+        { path: '/admin/reports', icon: LineChart, label: 'Reports' },
+      ],
+    },
+    {
+      label: 'Administration',
+      items: [
+        { path: '/admin/system', icon: HeartPulse, label: 'System Health' },
+        { path: '/admin/settings', icon: Settings, label: 'Settings' },
+        { path: '/admin/audit-log', icon: ClipboardList, label: 'Audit Log' },
+      ],
+    },
   ];
+  const menuItems = menuSections.flatMap((section) => section.items);
+  const showSidebarLabels = sidebarOpen || mobileMenuOpen;
 
   const isActive = (path, exact = false) => {
     if (exact) return location.pathname === path;
@@ -171,14 +193,14 @@ const AdminLayout = () => {
       {/* ── Sidebar ──────────────────────────────────────── */}
       <aside
         aria-label="Admin navigation"
-        className={`fixed top-0 left-0 h-full bg-stone-900 text-white z-50
+        className={`fixed top-0 left-0 h-full bg-stone-900 text-white z-50 flex flex-col
                    transition-all duration-300 ease-in-out
-                   ${sidebarOpen ? 'w-64' : 'w-20'}
+                   w-64 ${sidebarOpen ? 'lg:w-64' : 'lg:w-20'}
                    ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
       >
         {/* Logo */}
-        <div className="h-16 flex items-center justify-between px-4 border-b border-stone-800">
-          {sidebarOpen && (
+        <div className="h-16 flex-none flex items-center justify-between px-4 border-b border-stone-800">
+          {showSidebarLabels && (
             <Link to="/admin" className="flex items-center gap-2">
               <span className="text-xl font-serif">CITADEL</span>
               <span className="text-[10px] text-amber-500 uppercase tracking-wider">
@@ -207,41 +229,59 @@ const AdminLayout = () => {
         </div>
 
         {/* Navigation */}
-        <nav className="p-4 space-y-2">
-          {menuItems.map((item) => (
-            <Link
-              key={item.path}
-              to={item.path}
-              onClick={() => setMobileMenuOpen(false)}
-              aria-current={isActive(item.path, item.exact) ? 'page' : undefined}
-              className={`flex items-center gap-3 px-4 py-3 rounded-lg
-                          transition-all duration-200 ${
-                isActive(item.path, item.exact)
-                  ? 'bg-amber-600 text-white'
-                  : 'text-stone-400 hover:bg-stone-800 hover:text-white'
-              }`}
-            >
-              <item.icon size={20} />
-              {sidebarOpen && <span className="font-medium">{item.label}</span>}
-            </Link>
-          ))}
+        <nav className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 py-4">
+          <div className="space-y-5">
+            {menuSections.map((section, sectionIndex) => (
+              <section key={section.label} aria-label={section.label}>
+                {showSidebarLabels ? (
+                  <p className="px-3 mb-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-600">
+                    {section.label}
+                  </p>
+                ) : sectionIndex > 0 ? (
+                  <div className="mx-2 mb-2 border-t border-stone-800" aria-hidden="true" />
+                ) : null}
+                <div className="space-y-1">
+                  {section.items.map((item) => (
+                    <Link
+                      key={item.path}
+                      to={item.path}
+                      title={!showSidebarLabels ? item.label : undefined}
+                      onClick={() => setMobileMenuOpen(false)}
+                      aria-current={isActive(item.path, item.exact) ? 'page' : undefined}
+                      className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm
+                                  transition-all duration-200 ${
+                        isActive(item.path, item.exact)
+                          ? 'bg-amber-600 text-white shadow-sm shadow-amber-950/20'
+                          : 'text-stone-400 hover:bg-stone-800 hover:text-white'
+                      } ${sidebarOpen ? '' : 'lg:justify-center'}`}
+                    >
+                      <item.icon size={19} className="flex-none" />
+                      {showSidebarLabels && <span className="font-medium truncate">{item.label}</span>}
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
         </nav>
 
         {/* User & Logout */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-stone-800">
-          {sidebarOpen && (
-            <div className="mb-4 px-4">
-              <p className="text-white font-medium truncate">{user?.name || 'Admin'}</p>
-              <p className="text-stone-500 text-sm truncate">{user?.email}</p>
+        <div className="flex-none p-3 border-t border-stone-800 bg-stone-900">
+          {showSidebarLabels && (
+            <div className="mb-2 px-3 py-2 rounded-lg bg-stone-800/60">
+              <p className="text-sm text-white font-medium truncate">{user?.name || 'Admin'}</p>
+              <p className="text-stone-500 text-xs truncate mt-0.5">{user?.email}</p>
             </div>
           )}
           <button
             onClick={handleLogout}
-            className="flex items-center gap-3 px-4 py-3 w-full rounded-lg
-                       text-stone-400 hover:bg-stone-800 hover:text-white transition-colors"
+            title={!showSidebarLabels ? 'Logout' : undefined}
+            className={`flex items-center gap-3 px-3 py-2.5 w-full rounded-lg text-sm
+                       text-stone-400 hover:bg-stone-800 hover:text-white transition-colors
+                       ${sidebarOpen ? '' : 'lg:justify-center'}`}
           >
-            <LogOut size={20} />
-            {sidebarOpen && <span>Logout</span>}
+            <LogOut size={19} className="flex-none" />
+            {showSidebarLabels && <span>Logout</span>}
           </button>
         </div>
       </aside>

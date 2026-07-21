@@ -5,7 +5,7 @@ import {
   ArrowLeft, User, Mail, Phone, Calendar,
   Image as ImageIcon, Send, Loader,
   Save, Upload, X, CheckCircle, AlertCircle, CreditCard,
-  Clock
+  Clock, Download
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
@@ -53,6 +53,7 @@ const CommissionDetail = () => {
   const [showImageModal, setShowImageModal]   = useState(false);
   const [selectedImage, setSelectedImage]     = useState(null);
   const [showAcceptModal, setShowAcceptModal] = useState(false);
+  const [downloadingReference, setDownloadingReference] = useState(null);
 
   // ── Fetch commission ──────────────────────────────────────────────────────
   const fetchCommission = async () => {
@@ -73,6 +74,36 @@ const CommissionDetail = () => {
   useEffect(() => {
     fetchCommission();
   }, [id, navigate]);
+
+  const handleReferenceDownload = async (image, index) => {
+    const downloadKey = image.id || index;
+    const safeOriginalName = image.originalName
+      ?.replace(/[<>:"/\\|?*]/g, '_')
+      .trim();
+    const filename = safeOriginalName || `commission-${id}-reference-${index + 1}.jpg`;
+
+    setDownloadingReference(downloadKey);
+    try {
+      const response = await fetch(image.url);
+      if (!response.ok) throw new Error(`Image request failed with ${response.status}`);
+
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(objectUrl);
+      toast.success('Reference image downloaded');
+    } catch (error) {
+      console.error('Reference image download failed:', error);
+      toast.error('Could not download the reference image');
+    } finally {
+      setDownloadingReference(null);
+    }
+  };
 
   // ── Style helpers ─────────────────────────────────────────────────────────
   const getStatusStyle = (status) => {
@@ -465,23 +496,46 @@ const CommissionDetail = () => {
             </h2>
             {commission.referenceImages?.length > 0 ? (
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                {commission.referenceImages.map((image, index) => (
-                  <button
-                    key={image.id || index}
-                    onClick={() => {
-                      setSelectedImage(image.url);
-                      setShowImageModal(true);
-                    }}
-                    className="aspect-square overflow-hidden rounded-lg hover:opacity-90
-                               transition-opacity border border-stone-200"
-                  >
-                    <img
-                      src={image.url}
-                      alt={`Reference ${index + 1}`}
-                      className="w-full h-full object-cover"
-                    />
-                  </button>
-                ))}
+                {commission.referenceImages.map((image, index) => {
+                  const downloadKey = image.id || index;
+                  const isDownloading = downloadingReference === downloadKey;
+
+                  return (
+                    <div key={downloadKey} className="relative group min-w-0">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedImage(image.url);
+                          setShowImageModal(true);
+                        }}
+                        aria-label={`View reference image ${index + 1}`}
+                        className="block w-full aspect-square overflow-hidden rounded-lg hover:opacity-90
+                                   transition-opacity border border-stone-200"
+                      >
+                        <img
+                          src={image.url}
+                          alt={`Reference ${index + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleReferenceDownload(image, index)}
+                        disabled={isDownloading}
+                        aria-label={`Download ${image.originalName || `reference image ${index + 1}`}`}
+                        className="absolute right-2 bottom-2 inline-flex items-center gap-1.5 rounded-md
+                                   bg-white/95 px-2.5 py-1.5 text-xs font-medium text-stone-800 shadow-md
+                                   hover:bg-white hover:text-amber-700 disabled:cursor-wait disabled:opacity-70
+                                   transition-colors"
+                      >
+                        {isDownloading
+                          ? <Loader size={14} className="animate-spin" />
+                          : <Download size={14} />}
+                        <span className="hidden sm:inline">Download</span>
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <p className="text-stone-500 italic">No reference images provided.</p>

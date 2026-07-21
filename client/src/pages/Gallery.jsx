@@ -2,53 +2,13 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Filter, Grid, LayoutGrid, ShoppingBag, Eye, Search, X, ImageOff, Heart } from 'lucide-react';
+import { Filter, Grid, LayoutGrid, ShoppingBag, Eye, Search, X, Heart } from 'lucide-react';
 import { useCart } from '../hooks/useCart';
 import { artworksAPI } from '../services/api';
 import toast from 'react-hot-toast';
 import SEO from '../components/common/SEO';
 import { useWishlist } from '../hooks/useWishlist';
-
-// ─────────────────────────────────────────────────────────
-// Artwork Image Component
-// ─────────────────────────────────────────────────────────
-const ArtworkImage = ({ src, alt, className = "" }) => {
-  const FALLBACK = "https://images.unsplash.com/photo-1547891654-e66ed7ebb968?w=800&h=1000&fit=crop";
-  const [imageSrc, setImageSrc]   = useState(src || FALLBACK);
-  const [hasError, setHasError]   = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    setImageSrc(src || FALLBACK);
-    setHasError(false);
-    setIsLoading(true);
-  }, [src]);
-
-  return (
-    <div className={`relative overflow-hidden bg-stone-200 ${className}`}>
-      {isLoading && (
-        <div className="absolute inset-0 bg-stone-200 animate-pulse flex items-center justify-center z-10">
-          <div className="w-8 h-8 border-2 border-stone-300 border-t-amber-600 rounded-full animate-spin" />
-        </div>
-      )}
-      <img
-        src={imageSrc}
-        alt={alt}
-        className={`w-full h-full object-cover transition-opacity duration-500 ${
-          isLoading ? 'opacity-0' : 'opacity-100'
-        }`}
-        onError={() => { setHasError(true); setImageSrc(FALLBACK); setIsLoading(false); }}
-        onLoad={() => setIsLoading(false)}
-        loading="lazy"
-      />
-      {hasError && !isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-stone-100 text-stone-400">
-          <ImageOff size={24} />
-        </div>
-      )}
-    </div>
-  );
-};
+import ArtworkImage from '../components/common/ArtworkImage';
 
 // ─────────────────────────────────────────────────────────
 // Status Badge Component
@@ -422,6 +382,11 @@ const Gallery = () => {
                               src={artwork.images?.[0]?.url}
                               alt={artwork.title}
                               className="w-full h-full"
+                              sizes={viewMode === 'grid'
+                                ? '(max-width: 767px) calc(100vw - 3rem), (max-width: 1023px) calc(50vw - 3rem), 400px'
+                                : '(max-width: 767px) calc(100vw - 3rem), 600px'}
+                              loading={index < 3 ? 'eager' : 'lazy'}
+                              fetchPriority={index === 0 ? 'high' : 'auto'}
                             />
                           </div>
 

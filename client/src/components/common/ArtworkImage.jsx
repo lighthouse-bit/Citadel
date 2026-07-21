@@ -1,24 +1,36 @@
 import { useState, useEffect } from 'react';
 import { ImageOff } from 'lucide-react';
+import { getOptimizedImageUrl, getResponsiveImageSrcSet } from '../../utils/cloudinaryImage';
 
-const ArtworkImage = ({ src, alt, className = "" }) => {
+const ArtworkImage = ({
+  src,
+  alt,
+  className = '',
+  widths = [320, 480, 640, 960],
+  sizes = '100vw',
+  loading = 'lazy',
+  fetchPriority = 'auto',
+}) => {
   // Beautiful fallback image (Unsplash) if the main image fails
   const FALLBACK_IMAGE = "https://images.unsplash.com/photo-1547891654-e66ed7ebb968?w=800&h=1000&fit=crop";
   
   const [imageSrc, setImageSrc] = useState(src);
-  const [hasError, setHasError] = useState(false);
+  const [fallbackFailed, setFallbackFailed] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     setImageSrc(src || FALLBACK_IMAGE);
-    setHasError(false);
+    setFallbackFailed(false);
     setIsLoading(true);
   }, [src]);
 
   const handleError = () => {
-    if (!hasError) {
-      setHasError(true);
+    if (imageSrc !== FALLBACK_IMAGE) {
       setImageSrc(FALLBACK_IMAGE);
+      setIsLoading(true);
+    } else {
+      setFallbackFailed(true);
+      setIsLoading(false);
     }
   };
 
@@ -37,18 +49,22 @@ const ArtworkImage = ({ src, alt, className = "" }) => {
 
       {/* Main Image */}
       <img
-        src={imageSrc}
+        src={getOptimizedImageUrl(imageSrc, { width: widths.at(-1) })}
+        srcSet={getResponsiveImageSrcSet(imageSrc, widths)}
+        sizes={sizes}
         alt={alt}
         className={`w-full h-full object-cover transition-opacity duration-500 ${
           isLoading ? 'opacity-0' : 'opacity-100'
         }`}
         onError={handleError}
         onLoad={handleLoad}
-        loading="lazy"
+        loading={loading}
+        fetchPriority={fetchPriority}
+        decoding="async"
       />
 
       {/* Error State (if even fallback fails) */}
-      {hasError && imageSrc === FALLBACK_IMAGE && (
+      {fallbackFailed && (
         <div className="absolute inset-0 flex items-center justify-center bg-stone-100 text-stone-400">
           <ImageOff size={24} />
         </div>

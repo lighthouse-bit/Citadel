@@ -5,22 +5,7 @@ import { ArrowRight, Star, Eye } from 'lucide-react';
 import { artworksAPI } from '../services/api';
 import { useSettings } from '../hooks/useSettings';
 import SEO from '../components/common/SEO';
-
-// Helper for Image handling (Inline for simplicity)
-const ArtworkImage = ({ src, alt, className }) => {
-  const [imgSrc, setImgSrc] = useState(src || "https://images.unsplash.com/photo-1547891654-e66ed7ebb968?w=800&h=1000&fit=crop");
-  
-  return (
-    
-    <img
-      src={imgSrc}
-      alt={alt}
-      className={className}
-      onError={() => setImgSrc("https://images.unsplash.com/photo-1547891654-e66ed7ebb968?w=800&h=1000&fit=crop")}
-      loading="lazy"
-    />
-  );
-};
+import ArtworkImage from '../components/common/ArtworkImage';
 
 const Home = () => {
   const { settings } = useSettings();
@@ -254,6 +239,7 @@ const Home = () => {
                           alt={work.title}
                           className="w-full h-full object-cover transition-transform duration-700 
                                    group-hover:scale-105"
+                          sizes="(max-width: 767px) calc(100vw - 3rem), (max-width: 1023px) calc(50vw - 3rem), 400px"
                         />
                       </div>
                       
