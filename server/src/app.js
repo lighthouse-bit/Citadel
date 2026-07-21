@@ -70,6 +70,7 @@ app.get('/api/health', async (req, res) => {
 app.use('/api/artworks', require('./routes/artworkRoutes'));
 app.use('/api/orders', require('./routes/orderRoutes'));
 app.use('/api/commissions', require('./routes/commissionRoutes'));
+app.use('/api/uploads', require('./routes/uploadRoutes'));
 app.use('/api/payments', require('./routes/paymentRoutes'));
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/dashboard', require('./routes/dashboardRoutes'));

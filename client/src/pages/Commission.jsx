@@ -10,31 +10,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useSettings } from '../hooks/useSettings';
 import SEO from '../components/common/SEO';
 import { trackCommissionSubmit } from '../utils/analytics';
-
-// ✅ Direct Cloudinary upload — bypasses Vercel 4.5MB limit
-const uploadToCloudinary = async (file) => {
-  const cloudName    = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
-  const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
-
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('upload_preset', uploadPreset);
-  formData.append('folder', 'citadel/commissions');
-
-  const response = await fetch(
-    `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
-    { method: 'POST', body: formData }
-  );
-
-  if (!response.ok) throw new Error('Failed to upload image to Cloudinary');
-
-  const data = await response.json();
-  return {
-    url:          data.secure_url,
-    publicId:     data.public_id,
-    originalName: file.name,
-  };
-};
+import uploadToCloudinary from '../utils/uploadToCloudinary';
 
 const Commission = () => {
   const { user }     = useAuth();
@@ -83,7 +59,8 @@ const Commission = () => {
     { id: 'xlarge', name: '36×48 inches', multiplier: 3.5 },
   ];
 
-  const onDrop = (acceptedFiles) => {
+  const onDrop = (acceptedFiles, rejectedFiles) => {
+    if (rejectedFiles.length) toast.error('Use JPG, PNG or WebP images no larger than 10MB');
     const newImages = acceptedFiles.map(file => ({
       file,
       preview: URL.createObjectURL(file),
@@ -135,7 +112,10 @@ const Commission = () => {
       setUploadProgress(`Uploading ${uploadedImages.length} image(s)...`);
 
       const uploadedCloudinaryImages = await Promise.all(
-        uploadedImages.map(img => uploadToCloudinary(img.file))
+        uploadedImages.map(async img => ({
+          ...(await uploadToCloudinary(img.file, null, 'commissions')),
+          originalName: img.file.name,
+        }))
       );
 
       setUploadProgress('Submitting commission request...');
@@ -185,8 +165,8 @@ const Commission = () => {
 
     } catch (error) {
       console.error('Commission error:', error);
-      if (error.message?.includes('Cloudinary')) {
-        toast.error('Image upload failed. Please try again.');
+      if (!error.response) {
+        toast.error(error.message || 'Image upload failed. Please try again.');
       } else {
         toast.error(
           error.response?.data?.error || 'Failed to submit. Please try again.'

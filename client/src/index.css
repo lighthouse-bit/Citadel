@@ -13,6 +13,12 @@
 @tailwind utilities;
 
 @layer base {
+  .image-protected-site img {
+    -webkit-user-drag: none;
+    -webkit-touch-callout: none;
+    user-select: none;
+  }
+
   html {
     scroll-behavior: smooth;
   }

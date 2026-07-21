@@ -19,6 +19,7 @@ import Footer from './components/common/Footer';
 import CartDrawer from './components/common/CartDrawer';
 import AuthModal from './components/auth/AuthModal';
 import RouteMetadata from './components/common/RouteMetadata';
+import ImageProtection from './components/common/ImageProtection';
 import { trackPageView } from './utils/analytics';
 
 // Each page is its own production chunk. Visitors no longer download the
@@ -93,6 +94,7 @@ const PublicLayout = ({ children }) => {
 
   return (
     <>
+      <ImageProtection />
       <a href="#main-content" className="skip-link">Skip to main content</a>
       <VerificationBanner />
       <Navbar onOpenAuth={() => setIsAuthOpen(true)} />
