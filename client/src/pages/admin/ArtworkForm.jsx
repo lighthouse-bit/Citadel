@@ -5,50 +5,7 @@ import { useDropzone } from 'react-dropzone';
 import { ArrowLeft, ArrowRight, Upload, X, Save, Loader } from 'lucide-react';
 import { artworksAPI } from '../../services/api';
 import toast from 'react-hot-toast';
-
-// ✅ Direct Cloudinary upload — bypasses Vercel 4.5MB limit
-const uploadToCloudinary = async (file, onProgress = null) => {
-  const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
-  const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
-
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('upload_preset', uploadPreset);
-  formData.append('folder', 'citadel');
-
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-
-    if (onProgress) {
-      xhr.upload.addEventListener('progress', (e) => {
-        if (e.lengthComputable) {
-          const percent = Math.round((e.loaded / e.total) * 100);
-          onProgress(percent);
-        }
-      });
-    }
-
-    xhr.addEventListener('load', () => {
-      if (xhr.status === 200) {
-        const data = JSON.parse(xhr.responseText);
-        resolve({
-          url: data.secure_url,
-          publicId: data.public_id,
-        });
-      } else {
-        reject(new Error('Cloudinary upload failed'));
-      }
-    });
-
-    xhr.addEventListener('error', () => reject(new Error('Upload failed')));
-
-    xhr.open(
-      'POST',
-      `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`
-    );
-    xhr.send(formData);
-  });
-};
+import uploadToCloudinary from '../../utils/uploadToCloudinary';
 
 const ArtworkForm = () => {
   const { id } = useParams();
@@ -119,7 +76,8 @@ const ArtworkForm = () => {
     }
   };
 
-  const onDrop = (acceptedFiles) => {
+  const onDrop = (acceptedFiles, rejectedFiles) => {
+    if (rejectedFiles.length) toast.error('Use JPG, PNG or WebP images no larger than 10MB');
     const newImages = acceptedFiles.map(file => ({
       file,
       preview:  URL.createObjectURL(file),
@@ -190,7 +148,7 @@ const ArtworkForm = () => {
             setUploadProgress(
               Math.round((index / newImages.length) * 100 + percent / newImages.length)
             );
-          })
+          }, 'artworks')
         );
 
         uploadedImages = await Promise.all(uploadPromises);
@@ -230,14 +188,6 @@ const ArtworkForm = () => {
         ],
       };
 
-      // 🔍 TEMPORARY DEBUG
-      console.log('=== FRONTEND SUBMIT DEBUG ===');
-      console.log('uploadedImages:', uploadedImages);
-      console.log('submitData.images:', submitData.images);
-      console.log('submitData type:', typeof submitData);
-      console.log('=============================');
-
-
       // ── Step 3: Save to your backend / database ───────────────────────
       if (isEditing) {
         const { data } = await artworksAPI.update(id, submitData);
@@ -254,8 +204,8 @@ const ArtworkForm = () => {
       console.error('Error saving artwork:', error);
       toast.dismiss();
 
-      if (error.message?.includes('Cloudinary')) {
-        toast.error('Image upload failed. Check your Cloudinary settings.');
+      if (!error.response) {
+        toast.error(error.message || 'Image upload failed. Please try again.');
       } else {
         toast.error(error.response?.data?.error || 'Failed to save artwork');
       }

@@ -45,3 +45,27 @@ test('upload signatures restrict files to approved Citadel folders', () => {
   if (previous.key) process.env.CLOUDINARY_API_KEY = previous.key; else delete process.env.CLOUDINARY_API_KEY;
   if (previous.secret) process.env.CLOUDINARY_API_SECRET = previous.secret; else delete process.env.CLOUDINARY_API_SECRET;
 });
+
+test('artwork upload signatures are restricted to administrators', () => {
+  const previous = {
+    cloud: process.env.CLOUDINARY_CLOUD_NAME,
+    key: process.env.CLOUDINARY_API_KEY,
+    secret: process.env.CLOUDINARY_API_SECRET,
+  };
+  process.env.CLOUDINARY_CLOUD_NAME = 'test-cloud';
+  process.env.CLOUDINARY_API_KEY = 'test-key';
+  process.env.CLOUDINARY_API_SECRET = 'test-secret';
+
+  const denied = response();
+  controller.createSignature({ body: { folder: 'artworks' }, user: null }, denied);
+  assert.equal(denied.statusCode, 403);
+
+  const allowed = response();
+  controller.createSignature({ body: { folder: 'artworks' }, user: { role: 'admin' } }, allowed);
+  assert.equal(allowed.statusCode, 200);
+  assert.equal(allowed.body.folder, 'citadel/artworks');
+
+  if (previous.cloud) process.env.CLOUDINARY_CLOUD_NAME = previous.cloud; else delete process.env.CLOUDINARY_CLOUD_NAME;
+  if (previous.key) process.env.CLOUDINARY_API_KEY = previous.key; else delete process.env.CLOUDINARY_API_KEY;
+  if (previous.secret) process.env.CLOUDINARY_API_SECRET = previous.secret; else delete process.env.CLOUDINARY_API_SECRET;
+});

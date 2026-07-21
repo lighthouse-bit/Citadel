@@ -3,9 +3,10 @@
 import { API_URL } from '../config/api';
 
 const getUploadSignature = async folder => {
+  const token = localStorage.getItem('citadel_token');
   const response = await fetch(`${API_URL}/uploads/signature`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...(token && { Authorization: `Bearer ${token}` }) },
     body: JSON.stringify({ folder }),
   });
   const data = await response.json().catch(() => ({}));

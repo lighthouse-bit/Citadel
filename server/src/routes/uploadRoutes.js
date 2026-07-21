@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const controller = require('../controllers/uploadController');
+const { authenticateUser } = require('../middleware/auth');
 
 const attempts = new Map();
 const uploadRateLimit = (req, res, next) => {
@@ -13,6 +14,6 @@ const uploadRateLimit = (req, res, next) => {
   return next();
 };
 
-router.post('/signature', uploadRateLimit, controller.createSignature);
+router.post('/signature', authenticateUser, uploadRateLimit, controller.createSignature);
 
 module.exports = router;
