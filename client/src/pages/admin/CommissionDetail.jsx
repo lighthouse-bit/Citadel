@@ -170,22 +170,21 @@ const CommissionDetail = () => {
   const confirmAccept = async () => {
     setIsSaving(true);
     try {
-      await commissionsAPI.updateStatus(id, {
+      const response = await commissionsAPI.updateStatus(id, {
         status:     'ACCEPTED',
         finalPrice: parseFloat(finalPrice),
-        note:       `Commission accepted. Final price: $${parseFloat(finalPrice).toLocaleString()}. Client notified to pay 70% deposit.`,
       });
 
       setCommission(prev => ({
         ...prev,
-        status:     'ACCEPTED',
-        finalPrice: parseFloat(finalPrice),
+        ...response.data,
       }));
 
       setShowAcceptModal(false);
       toast.success('Commission accepted! Client will be notified to pay the deposit.');
     } catch (error) {
-      toast.error('Failed to accept commission');
+      console.error('Commission acceptance failed:', error.response?.data || error);
+      toast.error(error.response?.data?.error || 'Failed to accept commission');
     } finally {
       setIsSaving(false);
     }

@@ -315,14 +315,25 @@ exports.updateCommissionStatus = async (req, res) => {
       return res.status(400).json({ error: 'A cancellation reason is required' });
     }
 
+    const hasPriceInput = finalPrice !== undefined && finalPrice !== null && finalPrice !== '';
+    const parsedFinalPrice = hasPriceInput ? Number(finalPrice) : Number(existing.finalPrice);
+    if (hasPriceInput && (!Number.isFinite(parsedFinalPrice) || parsedFinalPrice <= 0)) {
+      return res.status(400).json({ error: 'Final price must be a positive number' });
+    }
+    if (nextStatus === 'ACCEPTED' && (!Number.isFinite(parsedFinalPrice) || parsedFinalPrice <= 0)) {
+      return res.status(400).json({ error: 'Set a valid final price before accepting the commission' });
+    }
+
     const updateData = {
       status: nextStatus,
     };
 
-    if (finalPrice) {
-      updateData.finalPrice    = parseFloat(finalPrice);
-      updateData.depositAmount = parseFloat(finalPrice) * 0.70;
-      updateData.balanceAmount = parseFloat(finalPrice) * 0.30;
+    if (hasPriceInput) {
+      const depositPercentage = Number(existing.depositPercentage || 70);
+      const depositAmount = Math.round(parsedFinalPrice * depositPercentage) / 100;
+      updateData.finalPrice = parsedFinalPrice;
+      updateData.depositAmount = depositAmount;
+      updateData.balanceAmount = Math.round((parsedFinalPrice - depositAmount) * 100) / 100;
     }
 
     if (nextStatus === 'IN_PROGRESS') {
@@ -346,7 +357,7 @@ exports.updateCommissionStatus = async (req, res) => {
           isInternal:   Boolean(isInternal),
           commissionId: id,
         },
-      });
+      }).catch(error => console.error('Commission note creation failed:', error.message));
     }
 
     if (nextStatus === 'CANCELLED') {
