@@ -9,36 +9,10 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
-import { API_URL } from '../../config/api';
 import { commissionsAPI } from '../../services/api';
+import uploadToCloudinary from '../../utils/uploadToCloudinary';
 
 // ✅ Direct Cloudinary upload — bypasses Vercel 4.5MB limit
-const uploadToCloudinary = async (file) => {
-  const cloudName    = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
-  const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
-
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('upload_preset', uploadPreset);
-  formData.append('folder', 'citadel/progress');
-
-  const response = await fetch(
-    `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
-    { method: 'POST', body: formData }
-  );
-
-  if (!response.ok) {
-    const err = await response.json();
-    throw new Error(err.error?.message || 'Failed to upload image to Cloudinary');
-  }
-
-  const data = await response.json();
-  return {
-    url:      data.secure_url,
-    publicId: data.public_id,
-  };
-};
-
 const CommissionDetail = () => {
   const { id }   = useParams();
   const navigate = useNavigate();
@@ -251,51 +225,32 @@ const CommissionDetail = () => {
     if (!file) return;
 
     setIsUploading(true);
+    const uploadToast = toast.loading('Uploading progress image...');
 
     try {
       // Step 1 — Upload to Cloudinary
-      toast.loading('Uploading image...');
-      const cloudinaryResult = await uploadToCloudinary(file);
-      toast.dismiss();
+      const cloudinaryResult = await uploadToCloudinary(file, null, 'commission-progress');
 
       // Step 2 — Send to backend using fetch directly
       // ✅ Bypasses any Axios content-type issue
-      const token = localStorage.getItem('citadel_token');
-      const apiUrl = API_URL;
-
-      const res = await fetch(
-        `${apiUrl}/commissions/${id}/progress`,
-        {
-          method:  'POST',
-          headers: {
-            'Content-Type':  'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            url:         cloudinaryResult.url,
-            publicId:    cloudinaryResult.publicId,
-            description: 'Progress update',
-          }),
-        }
-      );
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to save progress image');
-      }
+      const response = await commissionsAPI.addProgressImage(id, {
+        url: cloudinaryResult.url,
+        publicId: cloudinaryResult.publicId,
+        description: 'Progress update',
+      });
 
       // Step 3 — Update UI
       setCommission(prev => ({
         ...prev,
-        progressImages: [...(prev.progressImages || []), data],
+        progressImages: [...(prev.progressImages || []), response.data],
       }));
 
-      toast.success('Progress image uploaded successfully!');
+      toast.success('Progress image uploaded successfully!', { id: uploadToast });
     } catch (error) {
       console.error('Progress upload error:', error);
-      toast.dismiss();
-      toast.error(error.message || 'Failed to upload image. Please try again.');
+      toast.error(error.response?.data?.error || error.message || 'Failed to upload image. Please try again.', {
+        id: uploadToast,
+      });
     } finally {
       setIsUploading(false);
       e.target.value = '';
