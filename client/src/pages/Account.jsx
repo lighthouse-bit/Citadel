@@ -28,6 +28,8 @@ import {
   Save,
   UserRoundCog,
   MessageCircle,
+  X,
+  ZoomIn,
 } from 'lucide-react';
 import { ordersAPI, commissionsAPI, wishlistAPI } from '../services/api';
 import toast from 'react-hot-toast';
@@ -49,6 +51,7 @@ const Account = () => {
   const [orderQuery, setOrderQuery] = useState('');
   const [orderFilter, setOrderFilter] = useState('ALL');
   const [savingPreferences, setSavingPreferences] = useState(false);
+  const [selectedProgressImage, setSelectedProgressImage] = useState(null);
   const [preferences, setPreferences] = useState({
     wishlistAvailabilityAlerts: false,
     wishlistPriceAlerts: false,
@@ -67,6 +70,22 @@ const Account = () => {
     const requestedTab = searchParams.get('tab');
     if (requestedTab) setActiveTab(requestedTab);
   }, [searchParams]);
+
+  useEffect(() => {
+    if (!selectedProgressImage) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') setSelectedProgressImage(null);
+    };
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [selectedProgressImage]);
 
   // Fetch user data
   useEffect(() => {
@@ -989,15 +1008,35 @@ const Account = () => {
                               <div className="mb-4">
                                 <p className="text-xs text-stone-500 mb-2">Work in Progress</p>
                                 <div className="flex gap-2 overflow-x-auto pb-2">
-                                  {comm.progressImages.map((img, idx) => (
-                                    <img
-                                      key={idx}
-                                      src={img.imageUrl || img.url}
-                                      alt={`Progress ${idx + 1}`}
-                                      className="w-20 h-20 rounded-lg object-cover
-                                                 flex-shrink-0 border border-stone-200"
-                                    />
-                                  ))}
+                                  {comm.progressImages.map((img, idx) => {
+                                    const imageUrl = img.imageUrl || img.url;
+                                    return (
+                                      <button
+                                        key={img.id || idx}
+                                        type="button"
+                                        onClick={() => setSelectedProgressImage({
+                                          src: imageUrl,
+                                          alt: `${comm.artStyle} progress update ${idx + 1}`,
+                                          description: img.description || 'Progress update',
+                                          createdAt: img.createdAt,
+                                        })}
+                                        aria-label={`Open progress image ${idx + 1}`}
+                                        className="group relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-lg border border-stone-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-600 focus-visible:ring-offset-2"
+                                      >
+                                        <img
+                                          src={imageUrl}
+                                          alt={`Progress ${idx + 1}`}
+                                          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                        />
+                                        <span className="absolute inset-0 grid place-items-center bg-black/0 text-white opacity-0 transition-all group-hover:bg-black/35 group-hover:opacity-100 group-focus-visible:bg-black/35 group-focus-visible:opacity-100">
+                                          <ZoomIn size={19} />
+                                        </span>
+                                        <span className="absolute right-1.5 top-1.5 rounded-full bg-black/60 p-1 text-white shadow-sm sm:hidden">
+                                          <ZoomIn size={13} />
+                                        </span>
+                                      </button>
+                                    );
+                                  })}
                                 </div>
                               </div>
                             )}
@@ -1147,6 +1186,43 @@ const Account = () => {
           </div>
         </div>
       </div>
+
+      {selectedProgressImage && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Commission progress image preview"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 p-4 sm:p-8"
+          onClick={() => setSelectedProgressImage(null)}
+        >
+          <button
+            type="button"
+            onClick={() => setSelectedProgressImage(null)}
+            aria-label="Close image preview"
+            className="absolute right-4 top-4 z-10 rounded-full bg-white/10 p-3 text-white transition hover:bg-white/20 sm:right-6 sm:top-6"
+          >
+            <X size={24} />
+          </button>
+          <div
+            className="flex max-h-full max-w-6xl flex-col items-center"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <img
+              src={selectedProgressImage.src}
+              alt={selectedProgressImage.alt}
+              className="max-h-[78vh] max-w-full rounded-sm object-contain shadow-2xl"
+            />
+            <div className="mt-4 text-center text-white">
+              <p className="text-sm font-medium">{selectedProgressImage.description}</p>
+              {selectedProgressImage.createdAt && (
+                <p className="mt-1 text-xs text-white/55">
+                  {new Date(selectedProgressImage.createdAt).toLocaleString()}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
