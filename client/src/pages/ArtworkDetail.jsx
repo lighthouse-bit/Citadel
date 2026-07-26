@@ -23,6 +23,7 @@ import { useWishlist } from '../hooks/useWishlist';
 import { useAuth } from '../hooks/useAuth';
 import ArtworkRecommendations from '../components/ArtworkRecommendations';
 import { recordGuestArtworkView } from '../utils/recentlyViewed';
+import ArtworkReviews from '../components/ArtworkReviews';
 
 // Reusable Image Component
 const ArtworkImage = ({ src, alt, className = "" }) => {
@@ -375,6 +376,8 @@ const ArtworkDetail = () => {
                 </div>
               </div>
             </div>
+
+            <ArtworkReviews artworkId={artwork.id} isAuthenticated={isAuthenticated} />
 
             {/* Related Works */}
             {relatedWorks.length > 0 && (

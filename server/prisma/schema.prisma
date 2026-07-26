@@ -86,6 +86,7 @@ model Artwork {
   wishlistAlerts WishlistAlert[]
   cartItems      CartItem[]
   customerViews  CustomerArtworkView[]
+  reviews        Review[]
 
   @@index([status])
   @@index([category])
@@ -162,6 +163,7 @@ model Customer {
   artworkViews    CustomerArtworkView[]
   supportTickets  SupportTicket[]
   supportMessages SupportMessage[]
+  reviews         Review[]
 
   @@index([email])
 }
@@ -290,6 +292,7 @@ model Order {
   items           OrderItem[]
   events          OrderEvent[]
   supportTickets  SupportTicket[]
+  reviews         Review[]
 
   @@index([customerId])
   @@index([status])
@@ -307,6 +310,27 @@ model OrderItem {
   artwork Artwork @relation(fields: [artworkId], references: [id])
   order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
+  @@index([orderId])
+}
+
+model Review {
+  id          String   @id @default(uuid())
+  rating      Int
+  title       String?
+  comment     String   @db.Text
+  isPublished Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  customerId  String
+  artworkId   String
+  orderId     String
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  artwork  Artwork  @relation(fields: [artworkId], references: [id], onDelete: Cascade)
+  order    Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@unique([customerId, artworkId])
+  @@index([artworkId, isPublished, createdAt])
   @@index([orderId])
 }
 

@@ -51,6 +51,10 @@ export const artworksAPI = {
   getRecentlyViewed: () => api.get('/artworks/recently-viewed'),
   getRelated: id => api.get(`/artworks/${id}/related`),
   recordView: id => api.post(`/artworks/${id}/view`),
+  getReviews: id => api.get(`/artworks/${id}/reviews`),
+  getReviewEligibility: id => api.get(`/artworks/${id}/review-eligibility`),
+  createReview: (id, data) => api.post(`/artworks/${id}/reviews`, data),
+  updateReview: (id, reviewId, data) => api.patch(`/artworks/${id}/reviews/${reviewId}`, data),
 };
 
 export const wishlistAPI = {

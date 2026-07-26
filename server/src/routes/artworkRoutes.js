@@ -7,6 +7,7 @@ const discoveryController = require('../controllers/discoveryController');
 const { deleteFromCloudinary } = require('../services/imageService');
 const { recordAudit } = require('../utils/auditService');
 const { previewWishlistAlertAudience, sendSimilarArtworkAlerts, sendWishlistChangeAlerts } = require('../services/wishlistAlertService');
+const reviewController = require('../controllers/reviewController');
 
 // ── Get all artworks (Public) ────────────────────────────────────────────────
 router.get('/', authenticateUser, async (req, res) => {
@@ -134,6 +135,10 @@ router.get('/recommendations', authenticateUser, discoveryController.getRecommen
 router.get('/recently-viewed', authenticateCustomer, discoveryController.getRecentlyViewed);
 router.get('/:id/related', discoveryController.getRelated);
 router.post('/:id/view', authenticateUser, discoveryController.recordView);
+router.get('/:id/reviews', reviewController.listArtworkReviews);
+router.get('/:id/review-eligibility', authenticateCustomer, reviewController.getEligibility);
+router.post('/:id/reviews', authenticateCustomer, reviewController.createReview);
+router.patch('/:id/reviews/:reviewId', authenticateCustomer, reviewController.updateReview);
 
 router.get('/admin/stats', authenticateAdmin, async (req, res) => {
   try {
