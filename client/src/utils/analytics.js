@@ -1,6 +1,10 @@
 import { analyticsAPI } from '../services/api';
+import { hasAnalyticsConsent } from './privacyConsent';
+
+let webVitalsStarted = false;
 
 const getSessionId = () => {
+  if (!hasAnalyticsConsent()) return null;
   let sessionId = sessionStorage.getItem('analytics_session');
   if (!sessionId) {
     sessionId = `sess_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
@@ -10,6 +14,7 @@ const getSessionId = () => {
 };
 
 const sendAnalyticsEvent = (eventName, params = {}) => {
+  if (!hasAnalyticsConsent()) return;
   if (window.gtag) window.gtag('event', eventName, params);
   analyticsAPI.trackEvent({
     event: eventName,
@@ -19,6 +24,7 @@ const sendAnalyticsEvent = (eventName, params = {}) => {
 };
 
 export const initGA = () => {
+  if (!hasAnalyticsConsent()) return;
   const measurementId = import.meta.env.VITE_GA_MEASUREMENT_ID;
   if (!measurementId || document.querySelector(`script[data-ga-id="${measurementId}"]`)) return;
 
@@ -35,6 +41,8 @@ export const initGA = () => {
 };
 
 export const initWebVitals = () => {
+  if (!hasAnalyticsConsent() || webVitalsStarted) return;
+  webVitalsStarted = true;
   if (!('PerformanceObserver' in window)) return;
 
   const report = (name, value, id = name) => {
@@ -70,6 +78,7 @@ export const initWebVitals = () => {
 };
 
 export const trackPageView = (path, title) => {
+  if (!hasAnalyticsConsent()) return;
   if (window.gtag) {
     window.gtag('event', 'page_view', { page_path: path, page_title: title });
   }
@@ -119,4 +128,24 @@ export const trackCommissionSubmit = (commission) => {
     art_style: commission.artStyle,
     size: commission.size,
   });
+};
+
+const removeAnalyticsCookies = () => {
+  document.cookie.split(';').map(value => value.split('=')[0].trim()).filter(name => name === '_ga' || name.startsWith('_ga_')).forEach(name => {
+    document.cookie = `${name}=; Max-Age=0; path=/; SameSite=Lax`;
+    document.cookie = `${name}=; Max-Age=0; path=/; domain=.${window.location.hostname}; SameSite=Lax`;
+  });
+  sessionStorage.removeItem('analytics_session');
+};
+
+export const applyAnalyticsConsent = consent => {
+  const measurementId = import.meta.env.VITE_GA_MEASUREMENT_ID;
+  if (consent?.analytics) {
+    if (measurementId) window[`ga-disable-${measurementId}`] = false;
+    initGA();
+    initWebVitals();
+    return;
+  }
+  if (measurementId) window[`ga-disable-${measurementId}`] = true;
+  removeAnalyticsCookies();
 };

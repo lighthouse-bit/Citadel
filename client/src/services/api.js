@@ -75,6 +75,14 @@ export const accountAPI = {
   updateAddress: (id, data) => api.put(`/account/addresses/${id}`, data),
   setDefaultAddress: id => api.patch(`/account/addresses/${id}/default`),
   deleteAddress: id => api.delete(`/account/addresses/${id}`),
+  exportData: () => api.get('/account/export', { responseType: 'blob' }),
+};
+
+export const privacyRequestsAPI = {
+  getOwn: () => api.get('/privacy-requests'),
+  create: data => api.post('/privacy-requests', data),
+  getAdmin: params => api.get('/privacy-requests/admin', { params }),
+  updateAdmin: (id, data) => api.patch(`/privacy-requests/admin/${id}`, data),
 };
 
 export const digitalLibraryAPI = {

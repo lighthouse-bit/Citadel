@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { CheckCircle, KeyRound, Link2, Loader, MapPin, Pencil, Plus, Save, ShieldCheck, Star, Trash2, UserRound } from 'lucide-react';
+import { CheckCircle, Download, FileText, KeyRound, Link2, Loader, MapPin, Pencil, Plus, Save, ShieldCheck, Star, Trash2, UserRound } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { accountAPI } from '../services/api';
+import { accountAPI, privacyRequestsAPI } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 
 const emptyAddress = { label: '', line1: '', line2: '', city: '', state: '', postalCode: '', country: 'Nigeria', isDefault: false };
@@ -15,11 +15,14 @@ export default function AccountSettings() {
   const [profile, setProfile] = useState(null);
   const [addressForm, setAddressForm] = useState(null);
   const [passwords, setPasswords] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  const [privacyRequests, setPrivacyRequests] = useState([]);
+  const [privacyForm, setPrivacyForm] = useState({ type: 'DELETION', details: '' });
 
   const load = useCallback(async () => {
     try {
-      const { data } = await accountAPI.getProfile();
-      setProfile(data);
+      const [profileResponse, requestsResponse] = await Promise.all([accountAPI.getProfile(), privacyRequestsAPI.getOwn()]);
+      setProfile(profileResponse.data);
+      setPrivacyRequests(requestsResponse.data || []);
     } catch (error) {
       toast.error(error.response?.data?.error || 'Failed to load account settings');
     } finally {
@@ -81,6 +84,37 @@ export default function AccountSettings() {
     } finally { setSaving(''); }
   };
 
+  const downloadData = async () => {
+    try {
+      setSaving('export');
+      const { data } = await accountAPI.exportData();
+      const url = URL.createObjectURL(data);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `highmarc-data-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast.success('Your data export is ready');
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to export your data');
+    } finally { setSaving(''); }
+  };
+
+  const submitPrivacyRequest = async event => {
+    event.preventDefault();
+    try {
+      setSaving('privacy');
+      await privacyRequestsAPI.create(privacyForm);
+      setPrivacyForm({ type: 'DELETION', details: '' });
+      await load();
+      toast.success('Privacy request submitted');
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to submit privacy request');
+    } finally { setSaving(''); }
+  };
+
   if (loading || !profile) return <Loader className="animate-spin m-16 mx-auto text-amber-600" />;
 
   return <div className="space-y-8">
@@ -132,6 +166,13 @@ export default function AccountSettings() {
         <div className="grid sm:grid-cols-2 gap-4"><Field type="password" label="New password" required minLength={12} value={passwords.newPassword} onChange={newPassword => setPasswords({ ...passwords, newPassword })}/><Field type="password" label="Confirm new password" required minLength={12} value={passwords.confirmPassword} onChange={confirmPassword => setPasswords({ ...passwords, confirmPassword })}/></div>
         <button disabled={saving === 'password'} className="inline-flex items-center gap-2 bg-stone-900 text-white rounded-lg px-5 py-3 disabled:opacity-50">{saving === 'password' ? <Loader size={16} className="animate-spin"/> : <KeyRound size={16}/>} {profile.hasPassword ? 'Change password' : 'Create password'}</button>
       </form>
+    </section>
+
+    <section className="bg-white border border-stone-200 rounded-xl p-6 space-y-6 shadow-sm">
+      <div><h2 className="font-semibold flex items-center gap-2"><ShieldCheck size={19}/> Data & privacy</h2><p className="mt-1 text-sm text-stone-500">Manage optional tracking and exercise your privacy rights.</p></div>
+      <div className="grid gap-3 sm:grid-cols-2"><button type="button" onClick={() => window.dispatchEvent(new Event('highmarc:open-privacy-settings'))} className="flex items-center gap-3 rounded-xl border border-stone-200 p-4 text-left hover:bg-stone-50"><ShieldCheck className="text-amber-700"/><span><b className="block text-sm">Privacy choices</b><span className="text-xs text-stone-500">Change analytics and marketing consent</span></span></button><button type="button" onClick={downloadData} disabled={saving === 'export'} className="flex items-center gap-3 rounded-xl border border-stone-200 p-4 text-left hover:bg-stone-50 disabled:opacity-50">{saving === 'export' ? <Loader className="animate-spin text-amber-700"/> : <Download className="text-amber-700"/>}<span><b className="block text-sm">Download my data</b><span className="text-xs text-stone-500">Export your account information as JSON</span></span></button></div>
+      <form onSubmit={submitPrivacyRequest} className="space-y-4 border-t border-stone-200 pt-5"><div><h3 className="font-medium flex items-center gap-2"><FileText size={17}/> Submit a privacy request</h3><p className="mt-1 text-xs text-stone-500">Deletion is reviewed before action because some transaction and licence records may need to be retained.</p></div><label className="block"><span className="mb-2 block text-xs font-medium uppercase tracking-wide text-stone-500">Request type</span><select value={privacyForm.type} onChange={event => setPrivacyForm(current => ({ ...current, type: event.target.value }))} className="w-full rounded-lg border border-stone-200 bg-white px-4 py-3"><option value="DELETION">Delete my account/data</option><option value="ACCESS">Access my information</option><option value="PORTABILITY">Data portability</option><option value="RECTIFICATION">Correct my information</option><option value="OBJECTION">Object to processing</option></select></label><label className="block"><span className="mb-2 block text-xs font-medium uppercase tracking-wide text-stone-500">Details</span><textarea value={privacyForm.details} onChange={event => setPrivacyForm(current => ({ ...current, details: event.target.value }))} maxLength={2000} rows={4} placeholder="Tell us what you need and any relevant account details." className="w-full resize-y rounded-lg border border-stone-200 px-4 py-3"/></label><button disabled={saving === 'privacy'} className="inline-flex items-center gap-2 rounded-lg bg-stone-900 px-5 py-3 text-white disabled:opacity-50">{saving === 'privacy' ? <Loader size={16} className="animate-spin"/> : <FileText size={16}/>} Submit request</button></form>
+      {privacyRequests.length > 0 && <div className="border-t border-stone-200 pt-5"><h3 className="font-medium">Request history</h3><div className="mt-3 space-y-3">{privacyRequests.map(item => <article key={item.id} className="rounded-xl bg-stone-50 p-4"><div className="flex flex-wrap items-center justify-between gap-2"><span className="text-sm font-medium">{item.type.replace('_', ' ')}</span><span className={`rounded-full px-2.5 py-1 text-xs ${item.status === 'COMPLETED' ? 'bg-green-100 text-green-700' : item.status === 'REJECTED' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-800'}`}>{item.status.replace('_', ' ')}</span></div><p className="mt-2 text-xs text-stone-500">Submitted {new Date(item.createdAt).toLocaleDateString()}</p>{item.response && <p className="mt-3 rounded-lg border border-stone-200 bg-white p-3 text-sm text-stone-600"><b className="block text-xs uppercase text-stone-400">Response</b>{item.response}</p>}</article>)}</div></div>}
     </section>
   </div>;
 }

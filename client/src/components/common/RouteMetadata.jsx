@@ -30,6 +30,14 @@ const publicRoutes = {
     title: 'Contact the Atelier',
     description: 'Contact Highmarc Art Atelier about artwork, commissions, shipping or collaborations.',
   },
+  '/privacy': {
+    title: 'Privacy Policy',
+    description: 'Learn how Highmarc Art Atelier collects, uses, protects and shares personal information.',
+  },
+  '/terms': {
+    title: 'Terms of Service',
+    description: 'Read the terms for using Highmarc Art Atelier and purchasing physical, commissioned and digital artwork.',
+  },
 };
 
 const privatePrefixes = ['/admin', '/account', '/checkout', '/verify-email', '/track', '/commission/payment', '/certificate'];

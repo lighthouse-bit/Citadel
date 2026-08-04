@@ -178,6 +178,7 @@ model Customer {
   supportMessages     SupportMessage[]
   reviews             Review[]
   digitalEntitlements DigitalEntitlement[]
+  privacyRequests      PrivacyRequest[]
 
   @@index([email])
 }
@@ -505,6 +506,7 @@ model Admin {
   notifications          Notification[] // ✅ Added reverse relation
   assignedSupportTickets SupportTicket[]
   supportMessages        SupportMessage[]
+  handledPrivacyRequests PrivacyRequest[] @relation("PrivacyRequestHandler")
 
   @@index([email])
 }
@@ -677,6 +679,27 @@ model OperationalEvent {
 
   @@index([resolved, severity, createdAt])
   @@index([type, createdAt])
+}
+
+model PrivacyRequest {
+  id            String    @id @default(uuid())
+  type          String
+  status        String    @default("PENDING")
+  details       String?   @db.Text
+  response      String?   @db.Text
+  customerId    String
+  handledById   String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  resolvedAt    DateTime?
+
+  customer  Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  handledBy Admin?    @relation("PrivacyRequestHandler", fields: [handledById], references: [id], onDelete: SetNull)
+
+  @@index([customerId, createdAt])
+  @@index([status, createdAt])
+  @@index([type, createdAt])
+  @@index([handledById])
 }
 
 model SiteSettings {

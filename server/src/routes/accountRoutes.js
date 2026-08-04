@@ -5,6 +5,7 @@ const { authRateLimit } = require('../middleware/security');
 
 router.use(authenticateCustomer);
 router.get('/profile', controller.getProfile);
+router.get('/export', controller.exportData);
 router.patch('/profile', controller.updateProfile);
 router.post('/password', authRateLimit, controller.changePassword);
 router.post('/addresses', controller.createAddress);

@@ -20,6 +20,7 @@ import CartDrawer from './components/common/CartDrawer';
 import AuthModal from './components/auth/AuthModal';
 import RouteMetadata from './components/common/RouteMetadata';
 import ImageProtection from './components/common/ImageProtection';
+import PrivacyConsent from './components/common/PrivacyConsent';
 import { trackPageView } from './utils/analytics';
 
 // Each page is its own production chunk. Visitors no longer download the
@@ -32,6 +33,8 @@ const CertificateVerification = lazy(() => import('./pages/CertificateVerificati
 const Commission = lazy(() => import('./pages/Commission'));
 const About = lazy(() => import('./pages/About'));
 const Contact = lazy(() => import('./pages/Contact'));
+const Privacy = lazy(() => import('./pages/Privacy'));
+const Terms = lazy(() => import('./pages/Terms'));
 const Checkout = lazy(() => import('./pages/Checkout'));
 const ArtworkDetail = lazy(() => import('./pages/ArtworkDetail'));
 const Account = lazy(() => import('./pages/Account'));
@@ -61,6 +64,7 @@ const AdminResetPassword = lazy(() => import('./pages/admin/AdminResetPassword')
 const WishlistAlerts = lazy(() => import('./pages/admin/WishlistAlerts'));
 const Support = lazy(() => import('./pages/admin/Support'));
 const DigitalSales = lazy(() => import('./pages/admin/DigitalSales'));
+const PrivacyRequests = lazy(() => import('./pages/admin/PrivacyRequests'));
 
 const queryClient = new QueryClient();
 
@@ -120,6 +124,7 @@ function App() {
             <WishlistProvider>
             <CartProvider>
               <Router>
+                <PrivacyConsent />
                 <RouteTracker />
                 <RouteMetadata />
                 <Suspense fallback={<RouteLoader />}>
@@ -133,6 +138,8 @@ function App() {
                     <Route path="/commission" element={publicPage(Commission)} />
                     <Route path="/about" element={publicPage(About)} />
                     <Route path="/contact" element={publicPage(Contact)} />
+                    <Route path="/privacy" element={publicPage(Privacy)} />
+                    <Route path="/terms" element={publicPage(Terms)} />
                     <Route path="/checkout" element={publicPage(Checkout)} />
                     <Route path="/checkout/success" element={publicPage(Checkout)} />
                     <Route path="/track" element={publicPage(OrderTracking)} />
@@ -164,6 +171,7 @@ function App() {
                       <Route path="support/:id" element={<Support />} />
                       <Route path="reports" element={<Reports />} />
                       <Route path="system" element={<SystemHealth />} />
+                      <Route path="privacy-requests" element={<PrivacyRequests />} />
                     </Route>
                     <Route path="*" element={publicPage(NotFound)} />
                   </Routes>

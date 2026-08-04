@@ -92,6 +92,7 @@ app.use('/api/audit-logs', require('./routes/auditRoutes'));
 app.use('/api/marketing', require('./routes/marketingRoutes'));
 app.use('/api/reports', require('./routes/reportingRoutes'));
 app.use('/api/operations', require('./routes/operationsRoutes'));
+app.use('/api/privacy-requests', require('./routes/privacyRequestRoutes'));
 
 
 // =========================

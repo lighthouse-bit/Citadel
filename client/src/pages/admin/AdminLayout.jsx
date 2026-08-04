@@ -24,6 +24,7 @@ import {
   Heart,
   MessageSquare,
   KeyRound,
+  ShieldCheck,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { notificationsAPI } from '../../services/api';
@@ -167,6 +168,7 @@ const AdminLayout = () => {
       label: 'Administration',
       items: [
         { path: '/admin/system', icon: HeartPulse, label: 'System Health' },
+        { path: '/admin/privacy-requests', icon: ShieldCheck, label: 'Privacy Requests' },
         { path: '/admin/settings', icon: Settings, label: 'Settings' },
         { path: '/admin/audit-log', icon: ClipboardList, label: 'Audit Log' },
       ],

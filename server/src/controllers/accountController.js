@@ -156,3 +156,52 @@ exports.deleteAddress = async (req, res) => {
     res.status(500).json({ error: 'Failed to delete address' });
   }
 };
+
+exports.exportData = async (req, res) => {
+  try {
+    const customer = await prisma.customer.findUnique({
+      where: { id: req.user.id },
+      select: {
+        id: true, email: true, firstName: true, lastName: true, phone: true, isVerified: true,
+        wishlistAvailabilityAlerts: true, wishlistPriceAlerts: true, newArtworkAlerts: true, marketingEmails: true,
+        emailPreferencesUpdatedAt: true, createdAt: true, updatedAt: true,
+        addresses: true,
+        orders: { select: {
+          id: true, orderNumber: true, subtotal: true, shippingCost: true, tax: true, total: true,
+          discountAmount: true, promotionCode: true, status: true, paymentStatus: true, shippingMethod: true,
+          trackingNumber: true, trackingUrl: true, estimatedDelivery: true, createdAt: true, updatedAt: true,
+          items: { select: { id: true, title: true, price: true, artworkId: true, licenseType: true } },
+        } },
+        commissions: { select: {
+          id: true, commissionNumber: true, artStyle: true, size: true, description: true, estimatedPrice: true,
+          finalPrice: true, depositAmount: true, balanceAmount: true, depositPercentage: true, status: true,
+          paymentStatus: true, deadline: true, createdAt: true, updatedAt: true,
+          referenceImages: { select: { id: true, url: true, originalName: true, createdAt: true } },
+          progressImages: { select: { id: true, imageUrl: true, description: true, createdAt: true } },
+          notes: { where: { isInternal: false }, select: { id: true, content: true, createdAt: true } },
+        } },
+        wishlistItems: { select: { createdAt: true, artwork: { select: { id: true, title: true } } } },
+        cartItems: { select: { createdAt: true, updatedAt: true, licenseType: true, artwork: { select: { id: true, title: true } } } },
+        reviews: { select: { id: true, rating: true, title: true, comment: true, isPublished: true, artworkId: true, orderId: true, createdAt: true, updatedAt: true } },
+        supportTickets: { select: {
+          id: true, ticketNumber: true, subject: true, category: true, status: true, priority: true, createdAt: true, updatedAt: true, resolvedAt: true,
+          messages: { select: { id: true, body: true, authorType: true, createdAt: true, attachments: { select: { name: true, url: true, createdAt: true } } } },
+        } },
+        digitalEntitlements: { select: {
+          id: true, licenseType: true, licenseName: true, licenseText: true, editionNumber: true, editionSize: true,
+          downloadLimit: true, downloadCount: true, lastDownloadedAt: true, revokedAt: true, createdAt: true,
+          artwork: { select: { id: true, title: true } }, downloads: { select: { downloadedAt: true, userAgent: true } },
+        } },
+        privacyRequests: { select: { id: true, type: true, status: true, details: true, response: true, createdAt: true, updatedAt: true, resolvedAt: true } },
+      },
+    });
+    if (!customer) return res.status(404).json({ error: 'Customer not found' });
+    const payload = { generatedAt: new Date().toISOString(), service: 'Highmarc Art Atelier', customer };
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="highmarc-data-${new Date().toISOString().slice(0, 10)}.json"`);
+    return res.send(JSON.stringify(payload, null, 2));
+  } catch (error) {
+    console.error('Failed to export customer data:', error);
+    return res.status(500).json({ error: 'Failed to prepare your data export' });
+  }
+};

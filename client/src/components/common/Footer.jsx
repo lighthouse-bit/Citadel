@@ -181,6 +181,9 @@ const Footer = () => {
               <Link to="/terms" className="text-stone-500 hover:text-stone-300 text-sm transition-colors">
                 Terms of Service
               </Link>
+              <button type="button" onClick={() => window.dispatchEvent(new Event('highmarc:open-privacy-settings'))} className="text-stone-500 hover:text-stone-300 text-sm transition-colors">
+                Privacy choices
+              </button>
             </div>
           </div>
         </div>
