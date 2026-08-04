@@ -139,7 +139,7 @@ const CartDrawer = () => {
                     <div className="flex-1 flex flex-col justify-between">
                       <div>
                         <h3 className="font-serif text-stone-900 line-clamp-1">{item.title}</h3>
-                        <p className="text-xs text-stone-500 uppercase tracking-wide mt-1">{item.medium}</p>
+                        <p className="text-xs text-stone-500 uppercase tracking-wide mt-1">{item.productType === 'DIGITAL' ? (item.licenseType === 'COMMERCIAL_USE' ? 'Commercial-use licence' : 'Personal-use licence') : item.medium}</p>
                         {item.isAvailable === false && <p className="text-xs text-amber-700 font-semibold mt-1">No longer available</p>}
                       </div>
                       <div className="flex items-center justify-between mt-2">

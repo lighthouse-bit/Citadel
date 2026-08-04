@@ -77,10 +77,26 @@ export const accountAPI = {
   deleteAddress: id => api.delete(`/account/addresses/${id}`),
 };
 
+export const digitalLibraryAPI = {
+  getAll: () => api.get('/digital-library'),
+  createDownload: id => api.post(`/digital-library/${id}/download`),
+  downloadLicense: id => api.get(`/digital-library/${id}/license`, { responseType: 'blob' }),
+};
+
+export const digitalCertificateAPI = {
+  verify: id => api.get(`/digital-library/certificate/${id}`),
+};
+
+export const digitalSalesAPI = {
+  getSummary: params => api.get('/digital-library/admin/summary', { params }),
+  getEntitlements: params => api.get('/digital-library/admin/entitlements', { params }),
+  updateAccess: (id, data) => api.patch(`/digital-library/admin/entitlements/${id}/access`, data),
+};
+
 export const cartAPI = {
   get: () => api.get('/cart'),
-  merge: artworkIds => api.post('/cart/merge', { artworkIds }),
-  add: artworkId => api.post(`/cart/${artworkId}`),
+  merge: items => api.post('/cart/merge', { items }),
+  add: (artworkId, licenseType) => api.post(`/cart/${artworkId}`, { licenseType }),
   remove: artworkId => api.delete(`/cart/${artworkId}`),
   clear: () => api.delete('/cart'),
 };

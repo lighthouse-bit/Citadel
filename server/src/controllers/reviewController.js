@@ -48,9 +48,12 @@ const normalizeReview = (body) => {
 const qualifyingOrder = (customerId, artworkId) => prisma.order.findFirst({
   where: {
     customerId,
-    status: 'DELIVERED',
     paymentStatus: 'FULLY_PAID',
     items: { some: { artworkId } },
+    OR: [
+      { status: 'DELIVERED' },
+      { items: { some: { artworkId, artwork: { productType: 'DIGITAL' } } } },
+    ],
   },
   select: { id: true },
   orderBy: { deliveredAt: 'desc' },
@@ -109,7 +112,7 @@ exports.getEligibility = async (req, res) => {
       review: existingReview,
       reason: order || existingReview
         ? null
-        : 'Reviews are available after your fully paid order has been delivered.',
+        : 'Reviews are available after digital delivery or after your physical order has been delivered.',
     });
   } catch (error) {
     console.error('Failed to check review eligibility:', error);
@@ -131,7 +134,7 @@ exports.createReview = async (req, res) => {
     const order = await qualifyingOrder(req.user.id, req.params.id);
     if (!order) {
       return res.status(403).json({
-        error: 'You can review this artwork after your fully paid order has been delivered',
+        error: 'You can review after digital delivery or after your fully paid physical order has been delivered',
       });
     }
 

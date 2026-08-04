@@ -11,6 +11,8 @@ const { recordAudit } = require('../utils/auditService');
 const { calculatePromotionDiscount } = require('../utils/commerceMath');
 const { calculateShipping } = require('../utils/shippingCalculator');
 const jwt = require('jsonwebtoken');
+const { fulfillArtworkOrder } = require('../services/digitalFulfillmentService');
+const { normalizeLicenseType, priceForLicense, remainingEditions } = require('../utils/digitalCommerce');
 
 const customerOrderSelect = { id: true, email: true, firstName: true, lastName: true };
 const orderDetailInclude = {
@@ -73,14 +75,50 @@ exports.createOrder = async (req, res) => {
     });
     if (existingOrder) {
       if (existingOrder.customerId !== customerId) return res.status(409).json({ error: 'This checkout session belongs to another customer' });
-      const requestedIds = items.map(item => item.id).sort().join(',');
-      const existingIds = existingOrder.items.map(item => item.artworkId).sort().join(',');
+      const requestedIds = items.map(item => `${item.id}:${String(item.licenseType || 'PERSONAL_USE').toUpperCase()}`).sort().join(',');
+      const existingIds = existingOrder.items.map(item => `${item.artworkId}:${item.licenseType}`).sort().join(',');
       if (requestedIds !== existingIds) return res.status(409).json({ error: 'Your cart changed after this checkout started. Start a new checkout session.' });
       return res.status(200).json(existingOrder);
     }
 
-    let address;
-    if (shippingAddressId && loggedInUser) {
+    const artworkIds = items.map(item => item.id);
+    const dbArtworks = await prisma.artwork.findMany({
+      where: { id: { in: artworkIds }, status: 'AVAILABLE' },
+      include: { digitalAsset: { select: { id: true } } },
+    });
+    if (dbArtworks.length !== items.length) return res.status(400).json({ error: 'One or more items are no longer available.' });
+
+    const requestedById = new Map(items.map(item => [String(item.id), item]));
+    const lineItems = dbArtworks.map(artwork => {
+      const requestedLicense = String(requestedById.get(artwork.id)?.licenseType || 'PERSONAL_USE').toUpperCase();
+      const licenseType = normalizeLicenseType(artwork, requestedLicense);
+      if (requestedLicense === 'COMMERCIAL_USE' && licenseType !== 'COMMERCIAL_USE') {
+        const error = new Error(`A commercial licence is not available for ${artwork.title}`);
+        error.statusCode = 400;
+        throw error;
+      }
+      return { artwork, licenseType, price: priceForLicense(artwork, licenseType) };
+    });
+
+    const digitalArtworks = dbArtworks.filter(artwork => artwork.productType === 'DIGITAL');
+    const physicalArtworks = dbArtworks.filter(artwork => artwork.productType === 'PHYSICAL');
+    if (digitalArtworks.some(artwork => !artwork.digitalAsset)) return res.status(409).json({ error: 'A digital file is not ready for delivery' });
+    if (digitalArtworks.some(artwork => remainingEditions(artwork) === 0)) return res.status(409).json({ error: 'One or more digital editions are sold out' });
+    if (digitalArtworks.length && loggedInUser?.role !== 'customer') {
+      return res.status(401).json({ error: 'Sign in to purchase digital artwork and access your download library' });
+    }
+    if (digitalArtworks.length) {
+      const owned = await prisma.digitalEntitlement.findFirst({
+        where: { customerId, artworkId: { in: digitalArtworks.map(artwork => artwork.id) }, revokedAt: null },
+        select: { artwork: { select: { title: true } } },
+      });
+      if (owned) return res.status(409).json({ error: `You already own a digital licence for ${owned.artwork.title}` });
+    }
+
+    let address = null;
+    if (!physicalArtworks.length) {
+      address = null;
+    } else if (shippingAddressId && loggedInUser) {
       address = await prisma.address.findFirst({ where: { id: shippingAddressId, customerId } });
       if (!address) return res.status(400).json({ error: 'Saved delivery address was not found' });
     } else {
@@ -104,27 +142,14 @@ exports.createOrder = async (req, res) => {
       });
     }
 
-    // Verify artworks are available
-    const artworkIds = items.map(item => item.id);
-    const dbArtworks = await prisma.artwork.findMany({
-      where: {
-        id:     { in: artworkIds },
-        status: 'AVAILABLE',
-      },
-    });
-
-    if (dbArtworks.length !== items.length) {
-      return res.status(400).json({
-        error: 'One or more items are no longer available.',
-      });
-    }
-
     // Calculate totals with shipping
-    const subtotal       = dbArtworks.reduce(
-      (sum, art) => sum + Number(art.price),
+    const subtotal       = lineItems.reduce(
+      (sum, item) => sum + item.price,
       0
     );
-    const shippingQuote = await calculateShipping(prisma, address.country, dbArtworks);
+    const shippingQuote = physicalArtworks.length
+      ? await calculateShipping(prisma, address.country, physicalArtworks)
+      : { shippingCost: 0, zone: 'Digital delivery', size: 'digital' };
     const finalShipping = shippingQuote.shippingCost;
     const tax            = 0;
     let discountAmount = 0;
@@ -142,14 +167,29 @@ exports.createOrder = async (req, res) => {
 
     // Create order in transaction
     const order = await prisma.$transaction(async (tx) => {
-      const reservation = await tx.artwork.updateMany({
-        where: { id: { in: artworkIds }, status: 'AVAILABLE' },
+      const physicalArtworkIds = physicalArtworks.map(artwork => artwork.id);
+      const reservation = physicalArtworkIds.length ? await tx.artwork.updateMany({
+        where: { id: { in: physicalArtworkIds }, status: 'AVAILABLE' },
         data: { status: 'RESERVED' },
-      });
-      if (reservation.count !== artworkIds.length) {
+      }) : { count: 0 };
+      if (reservation.count !== physicalArtworkIds.length) {
         const conflict = new Error('One or more items are no longer available.');
         conflict.code = 'ARTWORK_UNAVAILABLE';
         throw conflict;
+      }
+      for (const artwork of digitalArtworks.filter(entry => entry.editionSize != null)) {
+        const reserved = await tx.$executeRaw`
+          UPDATE "Artwork"
+          SET "editionsReserved" = "editionsReserved" + 1, "updatedAt" = NOW()
+          WHERE id = ${artwork.id}
+            AND status = 'AVAILABLE'::"ArtworkStatus"
+            AND "editionsIssued" + "editionsReserved" < "editionSize"
+        `;
+        if (reserved !== 1) {
+          const conflict = new Error(`${artwork.title} has just sold out.`);
+          conflict.code = 'ARTWORK_UNAVAILABLE';
+          throw conflict;
+        }
       }
       const newOrder = await tx.order.create({
         data: {
@@ -166,12 +206,14 @@ exports.createOrder = async (req, res) => {
           status:            'PENDING',
           paymentStatus:     'UNPAID',
           customerId,
-          shippingAddressId: address.id,
+          shippingAddressId: address?.id || null,
           items: {
-            create: dbArtworks.map(art => ({
-              price:     art.price,
-              title:     art.title,
-              artworkId: art.id,
+            create: lineItems.map(({ artwork, licenseType, price }) => ({
+              price,
+              title: artwork.title,
+              artworkId: artwork.id,
+              licenseType,
+              editionReserved: artwork.productType === 'DIGITAL' && artwork.editionSize != null,
             })),
           },
         },
@@ -531,14 +573,7 @@ exports.confirmOrderPayment = async (req, res) => {
       },
     });
 
-    // Mark artworks as SOLD
-    const artworkIds = order.items.map(i => i.artworkId).filter(Boolean);
-    if (artworkIds.length > 0) {
-      await prisma.artwork.updateMany({
-        where: { id: { in: artworkIds } },
-        data:  { status: 'SOLD' },
-      });
-    }
+    await fulfillArtworkOrder(order.id);
 
     // Notify admin
     await prisma.notification.create({
@@ -624,7 +659,15 @@ exports.cancelOrder = async (req, res) => {
     const reason = req.body.reason?.trim(); if (!reason) return res.status(400).json({ error: 'Cancellation reason is required' });
     await prisma.$transaction(async tx => {
       await tx.order.update({ where: { id: order.id }, data: { status: 'CANCELLED', internalNotes: [order.internalNotes, `Cancellation: ${reason}`].filter(Boolean).join('\n') } });
-      if (order.paymentStatus === 'UNPAID') await tx.artwork.updateMany({ where: { id: { in: order.items.map(i=>i.artworkId) }, status: 'RESERVED' }, data: { status: 'AVAILABLE' } });
+      if (order.paymentStatus === 'UNPAID') await tx.artwork.updateMany({ where: { id: { in: order.items.map(i=>i.artworkId) }, productType: 'PHYSICAL', status: 'RESERVED' }, data: { status: 'AVAILABLE' } });
+      for (const item of order.items.filter(entry => entry.editionReserved)) {
+        await tx.$executeRaw`
+          UPDATE "Artwork"
+          SET "editionsReserved" = GREATEST("editionsReserved" - 1, 0), "updatedAt" = NOW()
+          WHERE id = ${item.artworkId}
+        `;
+        await tx.orderItem.update({ where: { id: item.id }, data: { editionReserved: false } });
+      }
       await tx.orderEvent.create({ data: { orderId: order.id, adminId: req.user.id, type: 'ORDER_CANCELLED', message: `Order cancelled: ${reason}`, metadata: { requiresRefund: order.paymentStatus === 'FULLY_PAID' } } });
     });
     await recordAudit(req, 'CANCEL_ORDER', 'Order', order.id, { reason, requiresRefund: order.paymentStatus === 'FULLY_PAID' });

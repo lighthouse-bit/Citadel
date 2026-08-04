@@ -1,5 +1,6 @@
 const prisma = require('../config/database');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+const { fulfillArtworkOrder } = require('../services/digitalFulfillmentService');
 
 // ==========================================
 // 1. CREATE ARTWORK PAYMENT INTENT (100%)
@@ -231,12 +232,9 @@ async function handlePaymentSuccess(paymentIntent) {
       include: { items: true, customer: true }
     });
 
-    // 2. Mark artworks as SOLD
+    // 2. Sell physical originals and grant digital download entitlements.
     const artworkIds = order.items.map(i => i.artworkId);
-    await prisma.artwork.updateMany({
-      where: { id: { in: artworkIds } },
-      data: { status: 'SOLD' }
-    });
+    await fulfillArtworkOrder(order.id);
 
     await prisma.cartItem.deleteMany({
       where: { customerId: order.customerId, artworkId: { in: artworkIds } },
@@ -316,7 +314,7 @@ async function handlePaymentFailed(paymentIntent) {
 
     if (order) {
       await prisma.artwork.updateMany({
-        where: { id: { in: order.items.map(i => i.artworkId) } },
+        where: { id: { in: order.items.map(i => i.artworkId) }, productType: 'PHYSICAL' },
         data: { status: 'AVAILABLE' }
       });
     }

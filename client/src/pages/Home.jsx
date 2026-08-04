@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowRight, Star, Eye } from 'lucide-react';
+import { ArrowRight, Star, Eye, Download, BadgeCheck } from 'lucide-react';
 import { artworksAPI } from '../services/api';
 import { useSettings } from '../hooks/useSettings';
 import SEO from '../components/common/SEO';
@@ -312,6 +312,13 @@ const Home = () => {
               <ArrowRight size={16} className="ml-2" />
             </Link>
           </div>
+        </div>
+      </section>
+
+      <section className="border-y border-stone-800 bg-stone-950 py-20 text-white">
+        <div className="mx-auto grid max-w-7xl gap-10 px-6 lg:grid-cols-[1fr_auto] lg:items-center">
+          <div><p className="text-xs uppercase tracking-[0.24em] text-amber-400">New way to collect</p><h2 className="mt-4 max-w-3xl font-serif text-4xl md:text-5xl">Secure digital editions, licensed for the way you create.</h2><p className="mt-5 max-w-2xl leading-7 text-stone-400">Collect high-resolution work with personal or commercial rights, protected delivery, and a named edition certificate.</p><div className="mt-6 flex flex-wrap gap-5 text-xs text-stone-300"><span className="inline-flex items-center gap-2"><Download size={15} className="text-amber-400"/> Immediate access</span><span className="inline-flex items-center gap-2"><BadgeCheck size={15} className="text-amber-400"/> Numbered certificates</span></div></div>
+          <Link to="/digital-art" className="inline-flex items-center justify-center gap-3 rounded-full bg-white px-7 py-4 text-sm font-medium text-stone-950 transition hover:bg-amber-400">Explore digital art <ArrowRight size={17}/></Link>
         </div>
       </section>
 

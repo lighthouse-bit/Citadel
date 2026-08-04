@@ -11,7 +11,9 @@ import {
   Truck,
   Shield,
   Award,
-  X
+  X,
+  Download,
+  FileLock2
 } from 'lucide-react';
 import { useCart } from '../hooks/useCart';
 import { artworksAPI } from '../services/api';
@@ -52,6 +54,7 @@ const ArtworkDetail = () => {
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedLicense, setSelectedLicense] = useState('PERSONAL_USE');
 
   useEffect(() => {
     const fetchArtworkData = async () => {
@@ -61,6 +64,7 @@ const ArtworkDetail = () => {
         
         if (response.data) {
           setArtwork(response.data);
+          setSelectedLicense('PERSONAL_USE');
           const relatedRes = await artworksAPI.getRelated(id);
           setRelatedWorks(relatedRes.data.filter(w => w.id !== id).slice(0, 6));
         }
@@ -87,7 +91,11 @@ const ArtworkDetail = () => {
   }, [artwork, isAuthenticated]);
 
   const handleAddToCart = () => {
-    if (artwork) addToCart(artwork);
+    if (artwork) addToCart({
+      ...artwork,
+      licenseType: selectedLicense,
+      price: selectedLicense === 'COMMERCIAL_USE' ? Number(artwork.commercialPrice) : Number(artwork.price),
+    });
   };
 
   const handleShare = async () => {
@@ -139,6 +147,8 @@ const ArtworkDetail = () => {
 
   const currentImage = artwork.images?.[selectedImageIndex]?.url;
   const isFavorited = isWishlisted(artwork.id);
+  const editionRemaining = artwork.editionSize == null ? null : Math.max(artwork.editionSize - artwork.editionsIssued - artwork.editionsReserved, 0);
+  const isAvailableForPurchase = artwork.status === 'AVAILABLE' && editionRemaining !== 0;
   const artworkUrl = `https://highmarc.com/artwork/${artwork.id}`;
   const artworkImages = artwork.images?.map((image) => image.url || image).filter(Boolean) || [];
   const availability = artwork.status === 'AVAILABLE'
@@ -269,12 +279,12 @@ const ArtworkDetail = () => {
                   
                   <div className="flex items-center justify-between mb-8 pb-8 border-b border-stone-200">
                     <div>
-                      {artwork.status === 'AVAILABLE' ? (
+                      {isAvailableForPurchase ? (
                         <p className="text-3xl text-stone-900 font-medium">
-                          ${artwork.price?.toLocaleString()}
+                          ${Number(selectedLicense === 'COMMERCIAL_USE' ? artwork.commercialPrice : artwork.price).toLocaleString()}
                         </p>
                       ) : (
-                        <p className="text-3xl text-stone-400 font-medium">{artwork.status.replace('_', ' ')}</p>
+                        <p className="text-3xl text-stone-400 font-medium">{editionRemaining === 0 ? 'SOLD OUT' : artwork.status.replace('_', ' ')}</p>
                       )}
                     </div>
                     
@@ -305,6 +315,16 @@ const ArtworkDetail = () => {
                     </p>
                   </div>
 
+                  {artwork.productType === 'DIGITAL' && (
+                    <div className="mb-8 rounded-xl border border-amber-200 bg-amber-50 p-5 space-y-5">
+                      <div className="flex items-start gap-3"><FileLock2 size={21} className="mt-0.5 shrink-0 text-amber-800"/><div><h3 className="font-medium text-stone-900">Secure digital edition</h3><p className="mt-1 text-sm leading-6 text-stone-600">Includes the protected high-resolution file, a named licence certificate, and immediate access after payment.</p>{artwork.editionSize && <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-amber-800">{Math.max(artwork.editionSize - artwork.editionsIssued - artwork.editionsReserved, 0)} of {artwork.editionSize} editions available</p>}</div></div>
+                      {artwork.commercialLicenseEnabled && artwork.commercialPrice && <fieldset><legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-600">Choose your licence</legend><div className="grid gap-2 sm:grid-cols-2">{[
+                        { value: 'PERSONAL_USE', label: 'Personal use', detail: 'Private display and personal prints', price: artwork.price },
+                        { value: 'COMMERCIAL_USE', label: 'Commercial use', detail: 'Use in your own business projects', price: artwork.commercialPrice },
+                      ].map(option => <label key={option.value} className={`cursor-pointer rounded-lg border p-3 ${selectedLicense === option.value ? 'border-stone-900 bg-white' : 'border-amber-200'}`}><input type="radio" className="sr-only" name="digital-license" value={option.value} checked={selectedLicense === option.value} onChange={() => setSelectedLicense(option.value)}/><span className="flex items-center justify-between gap-2 text-sm font-medium"><span>{option.label}</span><span>${Number(option.price).toLocaleString()}</span></span><span className="mt-1 block text-xs text-stone-500">{option.detail}</span></label>)}</div></fieldset>}
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-2 gap-y-4 gap-x-8 mb-8 text-sm">
                     <div>
                       <span className="block text-stone-400 mb-1">Medium</span>
@@ -324,7 +344,7 @@ const ArtworkDetail = () => {
                     </div>
                     <div>
                       <span className="block text-stone-400 mb-1">Authenticity</span>
-                      <span className="text-stone-900 font-medium">Signed Original</span>
+                      <span className="text-stone-900 font-medium">{artwork.productType === 'DIGITAL' ? (artwork.editionSize ? `Numbered edition of ${artwork.editionSize}` : 'Licensed digital work') : 'Signed Original'}</span>
                     </div>
                   </div>
 
@@ -332,30 +352,30 @@ const ArtworkDetail = () => {
                   <WallPlacement artwork={artwork} />
 
                   {/* Action Buttons */}
-                  {artwork.status === 'AVAILABLE' ? (
+                  {isAvailableForPurchase ? (
                     <div className="flex flex-col gap-4 mt-10">
                       <button
                         onClick={handleAddToCart}
                         disabled={isInCart(artwork.id)}
                         className="w-full bg-stone-900 text-white py-4 rounded-xl font-medium flex items-center justify-center gap-3 hover:bg-black transition"
                       >
-                        <ShoppingBag size={18} />
-                        {isInCart(artwork.id) ? 'In Cart' : 'Add to Collection'}
+                        {artwork.productType === 'DIGITAL' ? <Download size={18}/> : <ShoppingBag size={18} />}
+                        {isInCart(artwork.id) ? 'In Cart' : artwork.productType === 'DIGITAL' ? 'Purchase Digital Licence' : 'Add to Collection'}
                       </button>
                     </div>
                   ) : (
                     <div className="bg-stone-100 p-4 rounded-lg text-center mt-10">
-                      <p className="text-stone-500">This artwork has been {artwork.status.toLowerCase().replace('_', ' ')}.</p>
+                      <p className="text-stone-500">{editionRemaining === 0 ? 'This digital edition is sold out.' : `This artwork has been ${artwork.status.toLowerCase().replace('_', ' ')}.`}</p>
                     </div>
                   )}
 
                   {/* Value Props */}
                   <div className="space-y-4 pt-8 border-t border-stone-200">
                     <div className="flex items-start gap-4">
-                      <Truck className="text-amber-600 mt-1" size={20} />
+                      {artwork.productType === 'DIGITAL' ? <Download className="text-amber-600 mt-1" size={20} /> : <Truck className="text-amber-600 mt-1" size={20} />}
                       <div>
-                        <h4 className="font-medium text-stone-900">Worldwide Shipping</h4>
-                        <p className="text-sm text-stone-500">Professional crate packaging and insurance included.</p>
+                        <h4 className="font-medium text-stone-900">{artwork.productType === 'DIGITAL' ? 'Secure Digital Delivery' : 'Worldwide Shipping'}</h4>
+                        <p className="text-sm text-stone-500">{artwork.productType === 'DIGITAL' ? 'Expiring download links are available only inside your account.' : 'Professional crate packaging and insurance included.'}</p>
                       </div>
                     </div>
                     <div className="flex items-start gap-4">
@@ -368,8 +388,8 @@ const ArtworkDetail = () => {
                     <div className="flex items-start gap-4">
                       <Award className="text-amber-600 mt-1" size={20} />
                       <div>
-                        <h4 className="font-medium text-stone-900">Certificate of Authenticity</h4>
-                        <p className="text-sm text-stone-500">Signed document included with every original piece.</p>
+                        <h4 className="font-medium text-stone-900">{artwork.productType === 'DIGITAL' ? 'Named Licence Certificate' : 'Certificate of Authenticity'}</h4>
+                        <p className="text-sm text-stone-500">{artwork.productType === 'DIGITAL' ? 'Your selected licence and edition number are recorded at purchase.' : 'Signed document included with every original piece.'}</p>
                       </div>
                     </div>
                   </div>

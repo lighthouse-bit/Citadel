@@ -386,15 +386,16 @@ const Gallery = () => {
                                 ? '(max-width: 767px) calc(100vw - 3rem), (max-width: 1023px) calc(50vw - 3rem), 400px'
                                 : '(max-width: 767px) calc(100vw - 3rem), 600px'}
                               loading={index < 3 ? 'eager' : 'lazy'}
-                              fetchPriority={index === 0 ? 'high' : 'auto'}
-                            />
+                            fetchPriority={index === 0 ? 'high' : 'auto'}
+                          />
+                          {artwork.productType === 'DIGITAL' && <span className="absolute left-3 top-3 z-10 rounded-full bg-stone-900/90 px-3 py-1.5 text-[10px] font-medium uppercase tracking-wider text-white backdrop-blur">{artwork.editionSize ? `${Math.max(artwork.editionSize - artwork.editionsIssued - artwork.editionsReserved, 0)} of ${artwork.editionSize} left` : 'Digital edition'}</span>}
                           </div>
 
                           {/* ✅ Sold/Reserved overlay */}
                           <SoldOverlay status={artwork.status} />
 
                           {/* Hover overlay - only for available */}
-                          {artwork.status === 'AVAILABLE' && (
+                          {artwork.status === 'AVAILABLE' && (!artwork.editionSize || artwork.editionsIssued + artwork.editionsReserved < artwork.editionSize) && (
                             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 
                                             transition-colors duration-300 z-[6]" />
                           )}
@@ -403,7 +404,7 @@ const Gallery = () => {
                           <StatusBadge status={artwork.status} />
 
                           {/* Hover action - only for available */}
-                          {artwork.status === 'AVAILABLE' && (
+                          {artwork.status === 'AVAILABLE' && (!artwork.editionSize || artwork.editionsIssued + artwork.editionsReserved < artwork.editionSize) && (
                             <div className="absolute bottom-4 left-0 right-0 flex justify-center 
                                             opacity-0 translate-y-4 group-hover:opacity-100 
                                             group-hover:translate-y-0 transition-all duration-300 z-[7]">
@@ -458,7 +459,7 @@ const Gallery = () => {
                           )}
 
                           {/* ✅ Add to cart - only for AVAILABLE */}
-                          {artwork.status === 'AVAILABLE' && (
+                          {artwork.status === 'AVAILABLE' && (!artwork.editionSize || artwork.editionsIssued + artwork.editionsReserved < artwork.editionSize) && (
                             <button
                               onClick={(e) => handleAddToCart(e, artwork)}
                               disabled={isInCart(artwork.id)}

@@ -29,6 +29,11 @@ enum ArtworkCategory {
   PHOTOGRAPHY
 }
 
+enum ArtworkProductType {
+  PHYSICAL
+  DIGITAL
+}
+
 enum CommissionStatus {
   PENDING
   REVIEWING
@@ -58,25 +63,31 @@ enum OrderStatus {
 // ============== MODELS ==============
 
 model Artwork {
-  id           String          @id @default(uuid())
-  title        String
-  description  String          @db.Text
-  price        Decimal         @db.Decimal(10, 2)
-  category     ArtworkCategory
-  medium       String?
-  year         Int?
-  width        Decimal?        @db.Decimal(6, 2)
-  height       Decimal?        @db.Decimal(6, 2)
-  depth        Decimal?        @db.Decimal(6, 2)
-  unit         String          @default("inches")
-  status       ArtworkStatus   @default(AVAILABLE)
-  featured     Boolean         @default(false)
-  displayOrder Int             @default(0)
-  slug         String          @unique
-  metaTitle    String?
-  metaDesc     String?
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
+  id                       String             @id @default(uuid())
+  title                    String
+  description              String             @db.Text
+  price                    Decimal            @db.Decimal(10, 2)
+  category                 ArtworkCategory
+  productType              ArtworkProductType @default(PHYSICAL)
+  editionSize              Int?
+  editionsIssued           Int                @default(0)
+  editionsReserved         Int                @default(0)
+  commercialLicenseEnabled Boolean            @default(false)
+  commercialPrice          Decimal?           @db.Decimal(10, 2)
+  medium                   String?
+  year                     Int?
+  width                    Decimal?           @db.Decimal(6, 2)
+  height                   Decimal?           @db.Decimal(6, 2)
+  depth                    Decimal?           @db.Decimal(6, 2)
+  unit                     String             @default("inches")
+  status                   ArtworkStatus      @default(AVAILABLE)
+  featured                 Boolean            @default(false)
+  displayOrder             Int                @default(0)
+  slug                     String             @unique
+  metaTitle                String?
+  metaDesc                 String?
+  createdAt                DateTime           @default(now())
+  updatedAt                DateTime           @updatedAt
 
   // Relations
   images         ArtworkImage[]
@@ -87,6 +98,8 @@ model Artwork {
   cartItems      CartItem[]
   customerViews  CustomerArtworkView[]
   reviews        Review[]
+  digitalAsset   DigitalAsset?
+  entitlements   DigitalEntitlement[]
 
   @@index([status])
   @@index([category])
@@ -153,17 +166,18 @@ model Customer {
   updatedAt                  DateTime  @updatedAt
 
   // Relations
-  addresses       Address[]
-  commissions     Commission[]
-  orders          Order[]
-  notifications   Notification[] // ✅ Added reverse relation
-  wishlistItems   WishlistItem[]
-  wishlistAlerts  WishlistAlert[]
-  cartItems       CartItem[]
-  artworkViews    CustomerArtworkView[]
-  supportTickets  SupportTicket[]
-  supportMessages SupportMessage[]
-  reviews         Review[]
+  addresses           Address[]
+  commissions         Commission[]
+  orders              Order[]
+  notifications       Notification[] // ✅ Added reverse relation
+  wishlistItems       WishlistItem[]
+  wishlistAlerts      WishlistAlert[]
+  cartItems           CartItem[]
+  artworkViews        CustomerArtworkView[]
+  supportTickets      SupportTicket[]
+  supportMessages     SupportMessage[]
+  reviews             Review[]
+  digitalEntitlements DigitalEntitlement[]
 
   @@index([email])
 }
@@ -183,11 +197,12 @@ model WishlistItem {
 }
 
 model CartItem {
-  id         String   @id @default(uuid())
-  customerId String
-  artworkId  String
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id          String   @id @default(uuid())
+  customerId  String
+  artworkId   String
+  licenseType String   @default("PERSONAL_USE")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   artwork  Artwork  @relation(fields: [artworkId], references: [id], onDelete: Cascade)
@@ -300,17 +315,76 @@ model Order {
 }
 
 model OrderItem {
-  id        String  @id @default(uuid())
-  price     Decimal @db.Decimal(10, 2)
-  title     String
-  orderId   String
-  artworkId String
+  id              String  @id @default(uuid())
+  price           Decimal @db.Decimal(10, 2)
+  title           String
+  orderId         String
+  artworkId       String
+  licenseType     String  @default("PERSONAL_USE")
+  editionReserved Boolean @default(false)
 
   // Relations
-  artwork Artwork @relation(fields: [artworkId], references: [id])
-  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  artwork            Artwork             @relation(fields: [artworkId], references: [id])
+  order              Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  digitalEntitlement DigitalEntitlement?
 
   @@index([orderId])
+}
+
+model DigitalAsset {
+  id                    String   @id @default(uuid())
+  publicId              String   @unique
+  format                String
+  resourceType          String   @default("image")
+  originalFilename      String
+  bytes                 Int?
+  downloadLimit         Int      @default(5)
+  licenseName           String   @default("Personal Use License")
+  licenseText           String   @db.Text
+  commercialLicenseName String   @default("Commercial Use License")
+  commercialLicenseText String   @db.Text
+  artworkId             String   @unique
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  artwork Artwork @relation(fields: [artworkId], references: [id], onDelete: Cascade)
+}
+
+model DigitalEntitlement {
+  id               String    @id @default(uuid())
+  licenseType      String    @default("PERSONAL_USE")
+  licenseName      String
+  licenseText      String    @db.Text
+  editionNumber    Int?
+  editionSize      Int?
+  downloadLimit    Int       @default(5)
+  downloadCount    Int       @default(0)
+  lastDownloadedAt DateTime?
+  revokedAt        DateTime?
+  createdAt        DateTime  @default(now())
+  customerId       String
+  artworkId        String
+  orderItemId      String    @unique
+
+  customer  Customer          @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  artwork   Artwork           @relation(fields: [artworkId], references: [id], onDelete: Cascade)
+  orderItem OrderItem         @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  downloads DigitalDownload[]
+
+  @@index([customerId, createdAt])
+  @@index([artworkId])
+  @@index([artworkId, editionNumber])
+}
+
+model DigitalDownload {
+  id            String   @id @default(uuid())
+  entitlementId String
+  userAgent     String?
+  downloadedAt  DateTime @default(now())
+
+  entitlement DigitalEntitlement @relation(fields: [entitlementId], references: [id], onDelete: Cascade)
+
+  @@index([entitlementId, downloadedAt])
 }
 
 model Review {

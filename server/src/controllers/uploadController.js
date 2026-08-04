@@ -1,7 +1,7 @@
 const cloudinary = require('../config/cloudinary');
 
 const publicFolders = new Set(['commissions', 'customer-uploads', 'support']);
-const adminFolders = new Set(['artworks', 'commission-progress']);
+const adminFolders = new Set(['artworks', 'commission-progress', 'digital-originals']);
 
 exports.createSignature = (req, res) => {
   const { CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET } = process.env;
@@ -16,6 +16,8 @@ exports.createSignature = (req, res) => {
   const folderName = publicFolders.has(requested) || adminFolders.has(requested) ? requested : 'customer-uploads';
   const folder = `citadel/${folderName}`;
   const timestamp = Math.floor(Date.now() / 1000);
-  const signature = cloudinary.utils.api_sign_request({ folder, timestamp }, CLOUDINARY_API_SECRET);
-  return res.json({ cloudName: CLOUDINARY_CLOUD_NAME, apiKey: CLOUDINARY_API_KEY, folder, timestamp, signature });
+  const type = folderName === 'digital-originals' ? 'authenticated' : 'upload';
+  const signatureParams = { folder, timestamp, ...(type === 'authenticated' && { type }) };
+  const signature = cloudinary.utils.api_sign_request(signatureParams, CLOUDINARY_API_SECRET);
+  return res.json({ cloudName: CLOUDINARY_CLOUD_NAME, apiKey: CLOUDINARY_API_KEY, folder, timestamp, signature, type });
 };

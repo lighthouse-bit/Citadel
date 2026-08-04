@@ -30,6 +30,7 @@ const uploadToCloudinary = async (file, onProgress = null, folder = 'customer-up
   formData.append('timestamp', String(credentials.timestamp));
   formData.append('signature', credentials.signature);
   formData.append('folder', credentials.folder);
+  if (credentials.type === 'authenticated') formData.append('type', credentials.type);
 
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
@@ -86,6 +87,45 @@ export const uploadMultipleToCloudinary = async (files, onProgress = null, folde
     }, folder)
   );
   return Promise.all(uploads);
+};
+
+export const uploadDigitalMaster = async (file, onProgress = null) => {
+  if (!file?.type?.startsWith('image/')) throw new Error('The digital master must be an image file');
+  if (file.size > 50 * 1024 * 1024) throw new Error(`${file.name} is larger than 50MB`);
+  const credentials = await getUploadSignature('digital-originals');
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('api_key', credentials.apiKey);
+  formData.append('timestamp', String(credentials.timestamp));
+  formData.append('signature', credentials.signature);
+  formData.append('folder', credentials.folder);
+  formData.append('type', 'authenticated');
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    if (onProgress) xhr.upload.addEventListener('progress', event => {
+      if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100));
+    });
+    xhr.addEventListener('load', () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        const data = JSON.parse(xhr.responseText);
+        resolve({
+          publicId: data.public_id,
+          format: data.format,
+          resourceType: data.resource_type || 'image',
+          originalFilename: data.original_filename ? `${data.original_filename}.${data.format}` : file.name,
+          bytes: data.bytes || file.size,
+        });
+      } else {
+        let message = 'Protected master upload failed';
+        try { message = JSON.parse(xhr.responseText)?.error?.message || message; } catch { /* non-JSON provider error */ }
+        reject(new Error(message));
+      }
+    });
+    xhr.addEventListener('error', () => reject(new Error('Protected master upload failed')));
+    xhr.open('POST', `https://api.cloudinary.com/v1_1/${credentials.cloudName}/image/upload`);
+    xhr.send(formData);
+  });
 };
 
 export default uploadToCloudinary;

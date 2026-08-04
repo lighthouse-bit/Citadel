@@ -2,10 +2,22 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useDropzone } from 'react-dropzone';
-import { ArrowLeft, ArrowRight, Upload, X, Save, Loader } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Upload, X, Save, Loader, FileLock2, CheckCircle } from 'lucide-react';
 import { artworksAPI } from '../../services/api';
 import toast from 'react-hot-toast';
-import uploadToCloudinary from '../../utils/uploadToCloudinary';
+import uploadToCloudinary, { uploadDigitalMaster } from '../../utils/uploadToCloudinary';
+
+const DEFAULT_PERSONAL_LICENSE = `This purchase grants one named customer a non-exclusive, non-transferable personal-use licence.
+
+You may display the work on your personal devices and create prints for your own private, non-commercial use.
+
+You may not resell, redistribute, share, sublicense, modify for resale, use commercially, mint as an NFT, or claim authorship. Copyright remains with the artist.`;
+
+const DEFAULT_COMMERCIAL_LICENSE = `This purchase grants one named customer a non-exclusive, non-transferable commercial-use licence.
+
+You may use the artwork in your own commercial projects and marketing, subject to the terms of this certificate.
+
+You may not resell or redistribute the original digital file, sublicense it, mint it as an NFT, or claim authorship. Copyright remains with the artist.`;
 
 const ArtworkForm = () => {
   const { id } = useParams();
@@ -16,6 +28,8 @@ const ArtworkForm = () => {
   const [isSaving, setIsSaving]     = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [images, setImages]         = useState([]);
+  const [digitalMasterFile, setDigitalMasterFile] = useState(null);
+  const [digitalAsset, setDigitalAsset] = useState(null);
   const [alertAudience, setAlertAudience] = useState({ total: 0, byType: {} });
   const [formData, setFormData]     = useState({
     title:       '',
@@ -29,6 +43,15 @@ const ArtworkForm = () => {
     unit:        'inches',
     status:      'AVAILABLE',
     featured:    false,
+    productType: 'PHYSICAL',
+    digitalDownloadLimit: 5,
+    digitalLicenseName: 'Personal Use License',
+    digitalLicenseText: DEFAULT_PERSONAL_LICENSE,
+    editionSize: '',
+    commercialLicenseEnabled: false,
+    commercialPrice: '',
+    commercialLicenseName: 'Commercial Use License',
+    commercialLicenseText: DEFAULT_COMMERCIAL_LICENSE,
   });
 
   useEffect(() => {
@@ -53,7 +76,17 @@ const ArtworkForm = () => {
         unit:        artwork.unit || 'inches',
         status:      artwork.status,
         featured:    artwork.featured || false,
+        productType: artwork.productType || 'PHYSICAL',
+        digitalDownloadLimit: artwork.digitalAsset?.downloadLimit || 5,
+        digitalLicenseName: artwork.digitalAsset?.licenseName || 'Personal Use License',
+        digitalLicenseText: artwork.digitalAsset?.licenseText || DEFAULT_PERSONAL_LICENSE,
+        editionSize: artwork.editionSize?.toString() || '',
+        commercialLicenseEnabled: artwork.commercialLicenseEnabled || false,
+        commercialPrice: artwork.commercialPrice?.toString() || '',
+        commercialLicenseName: artwork.digitalAsset?.commercialLicenseName || 'Commercial Use License',
+        commercialLicenseText: artwork.digitalAsset?.commercialLicenseText || DEFAULT_COMMERCIAL_LICENSE,
       });
+      setDigitalAsset(artwork.digitalAsset || null);
 
       if (artwork.images) {
         setImages(
@@ -156,6 +189,17 @@ const ArtworkForm = () => {
         setUploadProgress(100);
       }
 
+      let protectedMaster = digitalAsset;
+      if (formData.productType === 'DIGITAL' && digitalMasterFile) {
+        toast.loading('Uploading protected digital master...');
+        protectedMaster = await uploadDigitalMaster(digitalMasterFile, setUploadProgress);
+        toast.dismiss();
+        setDigitalAsset(protectedMaster);
+      }
+      if (formData.productType === 'DIGITAL' && !protectedMaster) {
+        throw new Error('Select the high-resolution digital master before publishing');
+      }
+
       // ── Step 2: Send artwork data + Cloudinary URLs to your backend ───
       // ✅ No binary files — just JSON — stays well under 4.5MB limit
       const submitData = {
@@ -165,6 +209,18 @@ const ArtworkForm = () => {
         width:    formData.width    ? parseFloat(formData.width)  : null,
         height:   formData.height   ? parseFloat(formData.height) : null,
         featured: Boolean(formData.featured),
+        productType: formData.productType,
+        editionSize: formData.productType === 'DIGITAL' && formData.editionSize ? Number(formData.editionSize) : null,
+        commercialLicenseEnabled: formData.productType === 'DIGITAL' && Boolean(formData.commercialLicenseEnabled),
+        commercialPrice: formData.productType === 'DIGITAL' && formData.commercialLicenseEnabled ? Number(formData.commercialPrice) : null,
+        digitalAsset: formData.productType === 'DIGITAL' ? {
+          ...protectedMaster,
+          downloadLimit: Number(formData.digitalDownloadLimit),
+          licenseName: formData.digitalLicenseName,
+          licenseText: formData.digitalLicenseText,
+          commercialLicenseName: formData.commercialLicenseName,
+          commercialLicenseText: formData.commercialLicenseText,
+        } : undefined,
 
         // ✅ Send Cloudinary URLs + existing images together
         images: [
@@ -244,6 +300,50 @@ const ArtworkForm = () => {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-8">
+
+        <div className="bg-white rounded-xl border border-stone-200 shadow-sm p-6">
+          <h2 className="text-lg font-semibold text-stone-900 mb-1">Product format</h2>
+          <p className="text-sm text-stone-500 mb-5">Choose whether this listing ships as an original or is delivered securely as a digital file.</p>
+          <div className="grid sm:grid-cols-2 gap-3">
+            {[
+              { value: 'PHYSICAL', label: 'Physical original', detail: 'Reserved once and shipped to the collector' },
+              { value: 'DIGITAL', label: 'Digital artwork', detail: 'Reusable listing with protected delivery' },
+            ].map(option => (
+              <label key={option.value} className={`cursor-pointer rounded-xl border p-4 ${formData.productType === option.value ? 'border-amber-500 bg-amber-50' : 'border-stone-200'}`}>
+                <input type="radio" name="productType" value={option.value} checked={formData.productType === option.value} onChange={handleChange} className="sr-only" />
+                <span className="font-medium text-stone-900">{option.label}</span>
+                <span className="mt-1 block text-xs text-stone-500">{option.detail}</span>
+              </label>
+            ))}
+          </div>
+
+          {formData.productType === 'DIGITAL' && (
+            <div className="mt-6 border-t border-stone-200 pt-6 space-y-5">
+              <div className="rounded-xl border border-dashed border-stone-300 bg-stone-50 p-5">
+                <div className="flex items-start gap-3">
+                  <FileLock2 className="mt-0.5 text-amber-700" size={22}/>
+                  <div className="flex-1">
+                    <p className="font-medium text-stone-900">Protected high-resolution master</p>
+                    <p className="mt-1 text-xs leading-5 text-stone-500">Stored as an authenticated Cloudinary asset. Customers receive only short-lived signed links after payment. Upload a reduced-size, watermarked public preview in the Images section below.</p>
+                    {digitalAsset && !digitalMasterFile && <p className="mt-3 inline-flex items-center gap-1.5 text-sm text-emerald-700"><CheckCircle size={15}/> Protected master is stored ({digitalAsset.format?.toUpperCase()})</p>}
+                    {digitalMasterFile && <p className="mt-3 text-sm text-amber-800">Selected: {digitalMasterFile.name} ({(digitalMasterFile.size / 1024 / 1024).toFixed(1)} MB)</p>}
+                    <label className="mt-4 inline-flex cursor-pointer items-center gap-2 rounded-lg bg-stone-900 px-4 py-2.5 text-sm font-medium text-white">
+                      <Upload size={16}/> {digitalAsset ? 'Replace master' : 'Select master'}
+                      <input type="file" accept="image/jpeg,image/png,image/webp,image/tiff" className="sr-only" onChange={event => setDigitalMasterFile(event.target.files?.[0] || null)} />
+                    </label>
+                  </div>
+                </div>
+              </div>
+              <div className="grid sm:grid-cols-2 gap-5">
+                <label className="block"><span className="block text-sm text-stone-600 mb-2">Download limit</span><input type="number" name="digitalDownloadLimit" min="1" max="25" value={formData.digitalDownloadLimit} onChange={handleChange} className="w-full px-4 py-3 border border-stone-300 rounded-lg"/></label>
+                <label className="block"><span className="block text-sm text-stone-600 mb-2">Edition size</span><input type="number" name="editionSize" min="1" max="10000" value={formData.editionSize} onChange={handleChange} placeholder="Blank for unlimited" className="w-full px-4 py-3 border border-stone-300 rounded-lg"/><span className="mt-1 block text-xs text-stone-500">Leave blank for an unlimited digital edition.</span></label>
+              </div>
+              <label className="block"><span className="block text-sm text-stone-600 mb-2">Personal licence name</span><input name="digitalLicenseName" maxLength="100" value={formData.digitalLicenseName} onChange={handleChange} className="w-full px-4 py-3 border border-stone-300 rounded-lg"/></label>
+              <label className="block"><span className="block text-sm text-stone-600 mb-2">Personal-use licence terms</span><textarea name="digitalLicenseText" rows={7} maxLength="10000" value={formData.digitalLicenseText} onChange={handleChange} className="w-full px-4 py-3 border border-stone-300 rounded-lg resize-y"/></label>
+              <div className="rounded-xl border border-stone-200 p-5 space-y-4"><label className="flex items-center gap-3"><input type="checkbox" name="commercialLicenseEnabled" checked={formData.commercialLicenseEnabled} onChange={handleChange} className="h-4 w-4"/><span><span className="block font-medium text-stone-900">Offer a commercial-use licence</span><span className="block text-xs text-stone-500">Charge a separate price for business use.</span></span></label>{formData.commercialLicenseEnabled && <><div className="grid sm:grid-cols-2 gap-5"><label className="block"><span className="block text-sm text-stone-600 mb-2">Commercial price (USD)</span><input type="number" name="commercialPrice" min="0.01" step="0.01" required value={formData.commercialPrice} onChange={handleChange} className="w-full px-4 py-3 border border-stone-300 rounded-lg"/></label><label className="block"><span className="block text-sm text-stone-600 mb-2">Commercial licence name</span><input name="commercialLicenseName" maxLength="100" value={formData.commercialLicenseName} onChange={handleChange} className="w-full px-4 py-3 border border-stone-300 rounded-lg"/></label></div><label className="block"><span className="block text-sm text-stone-600 mb-2">Commercial-use licence terms</span><textarea name="commercialLicenseText" rows={7} maxLength="10000" value={formData.commercialLicenseText} onChange={handleChange} className="w-full px-4 py-3 border border-stone-300 rounded-lg resize-y"/></label></>}</div>
+            </div>
+          )}
+        </div>
 
         {isEditing && alertAudience.total > 0 && (
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-900">

@@ -30,6 +30,7 @@ const Shop = () => {
   const [recentlyViewed, setRecentlyViewed] = useState([]);
   const [filters, setFilters] = useState({
     category: '',
+    productType: '',
     sort: 'createdAt',
     order: 'desc',
     search: '',
@@ -213,6 +214,17 @@ const Shop = () => {
                 </select>
               </div>
 
+              <select
+                aria-label="Product format"
+                value={filters.productType}
+                onChange={(e) => handleFilterChange('productType', e.target.value)}
+                className="w-full sm:w-auto px-4 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm focus:outline-none focus:border-amber-500 text-stone-700 cursor-pointer"
+              >
+                <option value="">All formats</option>
+                <option value="PHYSICAL">Physical originals</option>
+                <option value="DIGITAL">Digital editions</option>
+              </select>
+
               {/* Sort */}
               <select
                 value={`${filters.sort}-${filters.order}`}
@@ -328,6 +340,7 @@ const Shop = () => {
                             loading={index < 3 ? 'eager' : 'lazy'}
                             fetchPriority={index === 0 ? 'high' : 'auto'}
                           />
+                          {artwork.productType === 'DIGITAL' && <span className="absolute left-3 top-3 z-10 rounded-full bg-stone-900/90 px-3 py-1.5 text-[10px] font-medium uppercase tracking-wider text-white backdrop-blur">{artwork.editionSize ? `${Math.max(artwork.editionSize - artwork.editionsIssued - artwork.editionsReserved, 0)} of ${artwork.editionSize} left` : 'Digital edition'}</span>}
                           
                           {/* Hover Overlay */}
                           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300" />
@@ -366,16 +379,16 @@ const Shop = () => {
                           </p>
                           <button
                             onClick={() => addToCart(artwork)}
-                            disabled={isInCart(artwork.id)}
+                            disabled={isInCart(artwork.id) || (artwork.editionSize && artwork.editionsIssued + artwork.editionsReserved >= artwork.editionSize)}
                             className={`inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium 
                                       uppercase tracking-wider rounded-lg transition-all duration-300
-                                      ${isInCart(artwork.id)
+                                      ${isInCart(artwork.id) || (artwork.editionSize && artwork.editionsIssued + artwork.editionsReserved >= artwork.editionSize)
                                         ? 'bg-stone-100 text-stone-400 cursor-not-allowed'
                                         : 'bg-stone-900 text-white hover:bg-amber-600'
                                       }`}
                           >
                             <ShoppingBag size={14} />
-                            {isInCart(artwork.id) ? 'In Cart' : 'Add to Cart'}
+                            {isInCart(artwork.id) ? 'In Cart' : artwork.editionSize && artwork.editionsIssued + artwork.editionsReserved >= artwork.editionSize ? 'Sold Out' : 'Add to Cart'}
                           </button>
                         </div>
                       </div>

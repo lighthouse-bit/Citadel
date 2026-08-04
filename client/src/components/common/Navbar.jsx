@@ -32,6 +32,7 @@ const Navbar = ({ onOpenAuth }) => {
   const navLinks = [
     { path: '/gallery',    label: 'Gallery'  },
     { path: '/shop',       label: 'Shop'     },
+    { path: '/digital-art', label: 'Digital' },
     { path: '/commission', label: 'Bespoke'  },
     { path: '/about',      label: 'Atelier'  },
   ];
@@ -107,7 +108,7 @@ const Navbar = ({ onOpenAuth }) => {
 
           {/* ── Desktop Navigation ───────────────────────── */}
           <div className="hidden md:flex items-center z-50">
-            <div className="flex items-center space-x-10 mr-10">
+            <div className="flex items-center space-x-6 lg:space-x-10 mr-6 lg:mr-10">
               {navLinks.map((link, index) => (
                 <motion.div
                   key={link.path}

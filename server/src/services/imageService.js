@@ -57,3 +57,8 @@ exports.deleteFromCloudinary = async (publicId) => {
     throw error;
   }
 };
+
+exports.deleteAuthenticatedAsset = async (publicId, resourceType = 'image') => {
+  if (!publicId || !process.env.CLOUDINARY_CLOUD_NAME || process.env.CLOUDINARY_CLOUD_NAME === 'demo') return { result: 'ok' };
+  return cloudinary.uploader.destroy(publicId, { type: 'authenticated', resource_type: resourceType });
+};

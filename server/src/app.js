@@ -87,6 +87,7 @@ app.use('/api/customers', require('./routes/customerRoutes'));
 app.use('/api/wishlist', require('./routes/wishlistRoutes'));
 app.use('/api/account', require('./routes/accountRoutes'));
 app.use('/api/cart', require('./routes/cartRoutes'));
+app.use('/api/digital-library', require('./routes/digitalLibraryRoutes'));
 app.use('/api/audit-logs', require('./routes/auditRoutes'));
 app.use('/api/marketing', require('./routes/marketingRoutes'));
 app.use('/api/reports', require('./routes/reportingRoutes'));

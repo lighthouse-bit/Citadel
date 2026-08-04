@@ -8,6 +8,7 @@ const crypto = require('crypto');
 const { recordOperationalEvent } = require('../utils/operationalEvents');
 const { verifyPaystackSignature } = require('../utils/paymentSecurity');
 const { createCustomerNotification } = require('../services/customerNotificationService');
+const { fulfillArtworkOrder } = require('../services/digitalFulfillmentService');
 
 const {
   sendOrderInvoiceEmail,
@@ -31,8 +32,17 @@ const removePurchasedItemsFromCart = async orderId => {
 
 const notifyOrderPayment = async orderId => {
   try {
-    const order = await prisma.order.findUnique({ where: { id: orderId }, select: { customerId: true, orderNumber: true } });
-    if (order) await createCustomerNotification({ customerId: order.customerId, type: 'PAYMENT', message: `Payment confirmed for order #${order.orderNumber}.`, link: `/track/${order.orderNumber}`, dedupeMinutes: 60 });
+    const order = await prisma.order.findUnique({ where: { id: orderId }, select: { customerId: true, orderNumber: true, items: { select: { artwork: { select: { productType: true } } } } } });
+    if (order) {
+      const includesDigital = order.items.some(item => item.artwork.productType === 'DIGITAL');
+      await createCustomerNotification({
+        customerId: order.customerId,
+        type: 'PAYMENT',
+        message: includesDigital ? `Payment confirmed for order #${order.orderNumber}. Your digital artwork is ready.` : `Payment confirmed for order #${order.orderNumber}.`,
+        link: includesDigital ? '/account?tab=digital' : `/track/${order.orderNumber}`,
+        dedupeMinutes: 60,
+      });
+    }
   } catch (error) {
     console.error('Order payment notification error:', error.message);
   }
@@ -148,6 +158,7 @@ router.get('/callback', async (req, res) => {
         },
       });
       await removePurchasedItemsFromCart(metadata.orderId);
+      await fulfillArtworkOrder(metadata.orderId);
       await notifyOrderPayment(metadata.orderId);
 
       // Create notification
@@ -204,7 +215,7 @@ router.post('/webhook', async (req, res) => {
   if (!verifyPaystackSignature(bodyString,hash,PAYSTACK_SECRET)) { recordOperationalEvent('PAYMENT_WEBHOOK_REJECTED','Invalid Paystack webhook signature',null,'WARNING'); return res.sendStatus(400); }
 
   try {
-    const event = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+    const event = Buffer.isBuffer(req.body) || typeof req.body === 'string' ? JSON.parse(bodyString) : req.body;
 
     if (event.event === 'charge.success') {
       const metadata = event.data.metadata || {};
@@ -218,6 +229,7 @@ router.post('/webhook', async (req, res) => {
           },
         });
         await removePurchasedItemsFromCart(metadata.orderId);
+        await fulfillArtworkOrder(metadata.orderId);
         await notifyOrderPayment(metadata.orderId);
       } else if (metadata.paymentType === 'commission_deposit' && metadata.commissionId) {
         await prisma.commission.update({
@@ -414,6 +426,7 @@ router.post('/verify', async (req, res) => {
 
       if (order.paymentStatus === 'FULLY_PAID') {
         await removePurchasedItemsFromCart(orderId);
+        await fulfillArtworkOrder(orderId);
         await notifyOrderPayment(orderId);
         return res.json({ success: true, type: 'artwork', alreadyVerified: true, order });
       }
@@ -432,6 +445,7 @@ router.post('/verify', async (req, res) => {
         },
       });
       await removePurchasedItemsFromCart(orderId);
+      await fulfillArtworkOrder(orderId);
       await notifyOrderPayment(orderId);
 
       try {

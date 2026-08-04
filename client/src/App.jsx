@@ -27,6 +27,8 @@ import { trackPageView } from './utils/analytics';
 const Home = lazy(() => import('./pages/Home'));
 const Gallery = lazy(() => import('./pages/Gallery'));
 const Shop = lazy(() => import('./pages/Shop'));
+const DigitalArt = lazy(() => import('./pages/DigitalArt'));
+const CertificateVerification = lazy(() => import('./pages/CertificateVerification'));
 const Commission = lazy(() => import('./pages/Commission'));
 const About = lazy(() => import('./pages/About'));
 const Contact = lazy(() => import('./pages/Contact'));
@@ -58,6 +60,7 @@ const SystemHealth = lazy(() => import('./pages/admin/SystemHealth'));
 const AdminResetPassword = lazy(() => import('./pages/admin/AdminResetPassword'));
 const WishlistAlerts = lazy(() => import('./pages/admin/WishlistAlerts'));
 const Support = lazy(() => import('./pages/admin/Support'));
+const DigitalSales = lazy(() => import('./pages/admin/DigitalSales'));
 
 const queryClient = new QueryClient();
 
@@ -124,6 +127,8 @@ function App() {
                     <Route path="/" element={publicPage(Home)} />
                     <Route path="/gallery" element={publicPage(Gallery)} />
                     <Route path="/shop" element={publicPage(Shop)} />
+                    <Route path="/digital-art" element={publicPage(DigitalArt)} />
+                    <Route path="/certificate/:id" element={publicPage(CertificateVerification)} />
                     <Route path="/artwork/:id" element={publicPage(ArtworkDetail)} />
                     <Route path="/commission" element={publicPage(Commission)} />
                     <Route path="/about" element={publicPage(About)} />
@@ -145,6 +150,7 @@ function App() {
                       <Route path="artworks/new" element={<ArtworkForm />} />
                       <Route path="artworks/:id/edit" element={<ArtworkForm />} />
                       <Route path="orders" element={<Orders />} />
+                      <Route path="digital-sales" element={<DigitalSales />} />
                       <Route path="orders/:id" element={<OrderDetail />} />
                       <Route path="commissions" element={<Commissions />} />
                       <Route path="commissions/:id" element={<CommissionDetail />} />

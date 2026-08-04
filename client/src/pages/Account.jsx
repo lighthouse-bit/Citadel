@@ -30,12 +30,14 @@ import {
   MessageCircle,
   X,
   ZoomIn,
+  Download,
 } from 'lucide-react';
 import { ordersAPI, commissionsAPI, wishlistAPI } from '../services/api';
 import toast from 'react-hot-toast';
 import { useWishlist } from '../hooks/useWishlist';
 import AccountSettings from '../components/AccountSettings';
 import CustomerSupport from '../components/CustomerSupport';
+import DigitalLibrary from '../components/DigitalLibrary';
 
 const Account = () => {
   const { user, logout, isAuthenticated, isLoading: authLoading, isVerified } = useAuth();
@@ -275,6 +277,13 @@ const Account = () => {
                 icon={<Palette size={18} />}
                 label="Commissions"
                 count={commissions.length}
+              />
+
+              <NavButton
+                active={activeTab === 'digital'}
+                onClick={() => { setActiveTab('digital'); navigate('/account?tab=digital'); }}
+                icon={<Download size={18} />}
+                label="Digital Collection"
               />
 
               <NavButton
@@ -621,6 +630,8 @@ const Account = () => {
                 )}
 
                 {activeTab === 'settings' && <AccountSettings />}
+
+                {activeTab === 'digital' && <DigitalLibrary />}
 
                 {activeTab === 'support' && <CustomerSupport orders={orders} commissions={commissions} />}
 

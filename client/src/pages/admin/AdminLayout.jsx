@@ -23,6 +23,7 @@ import {
   HeartPulse,
   Heart,
   MessageSquare,
+  KeyRound,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { notificationsAPI } from '../../services/api';
@@ -147,6 +148,7 @@ const AdminLayout = () => {
       items: [
         { path: '/admin/artworks', icon: Image, label: 'Artworks' },
         { path: '/admin/orders', icon: ShoppingBag, label: 'Orders' },
+        { path: '/admin/digital-sales', icon: KeyRound, label: 'Digital Sales' },
         { path: '/admin/customers', icon: Users, label: 'Customers' },
         { path: '/admin/commissions', icon: Palette, label: 'Commissions' },
         { path: '/admin/support', icon: MessageSquare, label: 'Support' },

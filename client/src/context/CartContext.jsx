@@ -35,7 +35,7 @@ export const CartProvider = ({ children }) => {
     setIsSyncing(true);
     try {
       const guestItems = loadGuestCart();
-      const { data } = await cartAPI.merge(guestItems.map(item => item.id));
+      const { data } = await cartAPI.merge(guestItems.map(item => ({ id: item.id, licenseType: item.licenseType || 'PERSONAL_USE' })));
       setItems(data.items || []);
       localStorage.removeItem(STORAGE_KEY);
       if (data.unavailableCount) toast(`${data.unavailableCount} cart item${data.unavailableCount === 1 ? ' is' : 's are'} no longer available`, { icon: '!' });
@@ -80,7 +80,7 @@ export const CartProvider = ({ children }) => {
 
     if (isCustomer) {
       try {
-        const { data } = await cartAPI.add(item.id);
+        const { data } = await cartAPI.add(item.id, item.licenseType || 'PERSONAL_USE');
         setItems(previous => previous.map(existing => existing.id === item.id ? data : existing));
       } catch (error) {
         setItems(previous => previous.filter(existing => existing.id !== item.id));

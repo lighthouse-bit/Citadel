@@ -91,6 +91,7 @@ const Footer = () => {
               {[
                 { label: 'Gallery', path: '/gallery' },
                 { label: 'Collection', path: '/shop' },
+                { label: 'Digital Editions', path: '/digital-art' },
                 { label: 'Bespoke Commissions', path: '/commission' },
                 { label: 'About the Atelier', path: '/about' },
                 { label: 'Contact', path: '/contact' },

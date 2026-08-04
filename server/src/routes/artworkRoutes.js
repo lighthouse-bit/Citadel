@@ -4,10 +4,42 @@ const router = express.Router();
 const prisma = require('../config/database');
 const { authenticateAdmin, authenticateCustomer, authenticateUser } = require('../middleware/auth');
 const discoveryController = require('../controllers/discoveryController');
-const { deleteFromCloudinary } = require('../services/imageService');
+const { deleteFromCloudinary, deleteAuthenticatedAsset } = require('../services/imageService');
 const { recordAudit } = require('../utils/auditService');
 const { previewWishlistAlertAudience, sendSimilarArtworkAlerts, sendWishlistChangeAlerts } = require('../services/wishlistAlertService');
 const reviewController = require('../controllers/reviewController');
+
+const DEFAULT_PERSONAL_LICENSE = `This purchase grants one named customer a non-exclusive, non-transferable personal-use licence.
+
+You may display the work on your personal devices and create prints for your own private, non-commercial use.
+
+You may not resell, redistribute, share, sublicense, modify for resale, use commercially, mint as an NFT, or claim authorship. Copyright remains with the artist.`;
+
+const DEFAULT_COMMERCIAL_LICENSE = `This purchase grants one named customer a non-exclusive, non-transferable commercial-use licence.
+
+You may use the artwork in your own commercial projects and marketing, subject to the terms of this certificate.
+
+You may not resell or redistribute the original digital file, sublicense it, mint it as an NFT, or claim authorship. Copyright remains with the artist.`;
+
+const normalizeEditionSize = value => value === '' || value == null ? null : Math.min(Math.max(parseInt(value, 10) || 0, 1), 10000);
+
+const normalizeDigitalAsset = (asset) => {
+  if (!asset?.publicId || !String(asset.publicId).startsWith('citadel/digital-originals/')) return null;
+  const format = String(asset.format || '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 20);
+  if (!format) return null;
+  return {
+    publicId: String(asset.publicId),
+    format,
+    resourceType: 'image',
+    originalFilename: String(asset.originalFilename || `digital-artwork.${format}`).slice(0, 255),
+    bytes: Number.isFinite(Number(asset.bytes)) ? Math.max(0, Math.round(Number(asset.bytes))) : null,
+    downloadLimit: Math.min(Math.max(parseInt(asset.downloadLimit, 10) || 5, 1), 25),
+    licenseName: String(asset.licenseName || 'Personal Use License').trim().slice(0, 100),
+    licenseText: String(asset.licenseText || DEFAULT_PERSONAL_LICENSE).trim().slice(0, 10000),
+    commercialLicenseName: String(asset.commercialLicenseName || 'Commercial Use License').trim().slice(0, 100),
+    commercialLicenseText: String(asset.commercialLicenseText || DEFAULT_COMMERCIAL_LICENSE).trim().slice(0, 10000),
+  };
+};
 
 // ── Get all artworks (Public) ────────────────────────────────────────────────
 router.get('/', authenticateUser, async (req, res) => {
@@ -18,6 +50,7 @@ router.get('/', authenticateUser, async (req, res) => {
       category,
       status,
       featured,
+      productType,
       sort     = 'createdAt',
       order    = 'desc',
       search,
@@ -42,6 +75,7 @@ router.get('/', authenticateUser, async (req, res) => {
     else if (status) where.status = { equals: status.toUpperCase(), notIn: ['DRAFT', 'ARCHIVED'] };
     else if (req.user?.role !== 'admin') where.status = { notIn: ['DRAFT', 'ARCHIVED'] };
     if (featured === 'true') where.featured = true;
+    if (productType) where.productType = String(productType).toUpperCase() === 'DIGITAL' ? 'DIGITAL' : 'PHYSICAL';
     if (medium) where.medium = { contains: String(medium).slice(0, 100), mode: 'insensitive' };
 
     const numericRange = (minimum, maximum) => ({
@@ -211,7 +245,7 @@ router.get('/admin/:id/alert-audience', authenticateAdmin, async (req, res) => {
 });
 
 // ── Get single artwork by ID (Public) ───────────────────────────────────────
-router.get('/:id', async (req, res) => {
+router.get('/:id', authenticateUser, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -221,6 +255,7 @@ router.get('/:id', async (req, res) => {
         images: { orderBy: { order: 'asc' } },
         tags: { include: { tag: true } },
         _count: { select: { orderItems: true, wishlistItems: true } },
+        digitalAsset: req.user?.role === 'admin',
       },
     });
 
@@ -263,8 +298,23 @@ router.post('/', authenticateAdmin, async (req, res) => {
       featured,
       metaTitle,
       metaDesc,
+      productType = 'PHYSICAL',
+      editionSize,
+      commercialLicenseEnabled = false,
+      commercialPrice,
+      digitalAsset,
       images = [], // ✅ Array of {url, publicId, isPrimary, order} from Cloudinary
     } = req.body;
+
+    const normalizedProductType = String(productType).toUpperCase() === 'DIGITAL' ? 'DIGITAL' : 'PHYSICAL';
+    const normalizedEditionSize = normalizedProductType === 'DIGITAL' ? normalizeEditionSize(editionSize) : null;
+    const normalizedCommercialEnabled = normalizedProductType === 'DIGITAL' && (commercialLicenseEnabled === true || commercialLicenseEnabled === 'true');
+    const normalizedCommercialPrice = normalizedCommercialEnabled ? Number(commercialPrice) : null;
+    if (normalizedCommercialEnabled && (!Number.isFinite(normalizedCommercialPrice) || normalizedCommercialPrice <= 0)) return res.status(400).json({ error: 'Enter a valid commercial licence price' });
+    const normalizedDigitalAsset = normalizeDigitalAsset(digitalAsset);
+    if (normalizedProductType === 'DIGITAL' && String(status || 'AVAILABLE').toUpperCase() === 'AVAILABLE' && !normalizedDigitalAsset) {
+      return res.status(400).json({ error: 'Upload a protected digital master before publishing this artwork' });
+    }
 
     // Generate slug
     const slug = title
@@ -291,6 +341,10 @@ router.post('/', authenticateAdmin, async (req, res) => {
         description,
         price:     parseFloat(price),
         category:  (category || 'PAINTING').toUpperCase(),
+        productType: normalizedProductType,
+        editionSize: normalizedEditionSize,
+        commercialLicenseEnabled: normalizedCommercialEnabled,
+        commercialPrice: normalizedCommercialPrice,
         medium:    medium    || null,
         year:      year      ? parseInt(year)     : null,
         width:     width     ? parseFloat(width)  : null,
@@ -303,6 +357,7 @@ router.post('/', authenticateAdmin, async (req, res) => {
         metaTitle: metaTitle || title,
         metaDesc:  metaDesc  || description?.substring(0, 160),
         images:    { create: imageData },
+        ...(normalizedDigitalAsset && { digitalAsset: { create: normalizedDigitalAsset } }),
       },
       include: {
         images: { orderBy: { order: 'asc' } },
@@ -345,11 +400,33 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
       unit,
       status,
       featured,
+      productType,
+      editionSize,
+      commercialLicenseEnabled,
+      commercialPrice,
+      digitalAsset,
       images, // ✅ Array from frontend with existing + new Cloudinary images
     } = req.body;
 
-    const existingArtwork = await prisma.artwork.findUnique({ where: { id }, select: { price: true, status: true, featured: true } });
+    const existingArtwork = await prisma.artwork.findUnique({ where: { id }, include: { digitalAsset: true } });
     if (!existingArtwork) return res.status(404).json({ error: 'Artwork not found' });
+
+    const nextProductType = productType === undefined ? existingArtwork.productType : (String(productType).toUpperCase() === 'DIGITAL' ? 'DIGITAL' : 'PHYSICAL');
+    const nextEditionSize = nextProductType === 'PHYSICAL' ? null : (editionSize === undefined ? existingArtwork.editionSize : normalizeEditionSize(editionSize));
+    const nextCommercialEnabled = nextProductType === 'DIGITAL' && (commercialLicenseEnabled === undefined
+      ? existingArtwork.commercialLicenseEnabled
+      : (commercialLicenseEnabled === true || commercialLicenseEnabled === 'true'));
+    const nextCommercialPrice = nextCommercialEnabled
+      ? Number(commercialPrice === undefined ? existingArtwork.commercialPrice : commercialPrice)
+      : null;
+    if (nextEditionSize != null && nextEditionSize < existingArtwork.editionsIssued + existingArtwork.editionsReserved) return res.status(400).json({ error: 'Edition size cannot be lower than editions already sold or reserved' });
+    if (nextCommercialEnabled && (!Number.isFinite(nextCommercialPrice) || nextCommercialPrice <= 0)) return res.status(400).json({ error: 'Enter a valid commercial licence price' });
+    const normalizedDigitalAsset = digitalAsset ? normalizeDigitalAsset(digitalAsset) : null;
+    if (digitalAsset && !normalizedDigitalAsset) return res.status(400).json({ error: 'The protected digital master is invalid' });
+    const nextStatus = status === undefined ? existingArtwork.status : String(status).toUpperCase();
+    if (nextProductType === 'DIGITAL' && nextStatus === 'AVAILABLE' && !normalizedDigitalAsset && !existingArtwork.digitalAsset) {
+      return res.status(400).json({ error: 'Upload a protected digital master before publishing this artwork' });
+    }
 
     // Build update data
     const updateData = {};
@@ -365,6 +442,11 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
     if (unit        !== undefined) updateData.unit        = unit;
     if (status      !== undefined) updateData.status      = status.toUpperCase();
     if (featured    !== undefined) updateData.featured    = featured === true || featured === 'true';
+    if (productType !== undefined) updateData.productType = nextProductType;
+    if (editionSize !== undefined || nextProductType === 'PHYSICAL') updateData.editionSize = nextEditionSize;
+    if (commercialLicenseEnabled !== undefined || nextProductType === 'PHYSICAL') updateData.commercialLicenseEnabled = nextCommercialEnabled;
+    if (commercialPrice !== undefined || commercialLicenseEnabled !== undefined || nextProductType === 'PHYSICAL') updateData.commercialPrice = nextCommercialPrice;
+    if (normalizedDigitalAsset) updateData.digitalAsset = { upsert: { create: normalizedDigitalAsset, update: normalizedDigitalAsset } };
 
     // ✅ Handle images — add only NEW ones (not existing)
     if (images && Array.isArray(images)) {
@@ -425,6 +507,9 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
         images: { orderBy: { order: 'asc' } },
       },
     });
+    if (normalizedDigitalAsset && existingArtwork.digitalAsset?.publicId && existingArtwork.digitalAsset.publicId !== normalizedDigitalAsset.publicId) {
+      await deleteAuthenticatedAsset(existingArtwork.digitalAsset.publicId, existingArtwork.digitalAsset.resourceType).catch(() => {});
+    }
     await recordAudit(req, 'UPDATE_ARTWORK', 'Artwork', artwork.id, {
       fields: Object.keys(updateData),
       priceChange: updateData.price !== undefined && Number(existingArtwork.price) !== Number(updateData.price) ? { from: Number(existingArtwork.price), to: Number(updateData.price) } : undefined,
@@ -446,7 +531,7 @@ router.delete('/:id', authenticateAdmin, async (req, res) => {
 
     const artwork = await prisma.artwork.findUnique({
       where:   { id },
-      include: { images: true, _count: { select: { orderItems: true } } },
+      include: { images: true, digitalAsset: true, _count: { select: { orderItems: true } } },
     });
 
     if (!artwork) {
@@ -462,6 +547,9 @@ router.delete('/:id', authenticateAdmin, async (req, res) => {
       if (image.publicId && !image.publicId.startsWith('placeholder')) {
         await deleteFromCloudinary(image.publicId).catch(() => {});
       }
+    }
+    if (artwork.digitalAsset) {
+      await deleteAuthenticatedAsset(artwork.digitalAsset.publicId, artwork.digitalAsset.resourceType).catch(() => {});
     }
 
     // Delete artwork (cascade deletes images from DB)

@@ -14,6 +14,10 @@ const publicRoutes = {
     title: 'Shop Original Artwork',
     description: 'Purchase original fine art with certificates of authenticity and worldwide shipping.',
   },
+  '/digital-art': {
+    title: 'Collect Digital Art',
+    description: 'Collect secure high-resolution digital artwork with clear licences, numbered editions and downloadable certificates.',
+  },
   '/commission': {
     title: 'Bespoke Art Commissions',
     description: 'Commission a unique portrait, landscape or abstract artwork tailored to your vision.',
@@ -28,7 +32,7 @@ const publicRoutes = {
   },
 };
 
-const privatePrefixes = ['/admin', '/account', '/checkout', '/verify-email', '/track', '/commission/payment'];
+const privatePrefixes = ['/admin', '/account', '/checkout', '/verify-email', '/track', '/commission/payment', '/certificate'];
 
 const RouteMetadata = () => {
   const { pathname } = useLocation();

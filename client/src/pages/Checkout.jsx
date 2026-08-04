@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { AlertCircle, ArrowLeft, ArrowRight, Check, CheckCircle, Info, Loader, Lock, MapPin, Package, ShoppingBag, Truck } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ArrowRight, Check, CheckCircle, Download, Info, Loader, Lock, MapPin, Package, ShoppingBag, Truck } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useCart } from '../hooks/useCart';
 import { useAuth } from '../hooks/useAuth';
@@ -25,7 +25,8 @@ function CartImage({ src, alt }) {
   return <img src={src || fallback} alt={alt} className="w-full h-full object-cover" onError={event => { event.currentTarget.src = fallback; }} />;
 }
 
-function Field({ label, name, value, error, onChange, type = 'text', autoComplete }) {
+function Field({ label, name, value, error, onChange, type = 'text', autoComplete, hidden = false }) {
+  if (hidden) return null;
   return <div><label htmlFor={`checkout-${name}`} className="block text-xs font-medium text-stone-500 uppercase tracking-wider mb-2">{label}</label><input id={`checkout-${name}`} type={type} name={name} value={value} onChange={onChange} autoComplete={autoComplete} aria-invalid={Boolean(error)} aria-describedby={error ? `${name}-error` : undefined} className={fieldClass(error)} />{error && <p id={`${name}-error`} className="text-xs text-red-600 mt-1.5">{error}</p>}</div>;
 }
 
@@ -55,10 +56,13 @@ export default function Checkout() {
   const [appliedPromotion, setAppliedPromotion] = useState(null);
   const [pendingOrder, setPendingOrder] = useState(initialPending.current);
   const [completedOrder, setCompletedOrder] = useState(null);
+  const [completedHasDigital, setCompletedHasDigital] = useState(false);
   const [failureMessage, setFailureMessage] = useState('');
 
   const shippingCost = Number(shippingInfo?.shippingCost || 0);
   const finalTotal = checkoutTotal(cartTotal, shippingCost, appliedPromotion?.discount || 0);
+  const hasPhysicalItems = cartItems.some(item => item.productType !== 'DIGITAL');
+  const hasDigitalItems = cartItems.some(item => item.productType === 'DIGITAL');
 
   const selectSavedAddress = useCallback(address => {
     setSelectedAddressId(address.id);
@@ -85,6 +89,10 @@ export default function Checkout() {
   }, [checkoutToken, formData, phase, promoCode, selectedAddressId]);
 
   useEffect(() => {
+    if (!hasPhysicalItems && cartItems.length > 0) {
+      setShippingInfo({ shippingCost: 0, zone: 'Digital delivery', size: 'digital', estimatedDays: 'Available after payment' });
+      return undefined;
+    }
     if (!formData.country || cartItems.length === 0) { setShippingInfo(null); return undefined; }
     const timer = setTimeout(async () => {
       setIsCalculatingShipping(true);
@@ -98,7 +106,7 @@ export default function Checkout() {
       }
     }, 400);
     return () => clearTimeout(timer);
-  }, [cartItems, formData.country]);
+  }, [cartItems, formData.country, hasPhysicalItems]);
 
   const verifyPayment = useCallback(async reference => {
     if (!reference || verifyLock.current === reference) return;
@@ -116,6 +124,7 @@ export default function Checkout() {
       localStorage.removeItem(DRAFT_KEY);
       await clearCart();
       setPendingOrder(null);
+      setCompletedHasDigital(cartItems.some(item => item.productType === 'DIGITAL'));
       setCompletedOrder(order);
       setPhase('success');
       toast.success('Payment confirmed');
@@ -145,10 +154,10 @@ export default function Checkout() {
     if (formData.firstName.trim().length < 2) next.firstName = 'Enter your first name.';
     if (formData.lastName.trim().length < 2) next.lastName = 'Enter your last name.';
     if (!/^\S+@\S+\.\S+$/.test(formData.email.trim())) next.email = 'Enter a valid email address.';
-    if (formData.address.trim().length < 5) next.address = 'Enter a complete street address.';
-    if (formData.city.trim().length < 2) next.city = 'Enter your city.';
-    if (formData.zip.trim().length < 3) next.zip = 'Enter a valid postal code.';
-    if (!formData.country) next.country = 'Select your delivery country.';
+    if (hasPhysicalItems && formData.address.trim().length < 5) next.address = 'Enter a complete street address.';
+    if (hasPhysicalItems && formData.city.trim().length < 2) next.city = 'Enter your city.';
+    if (hasPhysicalItems && formData.zip.trim().length < 3) next.zip = 'Enter a valid postal code.';
+    if (hasPhysicalItems && !formData.country) next.country = 'Select your delivery country.';
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -156,8 +165,8 @@ export default function Checkout() {
   const continueToReview = event => {
     event.preventDefault();
     if (!validate()) { toast.error('Please check the highlighted delivery details'); return; }
-    if (isCalculatingShipping) { toast.error('Please wait while shipping is calculated'); return; }
-    if (!shippingInfo) { toast.error('Shipping could not be calculated. Check the country and try again.'); return; }
+    if (hasPhysicalItems && isCalculatingShipping) { toast.error('Please wait while shipping is calculated'); return; }
+    if (hasPhysicalItems && !shippingInfo) { toast.error('Shipping could not be calculated. Check the country and try again.'); return; }
     setPhase('review');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -182,6 +191,7 @@ export default function Checkout() {
       localStorage.removeItem(DRAFT_KEY);
       await clearCart();
       setPendingOrder(null);
+      setCompletedHasDigital(cartItems.some(item => item.productType === 'DIGITAL'));
       setCompletedOrder(data.order);
       setPhase('success');
       setIsProcessing(false);
@@ -195,7 +205,7 @@ export default function Checkout() {
 
   const submitPayment = async () => {
     if (submitLock.current || isProcessing) return;
-    if (isCalculatingShipping || !shippingInfo) { toast.error('Please wait for the current delivery total'); return; }
+    if (hasPhysicalItems && (isCalculatingShipping || !shippingInfo)) { toast.error('Please wait for the current delivery total'); return; }
     submitLock.current = true;
     setIsProcessing(true);
     setFailureMessage('');
@@ -207,9 +217,9 @@ export default function Checkout() {
       const { data: order } = await ordersAPI.create({
         checkoutToken,
         firstName: formData.firstName.trim(), lastName: formData.lastName.trim(), email: formData.email.trim().toLowerCase(),
-        items: cartItems.map(item => ({ id: item.id })),
-        shippingAddressId: selectedAddressId || undefined,
-        shippingAddress: { line1: formData.address.trim(), city: formData.city.trim(), state: formData.state.trim(), postalCode: formData.zip.trim(), country: formData.country },
+        items: cartItems.map(item => ({ id: item.id, licenseType: item.licenseType || 'PERSONAL_USE' })),
+        shippingAddressId: hasPhysicalItems ? (selectedAddressId || undefined) : undefined,
+        shippingAddress: hasPhysicalItems ? { line1: formData.address.trim(), city: formData.city.trim(), state: formData.state.trim(), postalCode: formData.zip.trim(), country: formData.country } : undefined,
         shippingCost, shippingZone: shippingInfo?.zone || 'Unknown', shippingSize: shippingInfo?.size || 'unknown', promotionCode: appliedPromotion?.code || null,
       });
       const pending = { orderId: order.id, orderNumber: order.orderNumber, total: Number(order.total), email: formData.email, firstName: formData.firstName, checkoutToken };
@@ -227,9 +237,20 @@ export default function Checkout() {
 
   if (phase === 'verify') return <div className="min-h-screen pt-20 bg-stone-50 grid place-items-center px-6"><div className="text-center max-w-md"><Loader size={48} className="animate-spin text-amber-600 mx-auto mb-5"/><h1 className="font-serif text-2xl mb-2">Confirming your payment</h1><p className="text-stone-500">Keep this page open. We are securely checking the transaction with Paystack.</p></div></div>;
 
-  if (phase === 'success') return <div className="min-h-screen pt-24 pb-16 bg-stone-50 px-6"><motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="bg-white p-8 md:p-10 rounded-2xl shadow-lg border border-stone-200 max-w-2xl mx-auto"><div className="w-20 h-20 bg-green-100 rounded-full grid place-items-center mx-auto mb-6"><CheckCircle size={40} className="text-green-600"/></div><div className="text-center"><p className="text-xs tracking-[0.2em] uppercase text-green-700 mb-2">Payment received</p><h1 className="text-3xl font-serif text-stone-900">Your artwork is reserved for you</h1><p className="text-stone-500 mt-3">A receipt and order confirmation have been sent to {completedOrder?.customer?.email || completedOrder?.email || formData.email}.</p></div><div className="grid sm:grid-cols-2 gap-4 my-8"><div className="bg-stone-50 rounded-xl p-4"><p className="text-xs uppercase text-stone-400">Order number</p><p className="font-medium mt-1">{completedOrder?.orderNumber || 'Confirmed'}</p></div><div className="bg-stone-50 rounded-xl p-4"><p className="text-xs uppercase text-stone-400">Amount paid</p><p className="font-medium mt-1">${Number(completedOrder?.total || 0).toLocaleString()}</p></div><div className="bg-stone-50 rounded-xl p-4 sm:col-span-2"><p className="text-xs uppercase text-stone-400">What happens next</p><p className="text-sm text-stone-600 mt-1">We will prepare your artwork and email you when tracking becomes available.</p></div></div><div className="grid sm:grid-cols-2 gap-3">{completedOrder?.orderNumber && <Link to={`/track/${completedOrder.orderNumber}`} className="inline-flex justify-center items-center gap-2 bg-stone-900 text-white px-6 py-3 rounded-lg"><Package size={17}/> Track this order</Link>}<Link to={user ? '/account' : '/shop'} className="inline-flex justify-center items-center px-6 py-3 border border-stone-200 text-stone-700 rounded-lg">{user ? 'View my orders' : 'Continue browsing'}</Link></div></motion.div></div>;
+  if (phase === 'success') return (
+    <div className="min-h-screen pt-24 pb-16 bg-stone-50 px-6">
+      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="bg-white p-8 md:p-10 rounded-2xl shadow-lg border border-stone-200 max-w-2xl mx-auto">
+        <div className="w-20 h-20 bg-green-100 rounded-full grid place-items-center mx-auto mb-6"><CheckCircle size={40} className="text-green-600"/></div>
+        <div className="text-center"><p className="text-xs tracking-[0.2em] uppercase text-green-700 mb-2">Payment received</p><h1 className="text-3xl font-serif text-stone-900">Your purchase is confirmed</h1><p className="text-stone-500 mt-3">A receipt and order confirmation have been sent to {completedOrder?.customer?.email || completedOrder?.email || formData.email}.</p></div>
+        <div className="grid sm:grid-cols-2 gap-4 my-8"><div className="bg-stone-50 rounded-xl p-4"><p className="text-xs uppercase text-stone-400">Order number</p><p className="font-medium mt-1">{completedOrder?.orderNumber || 'Confirmed'}</p></div><div className="bg-stone-50 rounded-xl p-4"><p className="text-xs uppercase text-stone-400">Amount paid</p><p className="font-medium mt-1">${Number(completedOrder?.total || 0).toLocaleString()}</p></div><div className="bg-stone-50 rounded-xl p-4 sm:col-span-2"><p className="text-xs uppercase text-stone-400">What happens next</p><p className="text-sm text-stone-600 mt-1">{completedHasDigital ? 'Your protected digital artwork and personal licence are ready in My Digital Collection.' : 'We will prepare your artwork and email you when tracking becomes available.'}</p></div></div>
+        <div className="grid sm:grid-cols-2 gap-3">{completedHasDigital && <Link to="/account?tab=digital" className="inline-flex justify-center items-center gap-2 bg-stone-900 text-white px-6 py-3 rounded-lg"><Download size={17}/> Open Digital Collection</Link>}{completedOrder?.shippingAddressId && completedOrder?.orderNumber && <Link to={`/track/${completedOrder.orderNumber}`} className="inline-flex justify-center items-center gap-2 bg-stone-900 text-white px-6 py-3 rounded-lg"><Package size={17}/> Track this order</Link>}<Link to={user ? '/account' : '/shop'} className="inline-flex justify-center items-center px-6 py-3 border border-stone-200 text-stone-700 rounded-lg">{user ? 'View my account' : 'Continue browsing'}</Link></div>
+      </motion.div>
+    </div>
+  );
 
   if (phase === 'failure') return <div className="min-h-screen pt-24 bg-stone-50 grid place-items-center px-6"><div className="bg-white border border-red-200 rounded-2xl p-8 max-w-lg w-full shadow-sm text-center"><AlertCircle size={48} className="text-red-500 mx-auto mb-5"/><h1 className="font-serif text-2xl text-stone-900 mb-3">Payment needs attention</h1><p className="text-stone-600 mb-3">{failureMessage}</p>{pendingOrder?.orderNumber && <p className="text-sm text-stone-500 mb-6">Your saved order is <strong>#{pendingOrder.orderNumber}</strong>. You will not create a duplicate by retrying.</p>}<div className="space-y-3"><button onClick={() => { setPhase('review'); setFailureMessage(''); }} className="w-full bg-stone-900 text-white rounded-lg px-6 py-3">Review and try again</button><Link to="/shop" className="block border border-stone-200 rounded-lg px-6 py-3 text-stone-700">Return to shop</Link></div></div></div>;
+
+  if (hasDigitalItems && !user) return <div className="min-h-screen pt-24 bg-stone-50 grid place-items-center px-6"><div className="max-w-lg rounded-2xl border border-stone-200 bg-white p-8 text-center shadow-sm"><Lock size={44} className="mx-auto text-amber-700"/><h1 className="mt-5 text-3xl font-serif text-stone-900">Sign in for secure delivery</h1><p className="mt-3 text-stone-500">Digital purchases are linked to your Highmarc account so only you can access the protected master and licence.</p><button onClick={() => window.dispatchEvent(new Event('citadel:open-auth'))} className="mt-7 w-full rounded-lg bg-stone-900 px-6 py-3.5 font-medium text-white">Sign in or create account</button><Link to="/shop" className="mt-3 block rounded-lg border border-stone-200 px-6 py-3 text-stone-700">Return to shop</Link></div></div>;
 
   if (cartItems.length === 0) return <div className="min-h-screen pt-20 bg-stone-50 grid place-items-center"><div className="text-center"><ShoppingBag size={48} className="mx-auto text-stone-300 mb-4"/><h1 className="text-2xl font-serif mb-4">Your collection is empty</h1><Link to="/shop" className="text-amber-700 underline">Explore available artwork</Link></div></div>;
   if (unavailableCount > 0) return <div className="min-h-screen pt-20 bg-stone-50 grid place-items-center px-6"><div className="bg-white border border-amber-200 rounded-xl p-8 max-w-md text-center"><Info size={44} className="mx-auto text-amber-600 mb-4"/><h1 className="text-2xl font-serif mb-3">Your cart needs attention</h1><p className="text-stone-500 mb-6">Remove unavailable artwork before continuing.</p><button onClick={openCart} className="bg-stone-900 text-white rounded-lg px-6 py-3">Review cart</button></div></div>;
