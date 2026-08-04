@@ -2,6 +2,7 @@ const cloudinary = require('../config/cloudinary');
 const prisma = require('../config/database');
 const { recordAudit } = require('../utils/auditService');
 const { createCustomerNotification } = require('../services/customerNotificationService');
+const { sendDigitalDeliveryEmail } = require('../utils/emailService');
 
 const entitlementInclude = {
   artwork: {
@@ -307,5 +308,32 @@ exports.adminUpdateAccess = async (req, res) => {
   } catch (error) {
     console.error('Failed to update digital access:', error);
     return res.status(500).json({ error: 'Failed to update digital access' });
+  }
+};
+
+exports.adminResendDeliveryEmail = async (req, res) => {
+  try {
+    const entitlement = await prisma.digitalEntitlement.findUnique({ where: { id: req.params.id }, include: adminInclude });
+    if (!entitlement) return res.status(404).json({ error: 'Digital licence not found' });
+    await sendDigitalDeliveryEmail({
+      email: entitlement.customer.email,
+      firstName: entitlement.customer.firstName,
+      orderNumber: entitlement.orderItem.order.orderNumber,
+      items: [{
+        certificateId: entitlement.id,
+        title: entitlement.artwork.title,
+        licenseName: entitlement.licenseName,
+        editionNumber: entitlement.editionNumber,
+        editionSize: entitlement.editionSize,
+      }],
+    });
+    await recordAudit(req, 'RESEND_DIGITAL_DELIVERY_EMAIL', 'DigitalEntitlement', entitlement.id, {
+      customerId: entitlement.customer.id,
+      artworkId: entitlement.artwork.id,
+    });
+    return res.json({ success: true, message: `Delivery email sent to ${entitlement.customer.email}` });
+  } catch (error) {
+    console.error('Failed to resend digital delivery email:', error);
+    return res.status(500).json({ error: 'Failed to send the delivery email' });
   }
 };

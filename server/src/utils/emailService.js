@@ -1170,6 +1170,33 @@ const sendWishlistAlertEmail = async ({ customer, artwork, type, oldValue, newVa
   });
 };
 
+const buildDigitalDeliveryEmail = ({ firstName, orderNumber, items = [] }) => {
+  const clientUrl = (process.env.CLIENT_URL || 'https://highmarc.com').replace(/\/$/, '');
+  const libraryUrl = `${clientUrl}/account?tab=digital`;
+  const itemRows = items.map(item => {
+    const certificateUrl = `${clientUrl}/certificate/${encodeURIComponent(item.certificateId)}`;
+    const edition = item.editionNumber && item.editionSize
+      ? `Edition ${item.editionNumber} of ${item.editionSize}`
+      : 'Open digital edition';
+    return `<tr><td style="padding:18px 0;border-bottom:1px solid #e7e5e4"><strong style="display:block;font-family:Georgia,serif;font-size:18px;color:#1c1917">${escapeHtml(item.title)}</strong><span style="display:block;margin-top:6px;color:#78716c;font-size:13px">${escapeHtml(item.licenseName)} &middot; ${escapeHtml(edition)}</span><a href="${escapeHtml(certificateUrl)}" style="display:inline-block;margin-top:9px;color:#b45309;font-size:13px">Verify certificate</a></td></tr>`;
+  }).join('');
+
+  return {
+    subject: `Your Highmarc digital artwork is ready - Order #${orderNumber}`,
+    html: `<!doctype html><html><body style="margin:0;background:#f5f5f4;font-family:Arial,sans-serif;color:#292524"><div style="max-width:620px;margin:32px auto;background:#fff;border:1px solid #e7e5e4"><div style="background:#1c1917;padding:34px;text-align:center"><h1 style="margin:0;color:#fff;letter-spacing:4px;font-family:Georgia,serif;font-weight:400">HIGHMARC</h1><p style="margin:8px 0 0;color:#d6a64f;font-size:11px;letter-spacing:3px">ART ATELIER</p></div><div style="padding:38px"><p style="color:#b45309;text-transform:uppercase;letter-spacing:2px;font-size:11px">Secure digital delivery</p><h2 style="font-family:Georgia,serif;font-size:30px;font-weight:400;margin:14px 0">Your collection is ready</h2><p>Hi ${escapeHtml(firstName || 'Collector')},</p><p style="color:#57534e;line-height:1.7">Payment for order <strong>#${escapeHtml(orderNumber)}</strong> is confirmed. Your protected master files, licence documents, and certificates are now available in your Highmarc account.</p><table role="presentation" style="width:100%;border-collapse:collapse;margin:24px 0">${itemRows}</table><p style="text-align:center;margin:34px 0"><a href="${escapeHtml(libraryUrl)}" style="display:inline-block;background:#1c1917;color:#fff;padding:15px 28px;text-decoration:none;border-radius:6px">Open my digital collection</a></p><div style="background:#fafaf9;border:1px solid #e7e5e4;padding:18px;color:#78716c;font-size:12px;line-height:1.6">For your security, download links are generated only after you sign in and expire shortly after creation. Do not forward downloaded master files or licence documents.</div><p style="margin-top:28px;color:#a8a29e;font-size:11px;text-align:center">This is a transactional email for your purchase.</p></div></div></body></html>`,
+  };
+};
+
+const sendDigitalDeliveryEmail = async ({ email, firstName, orderNumber, items }) => {
+  const transporter = createTransporter();
+  const content = buildDigitalDeliveryEmail({ firstName, orderNumber, items });
+  return transporter.sendMail({
+    from: `"Highmarc Art Atelier" <${process.env.EMAIL_USER}>`,
+    to: email,
+    ...content,
+  });
+};
+
 module.exports = {
   sendVerificationEmail,
   sendCommissionConfirmationEmail,
@@ -1181,4 +1208,6 @@ module.exports = {
   sendOrderShippedEmail,
   sendOrderDeliveredEmail,
   sendWishlistAlertEmail,
+  sendDigitalDeliveryEmail,
+  buildDigitalDeliveryEmail,
 };

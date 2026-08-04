@@ -1,6 +1,8 @@
 const prisma = require('../config/database');
+const { sendDigitalDeliveryEmail } = require('../utils/emailService');
+const { recordOperationalEvent } = require('../utils/operationalEvents');
 
-const fulfillArtworkOrder = async (orderId) => prisma.$transaction(async (tx) => {
+const fulfillTransaction = async (orderId) => prisma.$transaction(async (tx) => {
   const order = await tx.order.findUnique({
     where: { id: orderId },
     include: {
@@ -24,7 +26,7 @@ const fulfillArtworkOrder = async (orderId) => prisma.$transaction(async (tx) =>
     });
   }
 
-  let digitalEntitlements = 0;
+  const newEntitlementIds = [];
   for (const item of order.items.filter((entry) => entry.artwork.productType === 'DIGITAL')) {
     if (!item.artwork.digitalAsset) throw new Error(`Digital master is missing for artwork ${item.artworkId}`);
     const existing = await tx.digitalEntitlement.findUnique({ where: { orderItemId: item.id } });
@@ -49,7 +51,7 @@ const fulfillArtworkOrder = async (orderId) => prisma.$transaction(async (tx) =>
     }
 
     const commercial = item.licenseType === 'COMMERCIAL_USE';
-    await tx.digitalEntitlement.create({
+    const entitlement = await tx.digitalEntitlement.create({
       data: {
         customerId: order.customerId,
         artworkId: item.artworkId,
@@ -62,11 +64,49 @@ const fulfillArtworkOrder = async (orderId) => prisma.$transaction(async (tx) =>
         editionSize: item.artwork.editionSize,
       },
     });
+    newEntitlementIds.push(entitlement.id);
     if (item.editionReserved) await tx.orderItem.update({ where: { id: item.id }, data: { editionReserved: false } });
-    digitalEntitlements += 1;
   }
 
-  return { digitalEntitlements, physicalArtworks: physicalArtworkIds.length };
+  return { digitalEntitlements: newEntitlementIds.length, newEntitlementIds, physicalArtworks: physicalArtworkIds.length };
 });
 
-module.exports = { fulfillArtworkOrder };
+const sendNewEntitlementEmail = async (orderId, entitlementIds) => {
+  if (!entitlementIds.length) return;
+  try {
+    const entitlements = await prisma.digitalEntitlement.findMany({
+      where: { id: { in: entitlementIds } },
+      include: {
+        customer: { select: { email: true, firstName: true } },
+        artwork: { select: { title: true } },
+        orderItem: { select: { order: { select: { orderNumber: true } } } },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (!entitlements.length) return;
+    const first = entitlements[0];
+    await sendDigitalDeliveryEmail({
+      email: first.customer.email,
+      firstName: first.customer.firstName,
+      orderNumber: first.orderItem.order.orderNumber,
+      items: entitlements.map(item => ({
+        certificateId: item.id,
+        title: item.artwork.title,
+        licenseName: item.licenseName,
+        editionNumber: item.editionNumber,
+        editionSize: item.editionSize,
+      })),
+    });
+  } catch (error) {
+    console.error('Digital delivery email failed:', error.message);
+    await recordOperationalEvent('DIGITAL_DELIVERY_EMAIL_FAILURE', error.message, { orderId, entitlementIds });
+  }
+};
+
+const fulfillArtworkOrder = async (orderId) => {
+  const result = await fulfillTransaction(orderId);
+  await sendNewEntitlementEmail(orderId, result.newEntitlementIds || []);
+  return result;
+};
+
+module.exports = { fulfillArtworkOrder, sendNewEntitlementEmail };

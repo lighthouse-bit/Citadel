@@ -91,6 +91,7 @@ export const digitalSalesAPI = {
   getSummary: params => api.get('/digital-library/admin/summary', { params }),
   getEntitlements: params => api.get('/digital-library/admin/entitlements', { params }),
   updateAccess: (id, data) => api.patch(`/digital-library/admin/entitlements/${id}/access`, data),
+  resendDeliveryEmail: id => api.post(`/digital-library/admin/entitlements/${id}/resend-email`),
 };
 
 export const cartAPI = {
