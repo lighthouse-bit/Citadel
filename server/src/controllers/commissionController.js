@@ -560,12 +560,9 @@ exports.confirmPayment = async (req, res) => {
 // ─────────────────────────────────────────────────────────
 function calculateEstimatedPrice(artStyle, size) {
   const stylePrices = {
-    realistic:     500,
-    abstract:      400,
-    impressionist: 450,
-    contemporary:  450,
-    charcoal:      250,
-    watercolor:    350,
+    charcoal: 250,
+    digital:  400,
+    painting: 500,
   };
 
   const sizeMultipliers = {

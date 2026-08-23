@@ -44,19 +44,16 @@ const Commission = () => {
   }, [user]);
 
   const artStyles = [
-    { id: 'realistic',     name: 'Realistic Portrait', basePrice: 500 },
-    { id: 'abstract',      name: 'Abstract',           basePrice: 400 },
-    { id: 'impressionist', name: 'Impressionist',      basePrice: 450 },
-    { id: 'contemporary',  name: 'Contemporary',       basePrice: 450 },
-    { id: 'charcoal',      name: 'Charcoal Drawing',   basePrice: 250 },
-    { id: 'watercolor',    name: 'Watercolor',         basePrice: 350 },
+    { id: 'charcoal', name: 'Charcoal / Graphite', basePrice: 250 },
+    { id: 'digital',  name: 'Digital',             basePrice: 400 },
+    { id: 'painting', name: 'Painting',            basePrice: 500 },
   ];
 
   const sizes = [
-    { id: 'small',  name: '8×10 inches',  multiplier: 1   },
-    { id: 'medium', name: '16×20 inches', multiplier: 1.8 },
-    { id: 'large',  name: '24×36 inches', multiplier: 2.5 },
-    { id: 'xlarge', name: '36×48 inches', multiplier: 3.5 },
+    { id: 'small',  name: '8×10 inches',  multiplier: 1,   comparison: 'About the size of a sheet of printer paper' },
+    { id: 'medium', name: '16×20 inches', multiplier: 1.8, comparison: 'About the size of a medium throw pillow' },
+    { id: 'large',  name: '24×36 inches', multiplier: 2.5, comparison: 'About the size of a standard movie poster' },
+    { id: 'xlarge', name: '36×48 inches', multiplier: 3.5, comparison: 'About the size of a large wall mirror' },
   ];
 
   const onDrop = (acceptedFiles, rejectedFiles) => {
@@ -477,18 +474,32 @@ const Commission = () => {
                       key={size.id}
                       type="button"
                       onClick={() => setFormData({ ...formData, size: size.id })}
-                      className={`p-4 border text-center transition-all duration-300 rounded ${
+                      aria-describedby={`size-hint-${size.id}`}
+                      className={`group relative p-4 border text-center transition-all duration-300 rounded ${
                         formData.size === size.id
                           ? 'border-amber-600 bg-amber-50 shadow-sm'
                           : 'border-stone-200 hover:border-amber-400 bg-white'
                       }`}
                     >
-                      <span className="block text-stone-900 font-medium text-sm">
+                      <span className="flex items-center justify-center gap-1.5 text-stone-900 font-medium text-sm">
                         {size.name}
+                        <Info size={15} aria-hidden="true" className="shrink-0 text-stone-400 group-hover:text-amber-700 group-focus:text-amber-700" />
+                      </span>
+                      <span
+                        id={`size-hint-${size.id}`}
+                        role="tooltip"
+                        className="pointer-events-none absolute bottom-[calc(100%+0.5rem)] left-1/2 z-20 w-44 -translate-x-1/2 rounded bg-stone-900 px-3 py-2 text-xs font-normal leading-relaxed text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus:opacity-100"
+                      >
+                        {size.comparison}
+                        <span className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-stone-900" />
                       </span>
                     </button>
                   ))}
                 </div>
+                <p className="mt-3 flex items-center gap-1.5 text-xs text-stone-500">
+                  <Info size={14} aria-hidden="true" />
+                  Select or hover over a size to see a familiar comparison.
+                </p>
               </div>
 
               {/* Description */}
