@@ -2,6 +2,9 @@
 const nodemailer = require('nodemailer');
 const { recordOperationalEvent } = require('./operationalEvents');
 
+const BUSINESS_CONTACT_EMAIL = 'luxuryarts@highmarc.com';
+const getContactRecipient = () => process.env.CONTACT_EMAIL?.trim() || BUSINESS_CONTACT_EMAIL;
+
 const createTransporter = () => {
   const mailer = nodemailer.createTransport({
     host:   process.env.EMAIL_HOST,
@@ -265,7 +268,7 @@ const sendContactEmail = async ({ name, email, subject, message }) => {
 
     const adminMailOptions = {
       from:    `"Highmarc Contact Form" <${process.env.EMAIL_USER}>`,
-      to:      process.env.EMAIL_USER,
+      to:      getContactRecipient(),
       replyTo: email,
       subject: `New Contact Message: ${subject || 'No Subject'} — from ${name}`,
       html: `
@@ -1210,4 +1213,5 @@ module.exports = {
   sendWishlistAlertEmail,
   sendDigitalDeliveryEmail,
   buildDigitalDeliveryEmail,
+  getContactRecipient,
 };

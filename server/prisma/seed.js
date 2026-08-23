@@ -28,7 +28,7 @@ async function main() {
       siteName: 'Citadel',
       artistName: 'Your Name',
       artistBio: 'Fine artist specializing in portraits and landscapes.',
-      contactEmail: 'contact@citadel-art.com',
+      contactEmail: 'luxuryarts@highmarc.com',
       commissionOpen: true,
       commissionWaitTime: '2-4 weeks',
     },

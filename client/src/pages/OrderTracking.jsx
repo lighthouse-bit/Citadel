@@ -201,9 +201,9 @@ const OrderTracking = () => {
             <div className="mt-6 pt-6 border-t border-stone-100 text-center">
               <p className="text-sm text-stone-500">
                 Need help? Email us at{' '}
-                <a href="mailto:contact@highmarc.com"
+                <a href="mailto:luxuryarts@highmarc.com"
                    className="text-amber-600 hover:text-amber-700">
-                  contact@highmarc.com
+                  luxuryarts@highmarc.com
                 </a>
               </p>
             </div>
@@ -657,7 +657,7 @@ const OrderTracking = () => {
             Contact us about your order
           </p>
           <a
-            href={`mailto:contact@highmarc.com?subject=Order ${order.orderNumber}`}
+            href={`mailto:luxuryarts@highmarc.com?subject=Order ${order.orderNumber}`}
             className="inline-flex items-center gap-2 px-5 py-2.5
                        bg-stone-900 text-white rounded-lg
                        hover:bg-stone-800 transition-colors text-sm"

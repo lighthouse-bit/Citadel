@@ -6,7 +6,7 @@ const defaultSettings = {
   siteTagline: 'Fine Art Atelier',
   artistName: 'Artist Name',
   artistBio: 'Fine artist specializing in portraits and landscapes. Each piece in my collection represents a convergence of technical mastery and emotional depth.',
-  contactEmail: 'contact@citadel-art.com',
+  contactEmail: 'luxuryarts@highmarc.com',
   phone: '+234 803 000 0000',
   address: 'Johnson Tower Ikeja GRA, Lagos',
 
