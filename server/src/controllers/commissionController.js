@@ -560,20 +560,39 @@ exports.confirmPayment = async (req, res) => {
 // ─────────────────────────────────────────────────────────
 function calculateEstimatedPrice(artStyle, size) {
   const stylePrices = {
-    charcoal: 250,
-    digital:  400,
-    painting: 500,
+    charcoal: 2000,
+    digital:  2000,
+    painting: 2000,
   };
 
   const sizeMultipliers = {
-    small:  1,
-    medium: 1.8,
-    large:  2.5,
-    xlarge: 3.5,
+    a2:     1,
+    a1:     1.5,
+    a0:     2.2,
+    xlarge: 2.5,
   };
 
-  const basePrice  = stylePrices[artStyle?.toLowerCase()] || 400;
-  const multiplier = sizeMultipliers[size?.toLowerCase()] || 1;
+  const basePrice = stylePrices[artStyle?.toLowerCase()] || 2000;
+  const normalizedSize = size?.toLowerCase().trim() || '';
+  let preset = Object.keys(sizeMultipliers).find(key => normalizedSize === key || normalizedSize.startsWith(`${key} `) || normalizedSize.startsWith(`${key} ·`));
+  if (!preset && /^36\s*[×x]\s*48\s*inches/.test(normalizedSize)) preset = 'xlarge';
+
+  if (normalizedSize.startsWith('custom:')) {
+    const match = normalizedSize.match(/custom:\s*([\d.]+)\s*[×x]\s*([\d.]+)\s*(inches|cm)/);
+    if (match) {
+      const width = Number(match[1]);
+      const height = Number(match[2]);
+      const unitFactor = match[3] === 'cm' ? 1 / 2.54 : 1;
+      const areaInSquareInches = (width * unitFactor) * (height * unitFactor);
+      const a2Area = 16.5 * 23.4;
+      if (Number.isFinite(areaInSquareInches) && areaInSquareInches > 0) {
+        const multiplier = Math.max(1, Math.sqrt(areaInSquareInches / a2Area));
+        return Math.ceil((basePrice * multiplier) / 50) * 50;
+      }
+    }
+  }
+
+  const multiplier = preset ? sizeMultipliers[preset] : 1;
 
   return basePrice * multiplier;
 }

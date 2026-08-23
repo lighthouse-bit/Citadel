@@ -23,6 +23,9 @@ const Commission = () => {
     phone:       '',
     artStyle:    '',
     size:        '',
+    customWidth: '',
+    customHeight: '',
+    customUnit:  'inches',
     description: '',
     budget:      '',
     deadline:    '',
@@ -44,16 +47,17 @@ const Commission = () => {
   }, [user]);
 
   const artStyles = [
-    { id: 'charcoal', name: 'Charcoal / Graphite', basePrice: 250 },
-    { id: 'digital',  name: 'Digital',             basePrice: 400 },
-    { id: 'painting', name: 'Painting',            basePrice: 500 },
+    { id: 'charcoal', name: 'Charcoal / Graphite', basePrice: 2000 },
+    { id: 'digital',  name: 'Digital',             basePrice: 2000 },
+    { id: 'painting', name: 'Painting',            basePrice: 2000 },
   ];
 
   const sizes = [
-    { id: 'small',  name: '8×10 inches',  multiplier: 1,   comparison: 'About the size of a sheet of printer paper' },
-    { id: 'medium', name: '16×20 inches', multiplier: 1.8, comparison: 'About the size of a medium throw pillow' },
-    { id: 'large',  name: '24×36 inches', multiplier: 2.5, comparison: 'About the size of a standard movie poster' },
-    { id: 'xlarge', name: '36×48 inches', multiplier: 3.5, comparison: 'About the size of a large wall mirror' },
+    { id: 'a2',      name: 'A2 · 16.5×23.4 inches', multiplier: 1,   comparison: 'About four sheets of printer paper placed together' },
+    { id: 'a1',      name: 'A1 · 23.4×33.1 inches', multiplier: 1.5, comparison: 'About the size of a standard flip-chart sheet' },
+    { id: 'a0',      name: 'A0 · 33.1×46.8 inches', multiplier: 2.2, comparison: 'About the size of a large exhibition poster' },
+    { id: 'xlarge',  name: '36×48 inches',          multiplier: 2.5, comparison: 'About the size of a large wall mirror' },
+    { id: 'custom',  name: 'Custom size',            multiplier: null, comparison: 'Enter the exact width and height you need' },
   ];
 
   const onDrop = (acceptedFiles, rejectedFiles) => {
@@ -80,7 +84,20 @@ const Commission = () => {
   const calculateEstimate = () => {
     const style = artStyles.find(s => s.id === formData.artStyle);
     const size  = sizes.find(s => s.id === formData.size);
-    if (style && size) return style.basePrice * size.multiplier;
+    if (!style || !size) return 0;
+
+    if (size.id === 'custom') {
+      const width = Number(formData.customWidth);
+      const height = Number(formData.customHeight);
+      if (!width || !height || width <= 0 || height <= 0) return 0;
+      const unitFactor = formData.customUnit === 'cm' ? 1 / 2.54 : 1;
+      const areaInSquareInches = (width * unitFactor) * (height * unitFactor);
+      const a2Area = 16.5 * 23.4;
+      const multiplier = Math.max(1, Math.sqrt(areaInSquareInches / a2Area));
+      return Math.ceil((style.basePrice * multiplier) / 50) * 50;
+    }
+
+    if (size.multiplier) return style.basePrice * size.multiplier;
     return 0;
   };
 
@@ -102,6 +119,23 @@ const Commission = () => {
       return;
     }
 
+    if (formData.size === 'custom' && (
+      !Number(formData.customWidth) || Number(formData.customWidth) <= 0
+      || !Number(formData.customHeight) || Number(formData.customHeight) <= 0
+    )) {
+      toast.error('Please enter a valid width and height for your custom size');
+      return;
+    }
+
+    const maximumCustomDimension = formData.customUnit === 'cm' ? 500 : 200;
+    if (formData.size === 'custom' && (
+      Number(formData.customWidth) > maximumCustomDimension
+      || Number(formData.customHeight) > maximumCustomDimension
+    )) {
+      toast.error(`Custom dimensions cannot exceed ${maximumCustomDimension} ${formData.customUnit}`);
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -119,6 +153,11 @@ const Commission = () => {
 
       // ── Step 2: Send JSON with Cloudinary URLs to backend ─────────────
       // ✅ No binary files — stays well under Vercel 4.5MB limit
+      const selectedSize = sizes.find(size => size.id === formData.size);
+      const submittedSize = formData.size === 'custom'
+        ? `Custom: ${formData.customWidth} × ${formData.customHeight} ${formData.customUnit}`
+        : selectedSize?.name;
+
       const submitData = {
         // Contact info
         firstName:   formData.firstName,
@@ -128,7 +167,7 @@ const Commission = () => {
 
         // Artwork details
         artStyle:    formData.artStyle,
-        size:        formData.size,
+        size:        submittedSize,
         description: formData.description,
         budget:      formData.budget,
         deadline:    formData.deadline,
@@ -154,6 +193,9 @@ const Commission = () => {
         phone:       '',
         artStyle:    '',
         size:        '',
+        customWidth: '',
+        customHeight: '',
+        customUnit:  'inches',
         description: '',
         budget:      '',
         deadline:    '',
@@ -468,7 +510,7 @@ const Commission = () => {
                 <label className="block text-stone-600 text-sm mb-3">
                   Size <span className="text-amber-600">*</span>
                 </label>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
                   {sizes.map((size) => (
                     <button
                       key={size.id}
@@ -496,6 +538,58 @@ const Commission = () => {
                     </button>
                   ))}
                 </div>
+                {formData.size === 'custom' && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    className="mt-4 grid grid-cols-2 gap-3 rounded border border-amber-200 bg-amber-50 p-4 md:grid-cols-[1fr_1fr_0.8fr]"
+                  >
+                    <label className="text-xs font-medium text-stone-600">
+                      Width
+                      <input
+                        type="number"
+                        required
+                        min="1"
+                        max={formData.customUnit === 'cm' ? 500 : 200}
+                        step="0.1"
+                        inputMode="decimal"
+                        value={formData.customWidth}
+                        onChange={(event) => setFormData({ ...formData, customWidth: event.target.value })}
+                        placeholder={formData.customUnit === 'cm' ? '60' : '24'}
+                        className="mt-1.5 w-full rounded border border-stone-300 bg-white px-3 py-2.5 text-base font-normal text-stone-900 outline-none transition focus:border-amber-600"
+                      />
+                    </label>
+                    <label className="text-xs font-medium text-stone-600">
+                      Height
+                      <input
+                        type="number"
+                        required
+                        min="1"
+                        max={formData.customUnit === 'cm' ? 500 : 200}
+                        step="0.1"
+                        inputMode="decimal"
+                        value={formData.customHeight}
+                        onChange={(event) => setFormData({ ...formData, customHeight: event.target.value })}
+                        placeholder={formData.customUnit === 'cm' ? '90' : '36'}
+                        className="mt-1.5 w-full rounded border border-stone-300 bg-white px-3 py-2.5 text-base font-normal text-stone-900 outline-none transition focus:border-amber-600"
+                      />
+                    </label>
+                    <label className="col-span-2 text-xs font-medium text-stone-600 md:col-span-1">
+                      Unit
+                      <select
+                        value={formData.customUnit}
+                        onChange={(event) => setFormData({ ...formData, customUnit: event.target.value })}
+                        className="mt-1.5 w-full rounded border border-stone-300 bg-white px-3 py-2.5 text-base font-normal text-stone-900 outline-none transition focus:border-amber-600"
+                      >
+                        <option value="inches">Inches</option>
+                        <option value="cm">Centimetres</option>
+                      </select>
+                    </label>
+                    <p className="col-span-2 text-xs leading-relaxed text-stone-500 md:col-span-3">
+                      Custom sizes smaller than A2 still carry the $2,000 minimum commission price.
+                    </p>
+                  </motion.div>
+                )}
                 <p className="mt-3 flex items-center gap-1.5 text-xs text-stone-500">
                   <Info size={14} aria-hidden="true" />
                   Select or hover over a size to see a familiar comparison.
@@ -540,7 +634,8 @@ const Commission = () => {
             </div>
 
             {/* Price Estimate */}
-            {formData.artStyle && formData.size && (
+            {formData.artStyle && formData.size
+              && (formData.size !== 'custom' || (Number(formData.customWidth) > 0 && Number(formData.customHeight) > 0)) && (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
