@@ -561,8 +561,8 @@ exports.confirmPayment = async (req, res) => {
 function calculateEstimatedPrice(artStyle, size) {
   const stylePrices = {
     charcoal: 2000,
-    digital:  2000,
-    painting: 2000,
+    digital:  1500,
+    painting: 3500,
   };
 
   const sizeMultipliers = {

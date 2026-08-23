@@ -48,15 +48,15 @@ const Commission = () => {
 
   const artStyles = [
     { id: 'charcoal', name: 'Charcoal / Graphite', basePrice: 2000 },
-    { id: 'digital',  name: 'Digital',             basePrice: 2000 },
-    { id: 'painting', name: 'Painting',            basePrice: 2000 },
+    { id: 'digital',  name: 'Digital',             basePrice: 1500 },
+    { id: 'painting', name: 'Painting',            basePrice: 3500 },
   ];
 
   const sizes = [
-    { id: 'a2',      name: 'A2 · 16.5×23.4 inches', multiplier: 1,   comparison: 'About four sheets of printer paper placed together' },
-    { id: 'a1',      name: 'A1 · 23.4×33.1 inches', multiplier: 1.5, comparison: 'About the size of a standard flip-chart sheet' },
-    { id: 'a0',      name: 'A0 · 33.1×46.8 inches', multiplier: 2.2, comparison: 'About the size of a large exhibition poster' },
-    { id: 'xlarge',  name: '36×48 inches',          multiplier: 2.5, comparison: 'About the size of a large wall mirror' },
+    { id: 'a2',      name: 'A2 · 16.5×23.4 inches', multiplier: 1,   comparison: 'The same area as 4 A4 printer-paper sheets' },
+    { id: 'a1',      name: 'A1 · 23.4×33.1 inches', multiplier: 1.5, comparison: 'The same area as 8 A4 printer-paper sheets' },
+    { id: 'a0',      name: 'A0 · 33.1×46.8 inches', multiplier: 2.2, comparison: 'The same area as 16 A4 printer-paper sheets' },
+    { id: 'xlarge',  name: '36×48 inches',          multiplier: 2.5, comparison: 'About the same area as 18 A4 printer-paper sheets' },
     { id: 'custom',  name: 'Custom size',            multiplier: null, comparison: 'Enter the exact width and height you need' },
   ];
 
@@ -586,7 +586,7 @@ const Commission = () => {
                       </select>
                     </label>
                     <p className="col-span-2 text-xs leading-relaxed text-stone-500 md:col-span-3">
-                      Custom sizes smaller than A2 still carry the $2,000 minimum commission price.
+                      Custom sizes smaller than A2 still carry the minimum price for your selected art style.
                     </p>
                   </motion.div>
                 )}
