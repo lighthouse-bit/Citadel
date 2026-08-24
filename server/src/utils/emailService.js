@@ -265,12 +265,19 @@ const sendContactEmail = async ({ name, email, subject, message }) => {
 
   try {
     const transporter = createTransporter();
+    const headerName = String(name).replace(/[\r\n]+/g, ' ').slice(0, 100);
+    const headerSubject = String(subject || 'No Subject').replace(/[\r\n]+/g, ' ').slice(0, 160);
+    const safeName = escapeHtml(headerName);
+    const safeEmail = escapeHtml(email);
+    const safeSubject = escapeHtml(headerSubject);
+    const safeMessage = escapeHtml(message);
 
     const adminMailOptions = {
       from:    `"Highmarc Contact Form" <${process.env.EMAIL_USER}>`,
       to:      getContactRecipient(),
       replyTo: email,
-      subject: `New Contact Message: ${subject || 'No Subject'} — from ${name}`,
+      subject: `New Contact Message: ${headerSubject} — from ${headerName}`,
+      text: `New website contact message\n\nName: ${headerName}\nEmail: ${email}\nSubject: ${headerSubject}\n\n${message}`,
       html: `
         <!DOCTYPE html>
         <html>
@@ -296,21 +303,21 @@ const sendContactEmail = async ({ name, email, subject, message }) => {
                       Name
                     </td>
                     <td style="padding:8px 0;color:#1c1917;font-size:14px;font-weight:bold;">
-                      ${name}
+                      ${safeName}
                     </td>
                   </tr>
                   <tr>
                     <td style="padding:8px 0;color:#78716c;font-size:14px;">Email</td>
                     <td style="padding:8px 0;">
-                      <a href="mailto:${email}" style="color:#d97706;font-size:14px;">
-                        ${email}
+                      <a href="mailto:${safeEmail}" style="color:#d97706;font-size:14px;">
+                        ${safeEmail}
                       </a>
                     </td>
                   </tr>
                   <tr>
                     <td style="padding:8px 0;color:#78716c;font-size:14px;">Subject</td>
                     <td style="padding:8px 0;color:#1c1917;font-size:14px;">
-                      ${subject || 'No subject'}
+                      ${safeSubject}
                     </td>
                   </tr>
                 </table>
@@ -322,12 +329,12 @@ const sendContactEmail = async ({ name, email, subject, message }) => {
                           padding:20px;border-radius:0 8px 8px 0;">
                 <p style="color:#57534e;font-size:15px;line-height:1.7;margin:0;
                            white-space:pre-wrap;">
-                  ${message}
+                  ${safeMessage}
                 </p>
               </div>
               <p style="color:#a8a29e;font-size:13px;margin:32px 0 0;">
                 💡 To reply, simply reply to this email —
-                it will go directly to ${name} at ${email}
+                it will go directly to ${safeName} at ${safeEmail}
               </p>
             </div>
             <div style="background:#f5f5f4;padding:24px 40px;
@@ -346,6 +353,7 @@ const sendContactEmail = async ({ name, email, subject, message }) => {
       from:    `"Highmarc" <${process.env.EMAIL_USER}>`,
       to:      email,
       subject: 'We received your message — Highmarc',
+      text: `Thank you, ${headerName}. We received your message and will respond within 24-48 hours.\n\nYour message:\n${message}`,
       html: `
         <!DOCTYPE html>
         <html>
@@ -362,7 +370,7 @@ const sendContactEmail = async ({ name, email, subject, message }) => {
             </div>
             <div style="padding:48px 40px;">
               <h2 style="color:#1c1917;font-size:24px;font-weight:400;margin:0 0 16px;">
-                Thank you, ${name}
+                Thank you, ${safeName}
               </h2>
               <p style="color:#57534e;font-size:16px;line-height:1.6;margin:0 0 24px;">
                 We have received your message and will get back to you
@@ -375,7 +383,7 @@ const sendContactEmail = async ({ name, email, subject, message }) => {
                 </p>
                 <p style="color:#57534e;font-size:14px;line-height:1.6;margin:0;
                            white-space:pre-wrap;">
-                  ${message}
+                  ${safeMessage}
                 </p>
               </div>
               <p style="color:#78716c;font-size:14px;line-height:1.6;margin:24px 0 0;">

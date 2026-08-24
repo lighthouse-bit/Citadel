@@ -681,6 +681,15 @@ model OperationalEvent {
   @@index([type, createdAt])
 }
 
+model ContactRateLimit {
+  key         String   @id
+  count       Int      @default(0)
+  windowStart DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([updatedAt])
+}
+
 model PrivacyRequest {
   id            String    @id @default(uuid())
   type          String

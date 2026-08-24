@@ -19,7 +19,9 @@ const Contact = () => {
     email:   '',
     subject: '',
     message: '',
+    website: '',
   });
+  const [formStartedAt, setFormStartedAt] = useState(() => performance.now());
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -32,13 +34,14 @@ const Contact = () => {
 
     try {
       // ✅ Actually sends the email now
-      await contactAPI.send(formData);
+      await contactAPI.send({ ...formData, formElapsedMs: performance.now() - formStartedAt });
       trackEvent('generate_lead', { lead_source: 'contact_form', subject: formData.subject });
       toast.success("Message sent! We'll get back to you within 24-48 hours.");
-      setFormData({ name: '', email: '', subject: '', message: '' });
+      setFormData({ name: '', email: '', subject: '', message: '', website: '' });
+      setFormStartedAt(performance.now());
     } catch (error) {
       console.error('Contact error:', error);
-      toast.error('Failed to send message. Please try again.');
+      toast.error(error.response?.data?.error || 'Failed to send message. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -220,6 +223,18 @@ const Contact = () => {
                   </h2>
 
                   <form onSubmit={handleSubmit} className="space-y-6">
+                    <div className="absolute -left-[10000px] h-px w-px overflow-hidden opacity-0" aria-hidden="true">
+                      <label htmlFor="contact-website">Leave this field empty</label>
+                      <input
+                        id="contact-website"
+                        type="text"
+                        name="website"
+                        tabIndex={-1}
+                        autoComplete="off"
+                        value={formData.website}
+                        onChange={handleChange}
+                      />
+                    </div>
                     <div>
                       <label className="block text-sm text-stone-600 mb-2">
                         Name <span className="text-red-500">*</span>
@@ -228,6 +243,8 @@ const Contact = () => {
                         type="text"
                         name="name"
                         required
+                        minLength={2}
+                        maxLength={100}
                         value={formData.name}
                         onChange={handleChange}
                         className="w-full px-4 py-3 border border-stone-300 rounded-lg
@@ -244,6 +261,7 @@ const Contact = () => {
                         type="email"
                         name="email"
                         required
+                        maxLength={254}
                         value={formData.email}
                         onChange={handleChange}
                         className="w-full px-4 py-3 border border-stone-300 rounded-lg
@@ -259,6 +277,7 @@ const Contact = () => {
                       <input
                         type="text"
                         name="subject"
+                        maxLength={160}
                         value={formData.subject}
                         onChange={handleChange}
                         className="w-full px-4 py-3 border border-stone-300 rounded-lg
@@ -274,6 +293,8 @@ const Contact = () => {
                       <textarea
                         name="message"
                         required
+                        minLength={5}
+                        maxLength={5000}
                         rows={5}
                         value={formData.message}
                         onChange={handleChange}
