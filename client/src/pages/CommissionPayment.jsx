@@ -1,5 +1,5 @@
 // src/pages/CommissionPayment.jsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Lock, CheckCircle, Loader, AlertCircle } from 'lucide-react';
@@ -22,20 +22,25 @@ const CommissionPayment = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [succeeded, setSucceeded]   = useState(false);
   const [error, setError]           = useState(null);
+  const initializedPayment = useRef(null);
 
   // ── Check if returning from Paystack ─────────────────────
-  const isReturningFromPaystack = searchParams.get('reference') ||
-                                  searchParams.get('trxref') ||
-                                  searchParams.get('status') === 'success';
+  const paystackReference = searchParams.get('reference') || searchParams.get('trxref');
+  const isReturningFromPaystack = Boolean(
+    paystackReference || searchParams.get('status') === 'success'
+  );
 
   useEffect(() => {
+    const initializationKey = `${id}:${paystackReference || 'new-payment'}`;
+    if (initializedPayment.current === initializationKey) return;
+    initializedPayment.current = initializationKey;
+
     const init = async () => {
       setIsLoading(true);
       try {
         // ── Handle return from Paystack ───────────────────
         if (isReturningFromPaystack) {
-          const reference = searchParams.get('reference') ||
-                            searchParams.get('trxref');
+          const reference = paystackReference;
 
           if (reference) {
             // Verify payment
@@ -109,7 +114,7 @@ const CommissionPayment = () => {
     };
 
     if (id) init();
-  }, [id]);
+  }, [id, isReturningFromPaystack, paystackReference]);
 
   // ── Handle Pay Button ─────────────────────────────────────
   const handlePay = () => {

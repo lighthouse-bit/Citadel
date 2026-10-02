@@ -7,18 +7,23 @@ const https = require('https');
 const crypto = require('crypto');
 const { recordOperationalEvent } = require('../utils/operationalEvents');
 const { verifyPaystackSignature } = require('../utils/paymentSecurity');
+const {
+  USD_TO_NGN,
+  getCommissionPaymentSpec,
+  validateCommissionPayment,
+} = require('../utils/commissionPayments');
 const { createCustomerNotification } = require('../services/customerNotificationService');
 const { fulfillArtworkOrder } = require('../services/digitalFulfillmentService');
 
 const {
   sendOrderInvoiceEmail,
   sendCommissionDepositInvoiceEmail,
+  sendCommissionBalanceInvoiceEmail,
 } = require('../utils/emailService');
 
-const { authenticateUser } = require('../middleware/auth');
+const { authenticateUser, authenticateCustomer } = require('../middleware/auth');
 
 const PAYSTACK_SECRET = process.env.PAYSTACK_SECRET_KEY;
-const USD_TO_NGN = 1600;
 
 const removePurchasedItemsFromCart = async orderId => {
   try {
@@ -55,6 +60,125 @@ const notifyCommissionPayment = async commissionId => {
   } catch (error) {
     console.error('Commission payment notification error:', error.message);
   }
+};
+
+const paymentFailure = (status, message, details) => Object.assign(new Error(message), { status, details });
+
+const commissionPaymentType = paymentData => {
+  const type = paymentData?.metadata?.paymentType;
+  return type === 'commission_deposit' || type === 'commission_balance' ? type : null;
+};
+
+const settleCommissionPayment = async (paymentData, { customerId } = {}) => {
+  const paymentType = commissionPaymentType(paymentData);
+  const commissionId = paymentData?.metadata?.commissionId;
+  if (!paymentType || typeof commissionId !== 'string') {
+    throw paymentFailure(400, 'Unknown commission payment type');
+  }
+
+  const commission = await prisma.commission.findUnique({
+    where: { id: commissionId },
+    include: { customer: true },
+  });
+  if (!commission) throw paymentFailure(404, 'Commission not found');
+  if (customerId && commission.customerId !== customerId) {
+    throw paymentFailure(403, 'This commission payment is not authorized');
+  }
+
+  const validation = validateCommissionPayment({ commission, paymentData, paymentType });
+  if (!validation.ok) {
+    await recordOperationalEvent(
+      'PAYMENT_VERIFICATION_MISMATCH',
+      validation.error,
+      { commissionId, reference: paymentData?.reference, paymentType, ...validation },
+      'WARNING',
+    );
+    throw paymentFailure(400, validation.error, validation);
+  }
+
+  const { spec } = validation;
+  if (spec.settled) {
+    return { commission, type: spec.type, alreadyVerified: true };
+  }
+
+  const paidAt = new Date();
+  const transition = paymentType === 'commission_deposit'
+    ? await prisma.commission.updateMany({
+      where: {
+        id: commission.id,
+        paymentStatus: 'UNPAID',
+        status: 'ACCEPTED',
+        depositPaymentIntentId: paymentData.reference,
+      },
+      data: {
+        paymentStatus: 'DEPOSIT_PAID',
+        status: 'IN_PROGRESS',
+        depositPaidAt: paidAt,
+        startedAt: paidAt,
+      },
+    })
+    : await prisma.commission.updateMany({
+      where: {
+        id: commission.id,
+        paymentStatus: 'DEPOSIT_PAID',
+        status: 'COMPLETED',
+        balancePaymentIntentId: paymentData.reference,
+      },
+      data: {
+        paymentStatus: 'FULLY_PAID',
+        balancePaidAt: paidAt,
+      },
+    });
+
+  const updatedCommission = await prisma.commission.findUnique({
+    where: { id: commission.id },
+    include: { customer: true },
+  });
+  const nowSettled = paymentType === 'commission_deposit'
+    ? ['DEPOSIT_PAID', 'FULLY_PAID'].includes(updatedCommission?.paymentStatus)
+    : updatedCommission?.paymentStatus === 'FULLY_PAID';
+
+  if (transition.count === 0) {
+    if (nowSettled) return { commission: updatedCommission, type: spec.type, alreadyVerified: true };
+    throw paymentFailure(409, 'Commission is not ready for this payment');
+  }
+
+  await Promise.allSettled([
+    notifyCommissionPayment(commission.id),
+    prisma.notification.create({
+      data: {
+        type: 'PAYMENT',
+        message: `${spec.type === 'deposit' ? 'Deposit' : 'Balance'} received for Commission #${commission.commissionNumber}`,
+        link: `/admin/commissions/${commission.id}`,
+      },
+    }),
+    spec.type === 'deposit'
+      ? sendCommissionDepositInvoiceEmail({
+        email: commission.customer.email,
+        firstName: commission.customer.firstName,
+        commissionNumber: commission.commissionNumber,
+        artStyle: commission.artStyle,
+        size: commission.size,
+        finalPrice: spec.finalPrice,
+        depositAmount: spec.depositAmount,
+        balanceAmount: spec.balanceAmount,
+        depositPercent: spec.depositPercentage,
+        paidAt,
+      })
+      : sendCommissionBalanceInvoiceEmail({
+        email: commission.customer.email,
+        firstName: commission.customer.firstName,
+        commissionNumber: commission.commissionNumber,
+        artStyle: commission.artStyle,
+        size: commission.size,
+        finalPrice: spec.finalPrice,
+        depositAmount: spec.depositAmount,
+        balanceAmount: spec.balanceAmount,
+        paidAt,
+      }),
+  ]);
+
+  return { commission: updatedCommission, type: spec.type, alreadyVerified: false };
 };
 
 // ─────────────────────────────────────────────
@@ -170,25 +294,8 @@ router.get('/callback', async (req, res) => {
         },
       }).catch(() => {});
     } 
-    else if (metadata.paymentType === 'commission_deposit' && metadata.commissionId) {
-      await prisma.commission.update({
-        where: { id: metadata.commissionId },
-        data: {
-          paymentStatus: 'DEPOSIT_PAID',
-          depositPaidAt: new Date(),
-          status: 'IN_PROGRESS',
-        },
-      });
-
-      await notifyCommissionPayment(metadata.commissionId);
-
-      await prisma.notification.create({
-        data: {
-          type: 'PAYMENT',
-          message: `Deposit paid for Commission #${metadata.commissionId}`,
-          link: `/admin/commissions/${metadata.commissionId}`,
-        },
-      }).catch(() => {});
+    else if (commissionPaymentType(paymentData)) {
+      await settleCommissionPayment(paymentData);
     }
 
     return res.redirect(`${process.env.CLIENT_URL}/checkout/success?reference=${reference}`);
@@ -231,16 +338,8 @@ router.post('/webhook', async (req, res) => {
         await removePurchasedItemsFromCart(metadata.orderId);
         await fulfillArtworkOrder(metadata.orderId);
         await notifyOrderPayment(metadata.orderId);
-      } else if (metadata.paymentType === 'commission_deposit' && metadata.commissionId) {
-        await prisma.commission.update({
-          where: { id: metadata.commissionId },
-          data: {
-            paymentStatus: 'DEPOSIT_PAID',
-            depositPaidAt: new Date(),
-            status: 'IN_PROGRESS',
-          },
-        });
-        await notifyCommissionPayment(metadata.commissionId);
+      } else if (commissionPaymentType(event.data)) {
+        await settleCommissionPayment(event.data);
       }
     }
 
@@ -308,9 +407,14 @@ router.post('/artwork-payment', authenticateUser, async (req, res) => {
 // ─────────────────────────────────────────────
 // COMMISSION DEPOSIT PAYMENT INIT
 // ─────────────────────────────────────────────
-router.post('/commission-deposit', authenticateUser, async (req, res) => {
+const initializeCommissionPayment = paymentType => async (req, res) => {
   try {
     const { commissionId } = req.body;
+
+    if (!PAYSTACK_SECRET) return res.status(503).json({ error: 'Payment service is not configured' });
+    if (typeof commissionId !== 'string' || !commissionId) {
+      return res.status(400).json({ error: 'Commission is required' });
+    }
 
     const commission = await prisma.commission.findUnique({
       where: { id: commissionId },
@@ -318,48 +422,71 @@ router.post('/commission-deposit', authenticateUser, async (req, res) => {
     });
 
     if (!commission) return res.status(404).json({ error: 'Commission not found' });
+    if (commission.customerId !== req.user.id) {
+      return res.status(403).json({ error: 'This commission payment is not authorized' });
+    }
 
-    const finalPrice = Number(commission.finalPrice || commission.estimatedPrice || 0);
-    const depositPercentage = Number(commission.depositPercentage || 70);
-    const depositAmount = Number(commission.depositAmount || (finalPrice * depositPercentage) / 100);
-
-    if (finalPrice <= 0) return res.status(400).json({ error: 'Invalid commission price' });
-
-    const ngnAmount = depositAmount * USD_TO_NGN;
+    const spec = getCommissionPaymentSpec(commission, paymentType);
+    if (!spec || spec.finalPrice <= 0 || spec.amount <= 0) {
+      return res.status(400).json({ error: 'Invalid commission price' });
+    }
+    if (spec.settled) {
+      return res.status(409).json({ error: `The commission ${spec.type} has already been paid` });
+    }
+    if (!spec.canInitialize) {
+      return res.status(409).json({
+        error: spec.type === 'deposit'
+          ? 'This commission is not ready for its deposit'
+          : 'The commission must be completed before paying the balance',
+      });
+    }
 
     const paystackData = await initializePaystackTransaction({
       email: commission.customer.email,
-      amount: Math.round(ngnAmount * 100),
+      amount: Math.round(spec.amount * USD_TO_NGN * 100),
       currency: 'NGN',
-      reference: `commission_deposit_${commission.id}_${Date.now()}`,
-      metadata: { commissionId: commission.id, paymentType: 'commission_deposit' },
+      reference: `${paymentType}_${commission.id}_${Date.now()}`,
+      metadata: { commissionId: commission.id, paymentType },
       callback_url: `${process.env.CLIENT_URL}/commission/payment/${commission.id}`,
     });
 
-    if (!paystackData.status) return res.status(500).json(paystackData);
+    if (!paystackData.status || !paystackData.data?.authorization_url || !paystackData.data?.reference) {
+      return res.status(502).json({ error: paystackData.message || 'Payment provider could not start the transaction' });
+    }
 
     await prisma.commission.update({
       where: { id: commissionId },
-      data: { depositPaymentIntentId: paystackData.data.reference },
+      data: spec.type === 'deposit'
+        ? {
+          depositPaymentIntentId: paystackData.data.reference,
+          depositAmount: spec.depositAmount,
+          balanceAmount: spec.balanceAmount,
+        }
+        : { balancePaymentIntentId: paystackData.data.reference },
     });
 
     return res.json({
       authorizationUrl: paystackData.data.authorization_url,
       reference: paystackData.data.reference,
-      finalPrice,
-      depositAmount,
+      finalPrice: spec.finalPrice,
+      depositAmount: spec.depositAmount,
+      balanceAmount: spec.balanceAmount,
+      depositPercentage: spec.depositPercentage,
       currency: 'USD',
     });
   } catch (err) {
     console.error('COMMISSION PAYMENT ERROR:', err);
-    return res.status(500).json({ error: 'Commission deposit init failed' });
+    return res.status(500).json({ error: 'Commission payment could not be started' });
   }
-});
+};
+
+router.post('/commission-deposit', authenticateCustomer, initializeCommissionPayment('commission_deposit'));
+router.post('/commission-balance', authenticateCustomer, initializeCommissionPayment('commission_balance'));
 
 // ─────────────────────────────────────────────
 // VERIFY PAYMENT
 // ─────────────────────────────────────────────
-router.post('/verify', async (req, res) => {
+router.post('/verify', authenticateUser, async (req, res) => {
   try {
     const { reference } = req.body;
 
@@ -374,45 +501,19 @@ router.post('/verify', async (req, res) => {
     }
 
     const paymentData = verificationData.data;
-    const metadata = paymentData.metadata;
+    const metadata = paymentData.metadata || {};
 
-    if (metadata.paymentType === 'commission_deposit') {
-      const commissionId = metadata.commissionId;
-      const commission = await prisma.commission.findUnique({
-        where: { id: commissionId },
-        include: { customer: true },
-      });
-
-      if (!commission) return res.status(404).json({ success: false, error: 'Commission not found' });
-
-      if (commission.paymentStatus === 'DEPOSIT_PAID' || commission.paymentStatus === 'FULLY_PAID') {
-        return res.json({ success: true, type: 'deposit', alreadyVerified: true });
+    if (commissionPaymentType(paymentData)) {
+      if (req.user?.role !== 'customer') {
+        return res.status(401).json({ success: false, error: 'Customer authentication required' });
       }
-
-      const updatedCommission = await prisma.commission.update({
-        where: { id: commissionId },
-        data: {
-          paymentStatus: 'DEPOSIT_PAID',
-          depositPaidAt: new Date(),
-          status: 'IN_PROGRESS',
-        },
+      const result = await settleCommissionPayment(paymentData, { customerId: req.user.id });
+      return res.json({
+        success: true,
+        type: result.type,
+        alreadyVerified: result.alreadyVerified,
+        commission: result.commission,
       });
-
-      await notifyCommissionPayment(commissionId);
-
-      try {
-        await sendCommissionDepositInvoiceEmail({
-          customerEmail: commission.customer.email,
-          customerName: `${commission.customer.firstName} ${commission.customer.lastName}`,
-          commissionNumber: commission.commissionNumber,
-          amount: Number(paymentData.amount) / 100 / USD_TO_NGN,
-          reference,
-        });
-      } catch (emailErr) {
-        console.error('EMAIL ERROR:', emailErr);
-      }
-
-      return res.json({ success: true, type: 'deposit', commission: updatedCommission });
     }
 
     if (metadata.paymentType === 'artwork') {
@@ -467,7 +568,10 @@ router.post('/verify', async (req, res) => {
 
   } catch (err) {
     console.error('VERIFY ERROR:', err);
-    return res.status(500).json({ success: false, error: 'Payment verification failed' });
+    return res.status(err.status || 500).json({
+      success: false,
+      error: err.status ? err.message : 'Payment verification failed',
+    });
   }
 });
 
