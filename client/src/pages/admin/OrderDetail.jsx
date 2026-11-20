@@ -5,7 +5,7 @@ import {
   ArrowLeft, Package, Truck, CheckCircle, XCircle,
   Clock, User, Mail, Phone, MapPin, CreditCard,
   Save, Loader, ExternalLink, ShoppingBag, Send,
-  Globe, Printer, FileText, RefreshCw, Ban,
+  Globe, Printer, FileText, RefreshCw, Ban, AlertTriangle, X,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { ordersAPI } from '../../services/api';
@@ -19,6 +19,8 @@ const OrderDetail = () => {
   const [isSaving, setIsSaving]       = useState(false);
   const [isShipping, setIsShipping]   = useState(false);
   const [actionLoading, setActionLoading] = useState('');
+  const [confirmation, setConfirmation] = useState(null);
+  const [cancellationReason, setCancellationReason] = useState('');
 
   const [shipping, setShipping] = useState({
     carrier:           '',
@@ -134,7 +136,7 @@ const OrderDetail = () => {
     }
   };
 
-  const handleMarkAsShipped = async () => {
+  const handleMarkAsShipped = async (confirmed = false) => {
     if (!shipping.carrier) {
       toast.error('Please select a carrier first');
       return;
@@ -144,7 +146,10 @@ const OrderDetail = () => {
       return;
     }
 
-    if (!window.confirm('Mark as shipped and notify customer via email?')) return;
+    if (!confirmed) {
+      setConfirmation('ship');
+      return;
+    }
 
     setIsShipping(true);
     try {
@@ -167,6 +172,7 @@ const OrderDetail = () => {
       }));
 
       toast.success('Order shipped — customer notified by email!');
+      setConfirmation(null);
     } catch {
       toast.error('Failed to mark as shipped');
     } finally {
@@ -179,9 +185,25 @@ const OrderDetail = () => {
   };
 
   const handleCancel = async () => {
-    const reason = window.prompt('Enter the cancellation reason:'); if (!reason) return;
-    if (!window.confirm('Cancel this order? Paid orders will still require a manual refund.')) return;
-    try { setActionLoading('cancel'); const { data } = await ordersAPI.cancel(id, reason); setOrder(prev=>({...prev,status:'CANCELLED'})); toast.success(data.requiresRefund ? 'Cancelled — refund review required' : 'Order cancelled'); } catch (error) { toast.error(error.response?.data?.error || 'Cancellation failed'); } finally { setActionLoading(''); }
+    const reason = cancellationReason.trim();
+    if (!reason) { toast.error('Enter a cancellation reason'); return; }
+    try {
+      setActionLoading('cancel');
+      const { data } = await ordersAPI.cancel(id, reason);
+      setOrder(prev=>({...prev,status:'CANCELLED'}));
+      setConfirmation(null);
+      setCancellationReason('');
+      toast.success(data.requiresRefund ? 'Cancelled — refund review required' : 'Order cancelled');
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Cancellation failed');
+    } finally {
+      setActionLoading('');
+    }
+  };
+
+  const openCancellation = () => {
+    setCancellationReason('');
+    setConfirmation('cancel');
   };
 
   const handlePrint = (type) => { const previous = document.title; document.title = `${type}-${order.orderNumber}`; window.print(); document.title = previous; };
@@ -225,6 +247,7 @@ const OrderDetail = () => {
   if (!order) return null;
 
   const isShipped = ['SHIPPED', 'DELIVERED', 'COMPLETED'].includes(order.status);
+  const confirmationBusy = isShipping || actionLoading === 'cancel';
 
   return (
     <div className="print-order space-y-6 pb-12">
@@ -252,7 +275,7 @@ const OrderDetail = () => {
           <button onClick={()=>handlePrint('packing-slip')} className="px-3 py-2 bg-white border rounded-lg text-sm flex gap-2"><Printer size={15}/>Packing slip</button>
           <button disabled={!!actionLoading} onClick={()=>handleResend('invoice')} className="px-3 py-2 bg-white border rounded-lg text-sm flex gap-2"><RefreshCw size={15}/>Resend invoice</button>
           {isShipped && <button disabled={!!actionLoading} onClick={()=>handleResend('shipping')} className="px-3 py-2 bg-white border rounded-lg text-sm flex gap-2"><Send size={15}/>Resend shipping</button>}
-          {!['SHIPPED','DELIVERED','CANCELLED'].includes(order.status) && <button disabled={!!actionLoading} onClick={handleCancel} className="px-3 py-2 bg-red-50 text-red-700 border border-red-200 rounded-lg text-sm flex gap-2"><Ban size={15}/>Cancel</button>}
+          {!['SHIPPED','DELIVERED','CANCELLED'].includes(order.status) && <button disabled={!!actionLoading} onClick={openCancellation} className="px-3 py-2 bg-red-50 text-red-700 border border-red-200 rounded-lg text-sm flex gap-2"><Ban size={15}/>Cancel</button>}
           <span className={`px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1 ${getPaymentStyle(order.paymentStatus)}`}>
             <CreditCard size={12} />
             {getPaymentLabel(order.paymentStatus)}
@@ -491,7 +514,7 @@ const OrderDetail = () => {
 
                 {!isShipped && (
                   <button
-                    onClick={handleMarkAsShipped}
+                    onClick={()=>handleMarkAsShipped()}
                     disabled={isShipping || !shipping.carrier || !shipping.trackingNumber}
                     className="flex-1 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
@@ -543,7 +566,7 @@ const OrderDetail = () => {
                 return (
                   <button
                     key={option.value}
-                    onClick={() => handleStatusChange(option.value)}
+                    onClick={() => option.value === 'CANCELLED' ? openCancellation() : handleStatusChange(option.value)}
                     className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg border transition-all text-sm font-medium ${btnClass}`}
                   >
                     <option.icon size={15} />
@@ -759,6 +782,77 @@ const OrderDetail = () => {
           </div>
         </div>
       </div>
+
+      {confirmation && (
+        <div
+          className="fixed inset-0 z-[100] grid place-items-center bg-stone-950/60 p-4 backdrop-blur-sm print:hidden"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="order-confirmation-title"
+          onMouseDown={(event) => event.target === event.currentTarget && !confirmationBusy && setConfirmation(null)}
+        >
+          <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-white/20 bg-white shadow-2xl">
+            <div className="flex items-start gap-4 border-b border-stone-100 p-6">
+              <div className={`grid h-11 w-11 shrink-0 place-items-center rounded-full ${confirmation === 'cancel' ? 'bg-red-50 text-red-600' : 'bg-indigo-50 text-indigo-600'}`}>
+                {confirmation === 'cancel' ? <Ban size={21}/> : <Truck size={21}/>}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className={`text-xs font-semibold uppercase tracking-[0.16em] ${confirmation === 'cancel' ? 'text-red-600' : 'text-indigo-600'}`}>
+                  {confirmation === 'cancel' ? 'Order cancellation' : 'Shipping confirmation'}
+                </p>
+                <h2 id="order-confirmation-title" className="mt-1 font-serif text-2xl text-stone-900">
+                  {confirmation === 'cancel' ? 'Cancel this order?' : 'Mark order as shipped?'}
+                </h2>
+              </div>
+              <button type="button" onClick={()=>setConfirmation(null)} disabled={confirmationBusy} className="rounded-full p-2 text-stone-400 hover:bg-stone-100 hover:text-stone-700 disabled:opacity-40" aria-label="Close confirmation">
+                <X size={19}/>
+              </button>
+            </div>
+
+            <div className="space-y-5 p-6">
+              <div className="grid grid-cols-2 gap-3 rounded-xl bg-stone-50 p-4 text-sm">
+                <div><p className="text-xs uppercase tracking-wide text-stone-400">Order</p><p className="mt-1 font-semibold text-stone-900">#{order.orderNumber}</p></div>
+                <div><p className="text-xs uppercase tracking-wide text-stone-400">Total</p><p className="mt-1 font-semibold text-stone-900">${Number(order.total).toLocaleString()}</p></div>
+                <div className="col-span-2"><p className="text-xs uppercase tracking-wide text-stone-400">Customer</p><p className="mt-1 truncate font-medium text-stone-800">{order.customer?.firstName} {order.customer?.lastName} · {order.customer?.email}</p></div>
+              </div>
+
+              {confirmation === 'cancel' ? (
+                <>
+                  {order.paymentStatus === 'FULLY_PAID' && <div className="flex gap-3 rounded-xl border border-red-100 bg-red-50 p-4 text-sm leading-6 text-red-900"><AlertTriangle className="mt-0.5 shrink-0" size={18}/><p>This order is fully paid. Cancelling it does not issue a refund automatically; a manual refund review will still be required.</p></div>}
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-medium text-stone-700">Cancellation reason <span className="text-red-600">*</span></span>
+                    <textarea autoFocus rows={4} maxLength={500} value={cancellationReason} onChange={event=>setCancellationReason(event.target.value)} placeholder="Explain why this order is being cancelled…" className="w-full resize-y rounded-xl border border-stone-300 px-4 py-3 text-sm outline-none transition focus:border-red-400 focus:ring-2 focus:ring-red-100"/>
+                    <span className="mt-1 block text-right text-xs text-stone-400">{cancellationReason.length}/500</span>
+                  </label>
+                  <p className="text-sm leading-6 text-stone-500">The cancellation and its reason will be recorded in the order activity timeline. Unpaid physical items will be returned to available inventory.</p>
+                </>
+              ) : (
+                <>
+                  <div className="space-y-3 rounded-xl border border-indigo-100 bg-indigo-50/70 p-4 text-sm">
+                    <div className="flex justify-between gap-4"><span className="text-indigo-700">Carrier</span><span className="font-semibold text-indigo-950">{shipping.carrier}</span></div>
+                    <div className="flex justify-between gap-4"><span className="text-indigo-700">Tracking number</span><span className="break-all text-right font-mono text-indigo-950">{shipping.trackingNumber}</span></div>
+                    {shipping.estimatedDelivery && <div className="flex justify-between gap-4"><span className="text-indigo-700">Estimated delivery</span><span className="font-semibold text-indigo-950">{new Date(`${shipping.estimatedDelivery}T00:00:00`).toLocaleDateString()}</span></div>}
+                  </div>
+                  <p className="text-sm leading-6 text-stone-600">The order status will change to shipped and the customer will immediately receive an email containing these tracking details.</p>
+                </>
+              )}
+            </div>
+
+            <div className="flex flex-col-reverse gap-2 border-t border-stone-100 bg-stone-50/70 p-5 sm:flex-row sm:justify-end">
+              <button type="button" onClick={()=>setConfirmation(null)} disabled={confirmationBusy} className="rounded-lg border border-stone-300 bg-white px-4 py-2.5 text-sm font-medium text-stone-700 hover:bg-stone-50 disabled:opacity-50">Go back</button>
+              {confirmation === 'cancel' ? (
+                <button type="button" onClick={handleCancel} disabled={confirmationBusy || !cancellationReason.trim()} className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50">
+                  {actionLoading === 'cancel' ? <Loader size={16} className="animate-spin"/> : <Ban size={16}/>} {actionLoading === 'cancel' ? 'Cancelling…' : 'Cancel order'}
+                </button>
+              ) : (
+                <button type="button" onClick={()=>handleMarkAsShipped(true)} disabled={confirmationBusy} className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">
+                  {isShipping ? <Loader size={16} className="animate-spin"/> : <Send size={16}/>} {isShipping ? 'Sending notification…' : 'Mark shipped & notify'}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
