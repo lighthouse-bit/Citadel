@@ -24,6 +24,8 @@ npm.cmd run maintenance
 
 This clears expired admin-reset tokens, stale unverified-customer tokens, and operational events resolved more than 90 days ago. Schedule it daily using a trusted job runner; it does not delete orders, payments, customers, artworks, or commissions.
 
+Vercel also invokes `GET /api/marketing/campaigns/process` daily as a recovery worker for queued email campaigns. Set a long, random `CRON_SECRET` in the Vercel production environment; Vercel sends it as a bearer token. Campaigns are processed immediately in small batches while the admin campaign page is open, and the scheduled worker safely resumes anything left in the queue.
+
 ## Incident response
 
 1. Preserve logs and note the first observed timestamp.

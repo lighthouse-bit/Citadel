@@ -1208,6 +1208,33 @@ const sendDigitalDeliveryEmail = async ({ email, firstName, orderNumber, items }
   });
 };
 
+const buildMarketingCampaignEmail = ({ subject, htmlBody, firstName, unsubscribeToken }) => {
+  const clientUrl = (process.env.CLIENT_URL || 'https://highmarc.com').replace(/\/$/, '');
+  const apiUrl = (process.env.PUBLIC_API_URL || 'https://citadel-blond.vercel.app/api').replace(/\/$/, '');
+  const unsubscribeUrl = `${clientUrl}/unsubscribe?scope=marketing&token=${encodeURIComponent(unsubscribeToken)}`;
+  const oneClickUrl = `${apiUrl}/marketing/unsubscribe/${encodeURIComponent(unsubscribeToken)}`;
+  const personalizedBody = String(htmlBody || '').replaceAll('{{firstName}}', escapeHtml(firstName || 'there'));
+
+  return {
+    subject,
+    html: `${personalizedBody}<div style="max-width:640px;margin:28px auto 0;padding:20px;border-top:1px solid #e7e5e4;text-align:center;color:#78716c;font-family:Arial,sans-serif;font-size:12px;line-height:1.6">You received this email because you opted in to Highmarc marketing emails. <a href="${escapeHtml(unsubscribeUrl)}" style="color:#57534e">Unsubscribe from marketing emails</a>.</div>`,
+    headers: {
+      'List-Unsubscribe': `<${oneClickUrl}>`,
+      'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+    },
+  };
+};
+
+const sendMarketingCampaignEmail = async ({ email, subject, htmlBody, firstName, unsubscribeToken }) => {
+  const transporter = createTransporter();
+  const content = buildMarketingCampaignEmail({ subject, htmlBody, firstName, unsubscribeToken });
+  return transporter.sendMail({
+    from: `"Highmarc Art Atelier" <${process.env.EMAIL_USER}>`,
+    to: email,
+    ...content,
+  });
+};
+
 module.exports = {
   sendVerificationEmail,
   sendCommissionConfirmationEmail,
@@ -1221,5 +1248,7 @@ module.exports = {
   sendWishlistAlertEmail,
   sendDigitalDeliveryEmail,
   buildDigitalDeliveryEmail,
+  sendMarketingCampaignEmail,
+  buildMarketingCampaignEmail,
   getContactRecipient,
 };

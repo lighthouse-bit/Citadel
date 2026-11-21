@@ -178,7 +178,8 @@ model Customer {
   supportMessages     SupportMessage[]
   reviews             Review[]
   digitalEntitlements DigitalEntitlement[]
-  privacyRequests      PrivacyRequest[]
+  privacyRequests     PrivacyRequest[]
+  campaignDeliveries  CampaignDelivery[]
 
   @@index([email])
 }
@@ -651,20 +652,50 @@ model EmailTemplate {
 }
 
 model EmailCampaign {
-  id             String    @id @default(uuid())
-  name           String
-  subject        String
-  htmlBody       String    @db.Text
-  segment        String    @default("VERIFIED")
-  status         String    @default("DRAFT")
-  recipientCount Int       @default(0)
-  deliveredCount Int       @default(0)
-  failedCount    Int       @default(0)
-  sentAt         DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id              String    @id @default(uuid())
+  name            String
+  subject         String
+  htmlBody        String    @db.Text
+  segment         String    @default("VERIFIED")
+  status          String    @default("DRAFT")
+  recipientCount  Int       @default(0)
+  deliveredCount  Int       @default(0)
+  failedCount     Int       @default(0)
+  skippedCount    Int       @default(0)
+  preparedAt      DateTime?
+  startedAt       DateTime?
+  completedAt     DateTime?
+  lastProcessedAt DateTime?
+  sentAt          DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  deliveries CampaignDelivery[]
 
   @@index([status, createdAt])
+}
+
+model CampaignDelivery {
+  id          String    @id @default(uuid())
+  campaignId  String
+  customerId  String
+  email       String
+  firstName   String?
+  status      String    @default("PENDING")
+  attempts    Int       @default(0)
+  lastError   String?   @db.Text
+  messageId   String?
+  claimedAt   DateTime?
+  deliveredAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  campaign EmailCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  customer Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, customerId])
+  @@index([campaignId, status, createdAt])
+  @@index([status, claimedAt])
 }
 
 model OperationalEvent {
@@ -691,19 +722,19 @@ model ContactRateLimit {
 }
 
 model PrivacyRequest {
-  id            String    @id @default(uuid())
-  type          String
-  status        String    @default("PENDING")
-  details       String?   @db.Text
-  response      String?   @db.Text
-  customerId    String
-  handledById   String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  resolvedAt    DateTime?
+  id          String    @id @default(uuid())
+  type        String
+  status      String    @default("PENDING")
+  details     String?   @db.Text
+  response    String?   @db.Text
+  customerId  String
+  handledById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  resolvedAt  DateTime?
 
   customer  Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  handledBy Admin?    @relation("PrivacyRequestHandler", fields: [handledById], references: [id], onDelete: SetNull)
+  handledBy Admin?   @relation("PrivacyRequestHandler", fields: [handledById], references: [id], onDelete: SetNull)
 
   @@index([customerId, createdAt])
   @@index([status, createdAt])

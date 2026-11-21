@@ -230,7 +230,11 @@ export const marketingAPI = {
   testEmail: data => api.post('/marketing/templates/test', data),
   getCampaigns: () => api.get('/marketing/campaigns'),
   createCampaign: data => api.post('/marketing/campaigns', data),
+  updateCampaign: (id, data) => api.put(`/marketing/campaigns/${id}`, data),
   sendCampaign: id => api.post(`/marketing/campaigns/${id}/send`),
+  processCampaign: id => api.post(`/marketing/campaigns/${id}/process`),
+  retryCampaign: id => api.post(`/marketing/campaigns/${id}/retry`),
+  unsubscribe: token => api.post(`/marketing/unsubscribe/${encodeURIComponent(token)}`),
 };
 
 export const reportsAPI = {
