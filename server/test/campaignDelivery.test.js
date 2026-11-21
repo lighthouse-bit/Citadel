@@ -5,6 +5,7 @@ const { buildMarketingCampaignEmail } = require('../src/utils/emailService');
 const { campaignStatusFromCounts, segmentWhere, VALID_SEGMENTS } = require('../src/services/campaignDeliveryService');
 const { signAlertToken, verifyAlertToken } = require('../src/utils/wishlistAlertTokens');
 const { safeEqual } = require('../src/middleware/cronAuth');
+const { buildTrackedCampaignBody, verifyBoundTrackingTarget } = require('../src/utils/campaignTracking');
 
 test('marketing campaign email personalizes safely and includes one-click unsubscribe headers', () => {
   const previousSecret = process.env.JWT_SECRET;
@@ -25,6 +26,32 @@ test('marketing campaign email personalizes safely and includes one-click unsubs
   assert.equal(email.headers['List-Unsubscribe-Post'], 'List-Unsubscribe=One-Click');
   assert.deepEqual(verifyAlertToken(token, 'marketing-unsubscribe'), { purpose: 'marketing-unsubscribe', customerId: 'customer-1', alertId: '' });
   assert.equal(verifyAlertToken(token, 'unsubscribe'), null);
+  if (previousSecret === undefined) delete process.env.JWT_SECRET;
+  else process.env.JWT_SECRET = previousSecret;
+});
+
+test('campaign tracking signs the recipient and binds redirects to their original destination', () => {
+  const previousSecret = process.env.JWT_SECRET;
+  process.env.JWT_SECRET = 'campaign-tracking-secret';
+  const target = 'https://highmarc.com/shop?category=digital';
+  const html = buildTrackedCampaignBody({
+    htmlBody: `<a href="${target}">Shop</a><a href="mailto:luxuryarts@highmarc.com">Contact</a>`,
+    customerId: 'customer-1',
+    deliveryId: 'delivery-1',
+    apiUrl: 'https://api.highmarc.com/api',
+  });
+  const trackedHref = html.match(/href="([^"]+)"/)[1];
+  const trackedUrl = new URL(trackedHref.replaceAll('&amp;', '&'));
+  const clickPayload = verifyAlertToken(trackedUrl.searchParams.get('token'), 'marketing-click');
+  const openUrl = new URL(html.match(/src="([^"]+open\.gif[^"]+)"/)[1]);
+
+  assert.equal(trackedUrl.searchParams.get('url'), target);
+  assert.equal(verifyBoundTrackingTarget(clickPayload.alertId, target), 'delivery-1');
+  assert.equal(verifyBoundTrackingTarget(clickPayload.alertId, 'https://attacker.example'), null);
+  assert.match(html, /href="mailto:luxuryarts@highmarc\.com"/);
+  assert.deepEqual(verifyAlertToken(openUrl.searchParams.get('token'), 'marketing-open'), {
+    purpose: 'marketing-open', customerId: 'customer-1', alertId: 'delivery-1',
+  });
   if (previousSecret === undefined) delete process.env.JWT_SECRET;
   else process.env.JWT_SECRET = previousSecret;
 });

@@ -1,12 +1,15 @@
 const router=require('express').Router();
 const controller=require('../controllers/marketingController');
+const trackingController=require('../controllers/campaignTrackingController');
 const {authenticateAdmin}=require('../middleware/auth');
 const {authenticateCron}=require('../middleware/cronAuth');
 router.post('/promotions/validate',controller.validatePromotion);
 router.post('/unsubscribe/:token',controller.unsubscribeMarketing);
+router.get('/campaigns/track/open.gif',trackingController.trackOpen);
+router.get('/campaigns/track/click',trackingController.trackClick);
 router.get('/campaigns/process',authenticateCron,controller.processCampaignQueue);
 router.use(authenticateAdmin);
 router.get('/promotions',controller.listPromotions);router.post('/promotions',controller.createPromotion);router.put('/promotions/:id',controller.updatePromotion);router.delete('/promotions/:id',controller.deletePromotion);
 router.get('/templates',controller.listTemplates);router.post('/templates',controller.saveTemplate);router.put('/templates/:id',controller.saveTemplate);router.post('/templates/test',controller.testEmail);
-router.get('/campaigns',controller.listCampaigns);router.get('/campaigns/audience-preview',controller.previewCampaignAudience);router.post('/campaigns',controller.createCampaign);router.put('/campaigns/:id',controller.updateCampaign);router.post('/campaigns/:id/send',controller.sendCampaign);router.post('/campaigns/:id/unschedule',controller.unscheduleCampaign);router.post('/campaigns/:id/process',controller.processCampaign);router.post('/campaigns/:id/retry',controller.retryCampaign);
+router.get('/campaigns',controller.listCampaigns);router.get('/campaigns/audience-preview',controller.previewCampaignAudience);router.get('/campaigns/:id/analytics',controller.getCampaignAnalytics);router.get('/campaigns/:id/export',controller.exportCampaignDeliveries);router.post('/campaigns',controller.createCampaign);router.put('/campaigns/:id',controller.updateCampaign);router.post('/campaigns/:id/send',controller.sendCampaign);router.post('/campaigns/:id/unschedule',controller.unscheduleCampaign);router.post('/campaigns/:id/process',controller.processCampaign);router.post('/campaigns/:id/retry',controller.retryCampaign);
 module.exports=router;

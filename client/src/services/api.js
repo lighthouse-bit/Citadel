@@ -236,6 +236,8 @@ export const marketingAPI = {
   unscheduleCampaign: id => api.post(`/marketing/campaigns/${id}/unschedule`),
   processCampaign: id => api.post(`/marketing/campaigns/${id}/process`),
   retryCampaign: id => api.post(`/marketing/campaigns/${id}/retry`),
+  getCampaignAnalytics: id => api.get(`/marketing/campaigns/${id}/analytics`),
+  exportCampaign: id => api.get(`/marketing/campaigns/${id}/export`, { responseType: 'blob' }),
   unsubscribe: token => api.post(`/marketing/unsubscribe/${encodeURIComponent(token)}`),
 };
 

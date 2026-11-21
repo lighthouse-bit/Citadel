@@ -652,24 +652,27 @@ model EmailTemplate {
 }
 
 model EmailCampaign {
-  id              String    @id @default(uuid())
-  name            String
-  subject         String
-  htmlBody        String    @db.Text
-  segment         String    @default("VERIFIED")
-  status          String    @default("DRAFT")
-  recipientCount  Int       @default(0)
-  deliveredCount  Int       @default(0)
-  failedCount     Int       @default(0)
-  skippedCount    Int       @default(0)
-  preparedAt      DateTime?
-  startedAt       DateTime?
-  completedAt     DateTime?
-  lastProcessedAt DateTime?
-  scheduledAt     DateTime?
-  sentAt          DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id               String    @id @default(uuid())
+  name             String
+  subject          String
+  htmlBody         String    @db.Text
+  segment          String    @default("VERIFIED")
+  status           String    @default("DRAFT")
+  recipientCount   Int       @default(0)
+  deliveredCount   Int       @default(0)
+  failedCount      Int       @default(0)
+  skippedCount     Int       @default(0)
+  openedCount      Int       @default(0)
+  clickedCount     Int       @default(0)
+  unsubscribeCount Int       @default(0)
+  preparedAt       DateTime?
+  startedAt        DateTime?
+  completedAt      DateTime?
+  lastProcessedAt  DateTime?
+  scheduledAt      DateTime?
+  sentAt           DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   deliveries CampaignDelivery[]
 
@@ -678,25 +681,32 @@ model EmailCampaign {
 }
 
 model CampaignDelivery {
-  id          String    @id @default(uuid())
-  campaignId  String
-  customerId  String
-  email       String
-  firstName   String?
-  status      String    @default("PENDING")
-  attempts    Int       @default(0)
-  lastError   String?   @db.Text
-  messageId   String?
-  claimedAt   DateTime?
-  deliveredAt DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id             String    @id @default(uuid())
+  campaignId     String
+  customerId     String
+  email          String
+  firstName      String?
+  status         String    @default("PENDING")
+  attempts       Int       @default(0)
+  lastError      String?   @db.Text
+  messageId      String?
+  claimedAt      DateTime?
+  deliveredAt    DateTime?
+  openedAt       DateTime?
+  openCount      Int       @default(0)
+  clickedAt      DateTime?
+  clickCount     Int       @default(0)
+  unsubscribedAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   campaign EmailCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   customer Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
   @@unique([campaignId, customerId])
   @@index([campaignId, status, createdAt])
+  @@index([campaignId, openedAt])
+  @@index([campaignId, clickedAt])
   @@index([status, claimedAt])
 }
 

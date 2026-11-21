@@ -290,13 +290,15 @@ const processCampaignBatch = async ({ campaignId, batchSize = DEFAULT_BATCH_SIZE
         continue;
       }
 
-      const unsubscribeToken = signAlertToken('marketing-unsubscribe', eligibleCustomer.id);
+      const unsubscribeToken = signAlertToken('marketing-unsubscribe', eligibleCustomer.id, delivery.id);
       const info = await sendMarketingCampaignEmail({
         email: eligibleCustomer.email,
         firstName: eligibleCustomer.firstName,
         subject: campaign.subject,
         htmlBody: campaign.htmlBody,
         unsubscribeToken,
+        customerId: eligibleCustomer.id,
+        deliveryId: delivery.id,
       });
       await prisma.campaignDelivery.update({
         where: { id: delivery.id },
