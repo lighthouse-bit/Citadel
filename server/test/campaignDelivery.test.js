@@ -6,6 +6,7 @@ const { campaignStatusFromCounts, segmentWhere, VALID_SEGMENTS } = require('../s
 const { signAlertToken, verifyAlertToken } = require('../src/utils/wishlistAlertTokens');
 const { safeEqual } = require('../src/middleware/cronAuth');
 const { buildTrackedCampaignBody, verifyBoundTrackingTarget } = require('../src/utils/campaignTracking');
+const { assignCampaignVariant, subjectForVariant } = require('../src/utils/campaignVariants');
 
 test('marketing campaign email personalizes safely and includes one-click unsubscribe headers', () => {
   const previousSecret = process.env.JWT_SECRET;
@@ -54,6 +55,16 @@ test('campaign tracking signs the recipient and binds redirects to their origina
   });
   if (previousSecret === undefined) delete process.env.JWT_SECRET;
   else process.env.JWT_SECRET = previousSecret;
+});
+
+test('A/B campaign assignment is stable and each delivery uses its assigned subject', () => {
+  const assignments = Array.from({ length: 100 }, (_, index) => assignCampaignVariant('campaign-1', `customer-${index}`, true));
+  assert.deepEqual(assignments, Array.from({ length: 100 }, (_, index) => assignCampaignVariant('campaign-1', `customer-${index}`, true)));
+  assert.ok(assignments.includes('A'));
+  assert.ok(assignments.includes('B'));
+  assert.equal(assignCampaignVariant('campaign-1', 'customer-1', false), 'A');
+  assert.equal(subjectForVariant({ subject: 'Original', subjectB: 'Alternative', abTestEnabled: true }, 'B'), 'Alternative');
+  assert.equal(subjectForVariant({ subject: 'Original', subjectB: null, abTestEnabled: false }, 'B'), 'Original');
 });
 
 test('campaign status remains active until all retryable work is terminal', () => {

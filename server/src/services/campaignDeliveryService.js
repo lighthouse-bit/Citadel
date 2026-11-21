@@ -2,6 +2,7 @@ const prisma = require('../config/database');
 const { signAlertToken } = require('../utils/wishlistAlertTokens');
 const { sendMarketingCampaignEmail } = require('../utils/emailService');
 const { recordOperationalEvent } = require('../utils/operationalEvents');
+const { assignCampaignVariant, subjectForVariant } = require('../utils/campaignVariants');
 
 const MAX_ATTEMPTS = 3;
 const DEFAULT_BATCH_SIZE = 10;
@@ -110,6 +111,7 @@ const prepareCampaign = async campaignId => {
         customerId: recipient.id,
         email: recipient.email,
         firstName: recipient.firstName,
+        variant: assignCampaignVariant(campaignId, recipient.id, campaign.abTestEnabled),
       })),
       skipDuplicates: true,
     });
@@ -294,7 +296,7 @@ const processCampaignBatch = async ({ campaignId, batchSize = DEFAULT_BATCH_SIZE
       const info = await sendMarketingCampaignEmail({
         email: eligibleCustomer.email,
         firstName: eligibleCustomer.firstName,
-        subject: campaign.subject,
+        subject: subjectForVariant(campaign, delivery.variant),
         htmlBody: campaign.htmlBody,
         unsubscribeToken,
         customerId: eligibleCustomer.id,
