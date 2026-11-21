@@ -1,12 +1,13 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { buildMarketingCampaignEmail } = require('../src/utils/emailService');
+const { buildMarketingCampaignEmail, buildAutomationEmail } = require('../src/utils/emailService');
 const { campaignStatusFromCounts, segmentWhere, VALID_SEGMENTS } = require('../src/services/campaignDeliveryService');
 const { signAlertToken, verifyAlertToken } = require('../src/utils/wishlistAlertTokens');
 const { safeEqual } = require('../src/middleware/cronAuth');
 const { buildTrackedCampaignBody, verifyBoundTrackingTarget } = require('../src/utils/campaignTracking');
 const { assignCampaignVariant, subjectForVariant } = require('../src/utils/campaignVariants');
+const { normalizeDelay } = require('../src/services/automationService');
 
 test('marketing campaign email personalizes safely and includes one-click unsubscribe headers', () => {
   const previousSecret = process.env.JWT_SECRET;
@@ -65,6 +66,16 @@ test('A/B campaign assignment is stable and each delivery uses its assigned subj
   assert.equal(assignCampaignVariant('campaign-1', 'customer-1', false), 'A');
   assert.equal(subjectForVariant({ subject: 'Original', subjectB: 'Alternative', abTestEnabled: true }, 'B'), 'Alternative');
   assert.equal(subjectForVariant({ subject: 'Original', subjectB: null, abTestEnabled: false }, 'B'), 'Original');
+});
+
+test('welcome automation personalizes safely and constrains configured delays', () => {
+  const email = buildAutomationEmail({ subject: 'Welcome', htmlBody: '<p>Hello {{firstName}}</p>', firstName: '<Admin>' });
+  assert.equal(email.subject, 'Welcome');
+  assert.match(email.html, /Hello &lt;Admin&gt;/);
+  assert.doesNotMatch(email.html, /Hello <Admin>/);
+  assert.equal(normalizeDelay(-20), 0);
+  assert.equal(normalizeDelay(90.4), 90);
+  assert.equal(normalizeDelay(999999), 10080);
 });
 
 test('campaign status remains active until all retryable work is terminal', () => {

@@ -166,20 +166,21 @@ model Customer {
   updatedAt                  DateTime  @updatedAt
 
   // Relations
-  addresses           Address[]
-  commissions         Commission[]
-  orders              Order[]
-  notifications       Notification[] // ✅ Added reverse relation
-  wishlistItems       WishlistItem[]
-  wishlistAlerts      WishlistAlert[]
-  cartItems           CartItem[]
-  artworkViews        CustomerArtworkView[]
-  supportTickets      SupportTicket[]
-  supportMessages     SupportMessage[]
-  reviews             Review[]
-  digitalEntitlements DigitalEntitlement[]
-  privacyRequests     PrivacyRequest[]
-  campaignDeliveries  CampaignDelivery[]
+  addresses            Address[]
+  commissions          Commission[]
+  orders               Order[]
+  notifications        Notification[] // ✅ Added reverse relation
+  wishlistItems        WishlistItem[]
+  wishlistAlerts       WishlistAlert[]
+  cartItems            CartItem[]
+  artworkViews         CustomerArtworkView[]
+  supportTickets       SupportTicket[]
+  supportMessages      SupportMessage[]
+  reviews              Review[]
+  digitalEntitlements  DigitalEntitlement[]
+  privacyRequests      PrivacyRequest[]
+  campaignDeliveries   CampaignDelivery[]
+  automationDeliveries AutomationDelivery[]
 
   @@index([email])
 }
@@ -712,6 +713,46 @@ model CampaignDelivery {
   @@index([campaignId, openedAt])
   @@index([campaignId, clickedAt])
   @@index([status, claimedAt])
+}
+
+model AutomationWorkflow {
+  id           String   @id @default(uuid())
+  type         String   @unique
+  name         String
+  subject      String
+  htmlBody     String   @db.Text
+  enabled      Boolean  @default(false)
+  delayMinutes Int      @default(0)
+  sentCount    Int      @default(0)
+  failedCount  Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  deliveries AutomationDelivery[]
+}
+
+model AutomationDelivery {
+  id           String    @id @default(uuid())
+  workflowId   String
+  customerId   String
+  eventKey     String
+  status       String    @default("PENDING")
+  scheduledFor DateTime
+  attempts     Int       @default(0)
+  lastError    String?   @db.Text
+  messageId    String?
+  claimedAt    DateTime?
+  sentAt       DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  workflow AutomationWorkflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  customer Customer           @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([workflowId, eventKey])
+  @@index([status, scheduledFor])
+  @@index([workflowId, status, createdAt])
+  @@index([customerId, createdAt])
 }
 
 model OperationalEvent {

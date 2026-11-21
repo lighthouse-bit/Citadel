@@ -1,5 +1,5 @@
 import { createElement, useCallback, useEffect, useRef, useState } from 'react';
-import { AlertTriangle, BadgePercent, BarChart3, Bell, CalendarClock, Code2, Download, Eye, Loader, Mail, Megaphone, MousePointerClick, Pencil, Plus, RotateCcw, Send, Trash2, Users, X } from 'lucide-react';
+import { AlertTriangle, BadgePercent, BarChart3, Bell, CalendarClock, Code2, Download, Eye, Loader, Mail, Megaphone, MousePointerClick, Pencil, Plus, RotateCcw, Send, Trash2, Users, X, Zap } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { marketingAPI, notificationsAPI } from '../../services/api';
 
@@ -15,11 +15,13 @@ export default function Marketing() {
   const [promotions, setPromotions] = useState([]);
   const [templates, setTemplates] = useState([]);
   const [campaigns, setCampaigns] = useState([]);
+  const [automations, setAutomations] = useState([]);
   const [promotion, setPromotion] = useState(blankPromotion);
   const [template, setTemplate] = useState(blankEmail);
   const [campaign, setCampaign] = useState(blankEmail);
   const [testEmail, setTestEmail] = useState('');
   const [campaignTestEmail, setCampaignTestEmail] = useState('');
+  const [automationTestEmail, setAutomationTestEmail] = useState('');
   const [notification, setNotification] = useState({ type: 'SYSTEM', message: '', link: '' });
   const [sending, setSending] = useState('');
   const [confirmCampaign, setConfirmCampaign] = useState(null);
@@ -32,12 +34,13 @@ export default function Marketing() {
   const load = useCallback(async (showLoader = true) => {
     try {
       if (showLoader) setLoading(true);
-      const [promotionsResponse, templatesResponse, campaignsResponse] = await Promise.all([
-        marketingAPI.getPromotions(), marketingAPI.getTemplates(), marketingAPI.getCampaigns(),
+      const [promotionsResponse, templatesResponse, campaignsResponse, automationsResponse] = await Promise.all([
+        marketingAPI.getPromotions(), marketingAPI.getTemplates(), marketingAPI.getCampaigns(), marketingAPI.getAutomations(),
       ]);
       setPromotions(promotionsResponse.data);
       setTemplates(templatesResponse.data);
       setCampaigns(campaignsResponse.data);
+      setAutomations(automationsResponse.data);
     } catch {
       if (showLoader) toast.error('Failed to load marketing tools');
     } finally {
@@ -102,6 +105,20 @@ export default function Marketing() {
     return () => window.removeEventListener('keydown', close);
   }, [confirmCampaign, sending]);
 
+  useEffect(() => {
+    if (tab !== 'automations' || !automations.some(item => item.enabled)) return undefined;
+    const processDue = async () => {
+      try {
+        await Promise.all(automations.filter(item => item.enabled).map(item => marketingAPI.processAutomation(item.id)));
+        await load(false);
+      } catch (error) {
+        console.error('Automation queue processing failed', error);
+      }
+    };
+    const timer = window.setInterval(processDue, 30000);
+    return () => window.clearInterval(timer);
+  }, [automations, load, tab]);
+
   const savePromotion = async () => { try { promotion.id ? await marketingAPI.updatePromotion(promotion.id, promotion) : await marketingAPI.createPromotion(promotion); toast.success('Promotion saved'); setPromotion(blankPromotion); load(); } catch (error) { toast.error(error.response?.data?.error || 'Promotion failed'); } };
   const removePromotion = async id => { if (!window.confirm('Remove this promotion? Used promotions will be deactivated instead.')) return; try { await marketingAPI.deletePromotion(id); toast.success('Promotion removed'); load(); } catch { toast.error('Could not remove promotion'); } };
   const saveTemplate = async () => { try { template.id ? await marketingAPI.updateTemplate(template.id, template) : await marketingAPI.saveTemplate(template); toast.success('Template saved'); setTemplate(blankEmail); load(); } catch (error) { toast.error(error.response?.data?.error || 'Template failed'); } };
@@ -116,10 +133,14 @@ export default function Marketing() {
   const retryCampaign = async item => { try { setSending(item.id); await marketingAPI.retryCampaign(item.id); toast.success('Failed deliveries queued for retry'); await load(false); } catch (error) { toast.error(error.response?.data?.error || 'Campaign retry failed'); } finally { setSending(''); } };
   const openCampaignReport = async item => { try { setReportLoading(true); setCampaignReport({ campaign: item, loading: true }); const { data } = await marketingAPI.getCampaignAnalytics(item.id); setCampaignReport(data); } catch (error) { setCampaignReport(null); toast.error(error.response?.data?.error || 'Campaign report could not be loaded'); } finally { setReportLoading(false); } };
   const exportCampaign = async item => { try { const { data } = await marketingAPI.exportCampaign(item.id); const url = URL.createObjectURL(data); const link = document.createElement('a'); link.href = url; link.download = `${item.name.replace(/[^a-z0-9_-]+/gi, '-').toLowerCase()}-deliveries.csv`; document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(url); } catch (error) { toast.error(error.response?.data?.error || 'Campaign export failed'); } };
+  const changeAutomation = (id, changes) => setAutomations(current => current.map(item => item.id === id ? { ...item, ...changes } : item));
+  const saveAutomation = async item => { try { setSending(`automation-${item.id}`); const { data } = await marketingAPI.updateAutomation(item.id, item); changeAutomation(item.id, data); toast.success(data.enabled ? 'Automation enabled' : 'Automation saved and paused'); await load(false); } catch (error) { toast.error(error.response?.data?.error || 'Automation could not be saved'); } finally { setSending(''); } };
+  const testAutomation = async item => { try { setSending(`automation-test-${item.id}`); await marketingAPI.testAutomation(item.id, automationTestEmail); toast.success('Automation test delivered'); } catch (error) { toast.error(error.response?.data?.error || 'Automation test failed'); } finally { setSending(''); } };
+  const retryAutomation = async item => { try { setSending(`automation-retry-${item.id}`); await marketingAPI.retryAutomation(item.id); toast.success('Failed automation deliveries queued again'); await load(false); } catch (error) { toast.error(error.response?.data?.error || 'Automation retry failed'); } finally { setSending(''); } };
   const createNotification = async () => { try { await notificationsAPI.create(notification); toast.success('Admin notification created'); setNotification({ type: 'SYSTEM', message: '', link: '' }); } catch (error) { toast.error(error.response?.data?.error || 'Notification failed'); } };
 
   if (loading) return <Loader className="animate-spin m-16 mx-auto" />;
-  const tabs = [['promotions', BadgePercent, 'Promotions'], ['templates', Mail, 'Templates'], ['campaigns', Megaphone, 'Campaigns'], ['notifications', Bell, 'Notifications']];
+  const tabs = [['promotions', BadgePercent, 'Promotions'], ['templates', Mail, 'Templates'], ['campaigns', Megaphone, 'Campaigns'], ['automations', Zap, 'Automations'], ['notifications', Bell, 'Notifications']];
 
   return <div className="space-y-6">
     <div><h1 className="text-2xl font-serif">Marketing & Communications</h1><p className="text-stone-500">Discounts, reusable email content, campaigns and admin alerts.</p></div>
@@ -130,6 +151,8 @@ export default function Marketing() {
     {tab === 'templates' && <div className="grid lg:grid-cols-2 gap-5"><EmailEditor title="Email template" value={template} setValue={setTemplate} /><Panel title="Saved templates">{templates.map(item => <button key={item.id} onClick={() => setTemplate(item)} className="block w-full text-left border rounded-lg p-3 mb-2"><b>{item.name}</b><p className="text-xs text-stone-500">{item.subject}</p></button>)}<button onClick={saveTemplate} className="mt-3 bg-stone-900 text-white px-4 py-2 rounded-lg">Save template</button><div className="flex gap-2 mt-4"><input value={testEmail} onChange={event => setTestEmail(event.target.value)} placeholder="Test recipient" className="border rounded-lg px-3 flex-1" /><button onClick={sendTest} disabled={sending === 'test'} className="border px-3 rounded-lg">Send test</button></div></Panel></div>}
 
     {tab === 'campaigns' && <div className="grid lg:grid-cols-2 gap-5"><div className="space-y-4"><Panel title="Campaign setup"><label className="block text-sm mb-3">Start from a saved template<select defaultValue="" onChange={event => { applyTemplate(event.target.value); event.target.value = ''; }} className="block w-full border rounded-lg px-3 py-2 mt-1"><option value="">Choose a template…</option>{templates.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><label className="block text-sm mb-3">Recipient segment<select value={campaign.segment} onChange={event => setCampaign({ ...campaign, segment: event.target.value })} className="block w-full border rounded-lg px-3 py-2 mt-1">{campaignSegments.map(segment => <option key={segment} value={segment}>{segmentLabels[segment]}</option>)}</select></label><AudiencePreview audience={audience} /></Panel><EmailEditor title={campaign.id ? 'Edit campaign draft' : 'New campaign'} value={campaign} setValue={setCampaign} /><Panel title="Test and save"><p className="text-xs text-stone-500 mb-3">Send yourself a personalized copy before saving or queuing the campaign.</p><div className="flex flex-col sm:flex-row gap-2"><input type="email" value={campaignTestEmail} onChange={event => setCampaignTestEmail(event.target.value)} placeholder="Test recipient email" className="border rounded-lg px-3 py-2 flex-1" /><button onClick={testCampaign} disabled={sending === 'campaign-test'} className="border px-4 py-2 rounded-lg inline-flex justify-center items-center gap-2 disabled:opacity-50">{sending === 'campaign-test' ? <Loader className="animate-spin" size={15} /> : <Send size={15} />} Send test</button></div><div className="flex flex-wrap gap-2 mt-4"><button onClick={saveCampaign} className="bg-stone-900 text-white px-4 py-2 rounded-lg"><Plus size={15} className="inline" /> {campaign.id ? 'Update draft' : 'Save draft'}</button>{campaign.id && <button onClick={() => setCampaign(blankEmail)} className="border px-4 py-2 rounded-lg">Cancel editing</button>}</div></Panel></div><Panel title="Campaign delivery">{campaigns.length === 0 && <p className="text-sm text-stone-500">No campaigns yet.</p>}{campaigns.map(item => <CampaignCard key={item.id} item={item} sending={sending} reportLoading={reportLoading} onEdit={() => editCampaign(item)} onSend={() => openCampaignReview(item)} onUnschedule={() => unscheduleCampaign(item)} onRetry={() => retryCampaign(item)} onReport={() => openCampaignReport(item)} />)}</Panel></div>}
+
+    {tab === 'automations' && <div className="space-y-5"><div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><b>Lifecycle email foundation</b><p className="mt-1 text-amber-800">Welcome emails are transactional account messages triggered once after verification. Keep their content focused on onboarding and account features.</p></div>{automations.map(item => <AutomationEditor key={item.id} item={item} testEmail={automationTestEmail} setTestEmail={setAutomationTestEmail} busy={sending} onChange={changes => changeAutomation(item.id, changes)} onSave={() => saveAutomation(item)} onTest={() => testAutomation(item)} onRetry={() => retryAutomation(item)} />)}</div>}
 
     {tab === 'notifications' && <Panel title="Create an admin notification"><Select label="Type" value={notification.type} onChange={type => setNotification({ ...notification, type })} options={['SYSTEM', 'ORDER', 'COMMISSION', 'MARKETING']} /><Input label="Message" value={notification.message} onChange={message => setNotification({ ...notification, message })} /><Input label="Optional admin link" value={notification.link} onChange={link => setNotification({ ...notification, link })} /><button onClick={createNotification} className="bg-stone-900 text-white px-4 py-2 rounded-lg">Create notification</button></Panel>}
 
@@ -183,6 +206,13 @@ const CampaignConfirmModal = ({ item, audience, busy, onClose, onConfirm }) => {
 };
 
 const AudiencePreview = ({ audience }) => <div className="rounded-xl border bg-stone-50 p-4"><div className="flex items-center justify-between"><span className="inline-flex items-center gap-2 text-sm font-medium"><Users size={16} />Eligible audience</span>{audience.loading ? <Loader size={16} className="animate-spin" /> : <b>{audience.count.toLocaleString()}</b>}</div>{!audience.loading && audience.samples.length > 0 && <div className="mt-3 pt-3 border-t space-y-2">{audience.samples.map(sample => <div key={sample.id} className="flex justify-between gap-3 text-xs"><span className="truncate">{sample.name}</span><span className="text-stone-400 shrink-0">{sample.email}</span></div>)}</div>}{!audience.loading && audience.count === 0 && <p className="text-xs text-amber-700 mt-2">No opted-in customers currently match this segment.</p>}</div>;
+
+const AutomationEditor = ({ item, testEmail, setTestEmail, busy, onChange, onSave, onTest, onRetry }) => {
+  const saving = busy === `automation-${item.id}`;
+  const testing = busy === `automation-test-${item.id}`;
+  const retrying = busy === `automation-retry-${item.id}`;
+  return <section className="bg-white border rounded-2xl overflow-hidden"><div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b p-5"><div><div className="flex items-center gap-2"><span className={`h-2.5 w-2.5 rounded-full ${item.enabled ? 'bg-green-500' : 'bg-stone-300'}`} /><h2 className="font-semibold">{item.name}</h2></div><p className="text-xs text-stone-500 mt-1">Trigger: customer verifies their email · Delivered once per account</p></div><label className="inline-flex items-center gap-2 text-sm"><input type="checkbox" checked={item.enabled} onChange={event => onChange({ enabled: event.target.checked })} />{item.enabled ? 'Enabled' : 'Paused'}</label></div><div className="grid lg:grid-cols-[1fr_320px] gap-5 p-5"><div><Input label="Subject" value={item.subject} onChange={subject => onChange({ subject })} /><label className="block text-sm">Email body (supports {'{{firstName}}'})<textarea rows="10" value={item.htmlBody} onChange={event => onChange({ htmlBody: event.target.value })} className="block w-full font-mono text-xs border rounded-lg p-3 mt-1" /></label><label className="block text-sm mt-3">Delay after verification<input type="number" min="0" max="10080" value={item.delayMinutes} onChange={event => onChange({ delayMinutes: event.target.value })} className="block w-full border rounded-lg px-3 py-2 mt-1" /><span className="text-[11px] text-stone-400">Minutes, from 0 (immediate) to 10,080 (7 days).</span></label><div className="flex flex-wrap gap-2 mt-5"><button onClick={onSave} disabled={saving} className="bg-stone-900 text-white px-4 py-2 rounded-lg inline-flex items-center gap-2 disabled:opacity-50">{saving && <Loader size={15} className="animate-spin" />}Save automation</button>{item.failedCount > 0 && <button onClick={onRetry} disabled={retrying} className="border px-4 py-2 rounded-lg inline-flex items-center gap-2 disabled:opacity-50"><RotateCcw size={15} /> Retry {item.failedCount} failed</button>}</div></div><aside className="space-y-4"><div className="grid grid-cols-2 gap-3"><div className="rounded-xl bg-green-50 p-4"><p className="text-2xl font-semibold text-green-800">{item.sentCount}</p><p className="text-xs text-green-700">Sent</p></div><div className="rounded-xl bg-red-50 p-4"><p className="text-2xl font-semibold text-red-800">{item.failedCount}</p><p className="text-xs text-red-700">Failed</p></div></div><div className="border rounded-xl p-4"><p className="text-sm font-medium">Send a test</p><input type="email" value={testEmail} onChange={event => setTestEmail(event.target.value)} placeholder="you@example.com" className="w-full border rounded-lg px-3 py-2 mt-3 text-sm" /><button onClick={onTest} disabled={testing} className="w-full border rounded-lg px-3 py-2 mt-2 text-sm inline-flex justify-center items-center gap-2 disabled:opacity-50">{testing ? <Loader size={14} className="animate-spin" /> : <Send size={14} />}Send test</button></div><div className="border rounded-xl p-4"><p className="text-sm font-medium mb-3">Recent activity</p>{!item.deliveries?.length && <p className="text-xs text-stone-400">No deliveries yet.</p>}{item.deliveries?.map(delivery => <div key={delivery.id} className="flex items-start justify-between gap-3 border-t first:border-0 py-2 text-xs"><div><b>{delivery.status}</b><p className="text-stone-400 mt-0.5">{new Date(delivery.sentAt || delivery.scheduledFor).toLocaleString()}</p>{delivery.lastError && <p className="text-red-600 mt-1 line-clamp-2">{delivery.lastError}</p>}</div><span className="text-stone-400">{delivery.attempts} try</span></div>)}</div></aside></div></section>;
+};
 
 const Panel = ({ title, children }) => <section className="bg-white border rounded-xl p-5"><h2 className="font-semibold mb-4">{title}</h2>{children}</section>;
 const Input = ({ label, type = 'text', value, onChange }) => <label className="block text-sm mb-3">{label}<input type={type} value={value || ''} onChange={event => onChange(event.target.value)} className="block w-full border rounded-lg px-3 py-2 mt-1" /></label>;

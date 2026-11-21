@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { sendVerificationEmail } = require('../utils/emailService');
 const { OAuth2Client } = require('google-auth-library');
+const { enqueueAutomationEvent, processAutomationBatch } = require('../services/automationService');
 
 const DEFAULT_GOOGLE_CLIENT_ID = '1050404875372-dir2v8sobkf4757c129pjl0hgum3dlak.apps.googleusercontent.com';
 const googleClient = new OAuth2Client();
@@ -210,6 +211,13 @@ exports.verifyEmail = async (req, res) => {
         verificationToken: null
       }
     });
+
+    try {
+      const queued = await enqueueAutomationEvent({ type: 'WELCOME', customerId: user.id, eventKey: `email-verified:${user.id}` });
+      if (queued) await processAutomationBatch({ workflowId: queued.workflowId, limit: 1 });
+    } catch (automationError) {
+      console.error('Welcome automation could not be queued:', automationError.message);
+    }
 
     console.log('✅ Verification successful for:', user.email);
     console.log('==================================');

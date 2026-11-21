@@ -238,6 +238,11 @@ export const marketingAPI = {
   retryCampaign: id => api.post(`/marketing/campaigns/${id}/retry`),
   getCampaignAnalytics: id => api.get(`/marketing/campaigns/${id}/analytics`),
   exportCampaign: id => api.get(`/marketing/campaigns/${id}/export`, { responseType: 'blob' }),
+  getAutomations: () => api.get('/marketing/automations'),
+  updateAutomation: (id, data) => api.put(`/marketing/automations/${id}`, data),
+  testAutomation: (id, email) => api.post(`/marketing/automations/${id}/test`, { email }),
+  processAutomation: id => api.post(`/marketing/automations/${id}/process`),
+  retryAutomation: id => api.post(`/marketing/automations/${id}/retry`),
   unsubscribe: token => api.post(`/marketing/unsubscribe/${encodeURIComponent(token)}`),
 };
 

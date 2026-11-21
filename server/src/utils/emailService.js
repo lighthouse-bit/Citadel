@@ -1238,6 +1238,20 @@ const sendMarketingCampaignEmail = async ({ email, subject, htmlBody, firstName,
   });
 };
 
+const buildAutomationEmail = ({ subject, htmlBody, firstName }) => ({
+  subject,
+  html: `${String(htmlBody || '').replaceAll('{{firstName}}', escapeHtml(firstName || 'there'))}<div style="max-width:640px;margin:28px auto 0;padding:20px;border-top:1px solid #e7e5e4;text-align:center;color:#78716c;font-family:Arial,sans-serif;font-size:12px;line-height:1.6">This account email was sent automatically by Highmarc Art Atelier.</div>`,
+});
+
+const sendAutomationEmail = async ({ email, subject, htmlBody, firstName }) => {
+  const transporter = createTransporter();
+  return transporter.sendMail({
+    from: `"Highmarc Art Atelier" <${process.env.EMAIL_USER}>`,
+    to: email,
+    ...buildAutomationEmail({ subject, htmlBody, firstName }),
+  });
+};
+
 module.exports = {
   sendVerificationEmail,
   sendCommissionConfirmationEmail,
@@ -1253,5 +1267,7 @@ module.exports = {
   buildDigitalDeliveryEmail,
   sendMarketingCampaignEmail,
   buildMarketingCampaignEmail,
+  sendAutomationEmail,
+  buildAutomationEmail,
   getContactRecipient,
 };
