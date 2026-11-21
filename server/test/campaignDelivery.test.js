@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { buildMarketingCampaignEmail } = require('../src/utils/emailService');
-const { campaignStatusFromCounts, segmentWhere } = require('../src/services/campaignDeliveryService');
+const { campaignStatusFromCounts, segmentWhere, VALID_SEGMENTS } = require('../src/services/campaignDeliveryService');
 const { signAlertToken, verifyAlertToken } = require('../src/utils/wishlistAlertTokens');
 const { safeEqual } = require('../src/middleware/cronAuth');
 
@@ -41,6 +41,20 @@ test('recipient segments always enforce consent and account eligibility', () => 
   assert.equal(segmentWhere('VERIFIED').isVerified, true);
   assert.ok(segmentWhere('CUSTOMERS').orders.some);
   assert.ok(segmentWhere('COMMISSION_CLIENTS').commissions.some);
+});
+
+test('targeted campaign segments use fixed and explainable audience rules', () => {
+  const now = new Date('2026-11-21T12:00:00.000Z');
+  const recent = segmentWhere('RECENT_CUSTOMERS', now);
+  const highValue = segmentWhere('HIGH_VALUE_COLLECTORS', now);
+  const inactive = segmentWhere('INACTIVE_CUSTOMERS', now);
+  assert.equal(recent.createdAt.gte.toISOString(), '2026-08-23T12:00:00.000Z');
+  assert.equal(highValue.OR[0].orders.some.total.gte, 5000);
+  assert.equal(highValue.OR[1].commissions.some.finalPrice.gte, 5000);
+  assert.equal(inactive.createdAt.lt.toISOString(), '2026-05-25T12:00:00.000Z');
+  assert.ok(VALID_SEGMENTS.has('RECENT_CUSTOMERS'));
+  assert.ok(VALID_SEGMENTS.has('HIGH_VALUE_COLLECTORS'));
+  assert.ok(VALID_SEGMENTS.has('INACTIVE_CUSTOMERS'));
 });
 
 test('cron secrets use constant-time comparison helper', () => {

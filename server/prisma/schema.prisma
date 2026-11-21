@@ -666,6 +666,7 @@ model EmailCampaign {
   startedAt       DateTime?
   completedAt     DateTime?
   lastProcessedAt DateTime?
+  scheduledAt     DateTime?
   sentAt          DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -673,6 +674,7 @@ model EmailCampaign {
   deliveries CampaignDelivery[]
 
   @@index([status, createdAt])
+  @@index([status, scheduledAt])
 }
 
 model CampaignDelivery {

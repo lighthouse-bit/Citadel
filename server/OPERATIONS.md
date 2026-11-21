@@ -26,6 +26,8 @@ This clears expired admin-reset tokens, stale unverified-customer tokens, and op
 
 Vercel also invokes `GET /api/marketing/campaigns/process` daily as a recovery worker for queued email campaigns. Set a long, random `CRON_SECRET` in the Vercel production environment; Vercel sends it as a bearer token. Campaigns are processed immediately in small batches while the admin campaign page is open, and the scheduled worker safely resumes anything left in the queue.
 
+Due scheduled campaigns are activated within 30 seconds while the admin Campaigns page is open. The daily Vercel job is the unattended recovery path. If the Vercel project is upgraded to a plan that permits sub-daily cron precision, increase the cron frequency in `vercel.json` for unattended time-sensitive scheduling.
+
 ## Incident response
 
 1. Preserve logs and note the first observed timestamp.
