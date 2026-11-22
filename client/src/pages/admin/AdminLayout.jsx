@@ -20,6 +20,7 @@ import {
   ClipboardList,
   Megaphone,
   LineChart,
+  BarChart3,
   HeartPulse,
   Heart,
   MessageSquare,
@@ -161,7 +162,8 @@ const AdminLayout = () => {
       items: [
         { path: '/admin/marketing', icon: Megaphone, label: 'Marketing' },
         { path: '/admin/wishlist-alerts', icon: Heart, label: 'Wishlist Alerts' },
-        { path: '/admin/reports', icon: LineChart, label: 'Reports' },
+        { path: '/admin/analytics', icon: BarChart3, label: 'Analytics' },
+        { path: '/admin/reports', icon: LineChart, label: 'Financial Reports' },
       ],
     },
     {

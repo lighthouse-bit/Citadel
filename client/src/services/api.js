@@ -280,6 +280,7 @@ export const analyticsAPI = {
   trackPageView: (data) => api.post('/analytics/pageview', data).catch(() => {}),
   trackEvent:    (data) => api.post('/analytics/event', data).catch(() => {}),
   getSummary:    (period) => api.get('/analytics/summary', { params: { period } }),
+  getComprehensive: (period) => api.get('/analytics/comprehensive', { params: { period } }),
 };
 export default api;
 

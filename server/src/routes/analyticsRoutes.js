@@ -3,6 +3,7 @@ const express = require('express');
 const router  = express.Router();
 const prisma  = require('../config/database');
 const { authenticateAdmin } = require('../middleware/auth');
+const { getComprehensiveAnalytics } = require('../controllers/comprehensiveAnalyticsController');
 
 // ── Track Page View (Public — called from frontend) ──────────────
 router.post('/pageview', async (req, res) => {
@@ -78,6 +79,8 @@ router.post('/event', async (req, res) => {
 });
 
 // ── Get Analytics Summary (Admin Only) ───────────────────────────
+router.get('/comprehensive', authenticateAdmin, getComprehensiveAnalytics);
+
 router.get('/summary', authenticateAdmin, async (req, res) => {
   try {
     const { period = '7d' } = req.query;

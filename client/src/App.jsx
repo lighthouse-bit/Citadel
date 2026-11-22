@@ -59,6 +59,7 @@ const Customers = lazy(() => import('./pages/admin/Customers'));
 const AuditLog = lazy(() => import('./pages/admin/AuditLog'));
 const Marketing = lazy(() => import('./pages/admin/Marketing'));
 const Reports = lazy(() => import('./pages/admin/Reports'));
+const Analytics = lazy(() => import('./pages/admin/Analytics'));
 const SystemHealth = lazy(() => import('./pages/admin/SystemHealth'));
 const AdminResetPassword = lazy(() => import('./pages/admin/AdminResetPassword'));
 const WishlistAlerts = lazy(() => import('./pages/admin/WishlistAlerts'));
@@ -170,6 +171,7 @@ function App() {
                       <Route path="support" element={<Support />} />
                       <Route path="support/:id" element={<Support />} />
                       <Route path="reports" element={<Reports />} />
+                      <Route path="analytics" element={<Analytics />} />
                       <Route path="system" element={<SystemHealth />} />
                       <Route path="privacy-requests" element={<PrivacyRequests />} />
                     </Route>
