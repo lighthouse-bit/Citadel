@@ -17,37 +17,47 @@ exports.getComprehensiveAnalytics = async (req, res) => {
     const previousStart = new Date(start.getTime() - days * 86400000);
     const paidOrder = { paymentStatus: 'FULLY_PAID', status: { not: 'CANCELLED' } };
     const commissionPaymentWhere = range => ({ paymentStatus: { in: ['DEPOSIT_PAID', 'FULLY_PAID'] }, status: { not: 'CANCELLED' }, OR: [{ depositPaidAt: range }, { balancePaidAt: range }] });
+    const metricFailures = [];
+    const metric = (name, query, fallback) => Promise.resolve()
+      .then(query)
+      .catch(error => {
+        metricFailures.push(name);
+        console.error(`Analytics metric failed [${name}]:`, error.message);
+        return fallback;
+      });
 
     const [currentOrders, previousOrders, currentCommissions, previousCommissions,
       newCustomers, previousCustomers, totalCustomers, verifiedCustomers, marketingSubscribers,
       totalViews, previousViews, visitorGroups, previousVisitorGroups, viewsByDay,
       viewsByPage, devices, eventGroups, topItems, orderStatuses, commissionStatuses,
       campaignTotals, automationTotals, abandonedCarts, outstandingCommissions] = await Promise.all([
-      prisma.order.findMany({ where: { ...paidOrder, createdAt: { gte: start, lte: end } }, select: { total: true, createdAt: true, customerId: true } }),
-      prisma.order.findMany({ where: { ...paidOrder, createdAt: { gte: previousStart, lt: start } }, select: { total: true, createdAt: true, customerId: true } }),
-      prisma.commission.findMany({ where: commissionPaymentWhere({ gte: start, lte: end }) }),
-      prisma.commission.findMany({ where: commissionPaymentWhere({ gte: previousStart, lt: start }) }),
-      prisma.customer.count({ where: { createdAt: { gte: start, lte: end } } }),
-      prisma.customer.count({ where: { createdAt: { gte: previousStart, lt: start } } }),
-      prisma.customer.count(),
-      prisma.customer.count({ where: { isVerified: true } }),
-      prisma.customer.count({ where: { marketingEmails: true, isSuspended: false } }),
-      prisma.pageView.count({ where: { createdAt: { gte: start, lte: end } } }),
-      prisma.pageView.count({ where: { createdAt: { gte: previousStart, lt: start } } }),
-      prisma.pageView.groupBy({ by: ['sessionId'], where: { createdAt: { gte: start, lte: end }, sessionId: { not: null } } }),
-      prisma.pageView.groupBy({ by: ['sessionId'], where: { createdAt: { gte: previousStart, lt: start }, sessionId: { not: null } } }),
-      prisma.$queryRaw`SELECT DATE("createdAt") AS date, COUNT(*)::int AS views, COUNT(DISTINCT "sessionId")::int AS visitors FROM "PageView" WHERE "createdAt" >= ${start} AND "createdAt" <= ${end} GROUP BY DATE("createdAt") ORDER BY date ASC`,
-      prisma.pageView.groupBy({ by: ['path'], where: { createdAt: { gte: start, lte: end } }, _count: { id: true }, orderBy: { _count: { id: 'desc' } }, take: 8 }),
-      prisma.pageView.groupBy({ by: ['device'], where: { createdAt: { gte: start, lte: end } }, _count: { id: true } }),
-      prisma.analyticsEvent.groupBy({ by: ['event'], where: { createdAt: { gte: start, lte: end } }, _count: { id: true } }),
-      prisma.orderItem.groupBy({ by: ['artworkId', 'title'], where: { order: { ...paidOrder, createdAt: { gte: start, lte: end } } }, _count: { artworkId: true }, _sum: { price: true }, orderBy: { _sum: { price: 'desc' } }, take: 8 }),
-      prisma.order.groupBy({ by: ['status'], where: { createdAt: { gte: start, lte: end } }, _count: { _all: true } }),
-      prisma.commission.groupBy({ by: ['status'], where: { createdAt: { gte: start, lte: end } }, _count: { _all: true } }),
-      prisma.emailCampaign.aggregate({ where: { sentAt: { gte: start, lte: end } }, _sum: { recipientCount: true, deliveredCount: true, openedCount: true, clickedCount: true, unsubscribeCount: true }, _count: { _all: true } }),
-      prisma.automationDelivery.groupBy({ by: ['status'], where: { createdAt: { gte: start, lte: end } }, _count: { _all: true } }),
-      prisma.cartItem.groupBy({ by: ['customerId'], where: { updatedAt: { lt: new Date(end.getTime() - 24 * 60 * 60 * 1000) } }, _count: { _all: true } }),
-      prisma.commission.count({ where: { status: { notIn: ['COMPLETED', 'CANCELLED'] }, paymentStatus: { in: ['UNPAID', 'DEPOSIT_PAID'] } } }),
+      metric('current orders', () => prisma.order.findMany({ where: { ...paidOrder, createdAt: { gte: start, lte: end } }, select: { total: true, createdAt: true, customerId: true } }), []),
+      metric('previous orders', () => prisma.order.findMany({ where: { ...paidOrder, createdAt: { gte: previousStart, lt: start } }, select: { total: true, createdAt: true, customerId: true } }), []),
+      metric('current commission receipts', () => prisma.commission.findMany({ where: commissionPaymentWhere({ gte: start, lte: end }) }), []),
+      metric('previous commission receipts', () => prisma.commission.findMany({ where: commissionPaymentWhere({ gte: previousStart, lt: start }) }), []),
+      metric('new customers', () => prisma.customer.count({ where: { createdAt: { gte: start, lte: end } } }), 0),
+      metric('previous customers', () => prisma.customer.count({ where: { createdAt: { gte: previousStart, lt: start } } }), 0),
+      metric('total customers', () => prisma.customer.count(), 0),
+      metric('verified customers', () => prisma.customer.count({ where: { isVerified: true } }), 0),
+      metric('marketing subscribers', () => prisma.customer.count({ where: { marketingEmails: true, isSuspended: false } }), 0),
+      metric('page views', () => prisma.pageView.count({ where: { createdAt: { gte: start, lte: end } } }), 0),
+      metric('previous page views', () => prisma.pageView.count({ where: { createdAt: { gte: previousStart, lt: start } } }), 0),
+      metric('visitors', () => prisma.pageView.groupBy({ by: ['sessionId'], where: { createdAt: { gte: start, lte: end }, sessionId: { not: null } } }), []),
+      metric('previous visitors', () => prisma.pageView.groupBy({ by: ['sessionId'], where: { createdAt: { gte: previousStart, lt: start }, sessionId: { not: null } } }), []),
+      metric('traffic timeline', () => prisma.$queryRaw`SELECT DATE("createdAt") AS date, COUNT(*)::int AS views, COUNT(DISTINCT "sessionId")::int AS visitors FROM "PageView" WHERE "createdAt" >= ${start} AND "createdAt" <= ${end} GROUP BY DATE("createdAt") ORDER BY date ASC`, []),
+      metric('top pages', () => prisma.pageView.groupBy({ by: ['path'], where: { createdAt: { gte: start, lte: end } }, _count: { id: true }, orderBy: { _count: { id: 'desc' } }, take: 8 }), []),
+      metric('devices', () => prisma.pageView.groupBy({ by: ['device'], where: { createdAt: { gte: start, lte: end } }, _count: { id: true } }), []),
+      metric('conversion events', () => prisma.analyticsEvent.groupBy({ by: ['event'], where: { createdAt: { gte: start, lte: end } }, _count: { id: true } }), []),
+      metric('top artworks', () => prisma.orderItem.groupBy({ by: ['artworkId', 'title'], where: { order: { ...paidOrder, createdAt: { gte: start, lte: end } } }, _count: { artworkId: true }, _sum: { price: true }, orderBy: { _sum: { price: 'desc' } }, take: 8 }), []),
+      metric('order pipeline', () => prisma.order.groupBy({ by: ['status'], where: { createdAt: { gte: start, lte: end } }, _count: { _all: true } }), []),
+      metric('commission pipeline', () => prisma.commission.groupBy({ by: ['status'], where: { createdAt: { gte: start, lte: end } }, _count: { _all: true } }), []),
+      metric('campaign engagement', () => prisma.emailCampaign.aggregate({ where: { sentAt: { gte: start, lte: end } }, _sum: { recipientCount: true, deliveredCount: true, openedCount: true, clickedCount: true, unsubscribeCount: true }, _count: { _all: true } }), { _sum: {}, _count: { _all: 0 } }),
+      metric('automation health', () => prisma.automationDelivery.groupBy({ by: ['status'], where: { createdAt: { gte: start, lte: end } }, _count: { _all: true } }), []),
+      metric('abandoned carts', () => prisma.cartItem.groupBy({ by: ['customerId'], where: { updatedAt: { lt: new Date(end.getTime() - 24 * 60 * 60 * 1000) } }, _count: { _all: true } }), []),
+      metric('outstanding commissions', () => prisma.commission.count({ where: { status: { notIn: ['COMPLETED', 'CANCELLED'] }, paymentStatus: { in: ['UNPAID', 'DEPOSIT_PAID'] } } }), 0),
     ]);
+
+    if (metricFailures.length >= 20) throw new Error('Analytics database is unavailable');
 
     const orderRevenue = currentOrders.reduce((sum, order) => sum + Number(order.total), 0);
     const previousOrderRevenue = previousOrders.reduce((sum, order) => sum + Number(order.total), 0);
@@ -77,6 +87,8 @@ exports.getComprehensiveAnalytics = async (req, res) => {
 
     res.json({
       period, range: { from: dateKey(start), to: dateKey(end) }, generatedAt: end,
+      partial: metricFailures.length > 0,
+      unavailableMetrics: metricFailures,
       overview: {
         revenue, orders: currentOrders.length, visitors: visitorGroups.length, newCustomers,
         averageOrderValue: currentOrders.length ? orderRevenue / currentOrders.length : 0,

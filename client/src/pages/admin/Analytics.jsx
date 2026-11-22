@@ -25,6 +25,10 @@ export default function Analytics() {
       const response = await analyticsAPI.getComprehensive(period);
       setData(response.data);
     } catch (error) {
+      if (error.response?.status === 401) {
+        window.location.assign('/admin/login');
+        return;
+      }
       toast.error(error.response?.data?.error || 'Analytics could not be loaded');
     } finally {
       setLoading(false);
@@ -57,6 +61,8 @@ export default function Analytics() {
         <button onClick={load} disabled={loading} className="p-3 border rounded-xl bg-white hover:bg-stone-50 disabled:opacity-50" aria-label="Refresh analytics"><RefreshCw size={18} className={loading ? 'animate-spin' : ''} /></button>
       </div>
     </header>
+
+    {data.partial && <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">Most analytics loaded, but {data.unavailableMetrics.length} data {data.unavailableMetrics.length === 1 ? 'source is' : 'sources are'} temporarily unavailable. Available figures are shown below.</div>}
 
     <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
       {cards.map(([icon, label, value, trend]) => <MetricCard key={label} icon={icon} label={label} value={value} trend={trend} />)}
